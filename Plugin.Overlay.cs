@@ -290,7 +290,7 @@ public sealed unsafe partial class Plugin
 
         ImGui.SetNextWindowPos(new Vector2(areaOrigin.X, windowY), ImGuiCond.Always);
         ImGui.SetNextWindowSize(new Vector2(windowWidth, windowHeight), ImGuiCond.Always);
-        ImGui.SetNextWindowBgAlpha(0f);
+        ImGui.SetNextWindowBgAlpha(0.55f);
         if (!ImGui.Begin($"FFXIVAuraOverlayNameControl-{iconWindow.Id}", OverlayControlWindowFlags()))
         {
             ImGui.End();
@@ -299,6 +299,9 @@ public sealed unsafe partial class Plugin
 
         ImGui.PushID($"overlay-name-control-{iconWindow.Id}");
         ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, framePadding);
+        ImGui.PushStyleColor(ImGuiCol.FrameBg, new Vector4(0.04f, 0.06f, 0.08f, 0.82f));
+        ImGui.PushStyleColor(ImGuiCol.FrameBgHovered, new Vector4(0.06f, 0.1f, 0.12f, 0.9f));
+        ImGui.PushStyleColor(ImGuiCol.FrameBgActive, new Vector4(0.08f, 0.16f, 0.18f, 0.95f));
         ImGui.SetCursorPos(new Vector2(padding, padding));
         ImGui.SetNextItemWidth(inputWidth);
         var name = iconWindow.Name;
@@ -308,6 +311,7 @@ public sealed unsafe partial class Plugin
             this.QueueConfigSave();
         }
 
+        ImGui.PopStyleColor(3);
         ImGui.PopStyleVar();
         ImGui.PopID();
         ImGui.End();
