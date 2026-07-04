@@ -97,7 +97,11 @@ public sealed unsafe partial class Plugin
         ImGui.PopStyleVar();
 
         if (!this.config.LockOverlay)
+        {
+            this.DrawOverlayRoleControls(iconWindow, areaOrigin, areaSize);
+            this.DrawOverlayDisplayConditionControl(iconWindow, areaOrigin, areaSize);
             this.DrawOverlayAlignmentControls(iconWindow, job, level, areaOrigin, areaSize);
+        }
     }
 
     private Vector2 GetAuraIconPosition(IconWindowConfig iconWindow, AuraState aura, int index, int visibleCount, Vector2 areaSize, float iconSize, float gap)
@@ -178,6 +182,102 @@ public sealed unsafe partial class Plugin
         this.QueueConfigSave();
     }
 
+    private void DrawOverlayRoleControls(IconWindowConfig iconWindow, Vector2 areaOrigin, Vector2 areaSize)
+    {
+        const float padding = 6f;
+        var framePadding = new Vector2(7f, 3f);
+        var itemSpacing = new Vector2(4f, 0f);
+        var options = WindowRoleOptions().ToList();
+        var contentWidth = options.Sum(option => ImGui.CalcTextSize(option.Label).X + framePadding.X * 2f)
+                           + Math.Max(0, options.Count - 1) * itemSpacing.X;
+        var windowWidth = contentWidth + padding * 2f;
+        var windowHeight = ImGui.GetTextLineHeight() + framePadding.Y * 2f + padding * 2f;
+        var windowY = Math.Max(0f, areaOrigin.Y - windowHeight - 4f);
+
+        ImGui.SetNextWindowPos(new Vector2(areaOrigin.X, windowY), ImGuiCond.Always);
+        ImGui.SetNextWindowSize(new Vector2(windowWidth, windowHeight), ImGuiCond.Always);
+        ImGui.SetNextWindowBgAlpha(0f);
+        if (!ImGui.Begin($"FFXIVAuraOverlayRoleControls-{iconWindow.Id}", OverlayControlWindowFlags()))
+        {
+            ImGui.End();
+            return;
+        }
+
+        ImGui.PushID($"overlay-role-controls-{iconWindow.Id}");
+        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, framePadding);
+        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, itemSpacing);
+        ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.05f, 0.08f, 0.1f, 0.82f));
+        ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new Vector4(0.08f, 0.32f, 0.38f, 0.95f));
+        ImGui.PushStyleColor(ImGuiCol.ButtonActive, new Vector4(0.12f, 0.48f, 0.56f, 1f));
+
+        ImGui.SetCursorPos(new Vector2(padding, padding));
+        for (var i = 0; i < options.Count; i++)
+        {
+            if (i > 0)
+                ImGui.SameLine();
+
+            var (role, label) = options[i];
+            if (!this.DrawOverlayControlButton(iconWindow.Role == role, label))
+                continue;
+
+            iconWindow.Role = role;
+            this.QueueConfigSave();
+        }
+
+        ImGui.PopStyleColor(3);
+        ImGui.PopStyleVar(2);
+        ImGui.PopID();
+        ImGui.End();
+    }
+
+    private void DrawOverlayDisplayConditionControl(IconWindowConfig iconWindow, Vector2 areaOrigin, Vector2 areaSize)
+    {
+        const float padding = 6f;
+        var framePadding = new Vector2(7f, 3f);
+        var options = DisplayConditionOptions().ToList();
+        var currentLabel = options.FirstOrDefault(option => option.Condition == iconWindow.DisplayCondition).Label ?? "항상";
+        var comboWidth = Math.Max(118f, options.Max(option => ImGui.CalcTextSize(option.Label).X) + framePadding.X * 2f + 26f);
+        var windowWidth = comboWidth + padding * 2f;
+        var windowHeight = ImGui.GetTextLineHeight() + framePadding.Y * 2f + padding * 2f;
+        var windowX = Math.Max(areaOrigin.X, areaOrigin.X + areaSize.X - windowWidth);
+        var windowY = Math.Max(0f, areaOrigin.Y - windowHeight - 4f);
+
+        ImGui.SetNextWindowPos(new Vector2(windowX, windowY), ImGuiCond.Always);
+        ImGui.SetNextWindowSize(new Vector2(windowWidth, windowHeight), ImGuiCond.Always);
+        ImGui.SetNextWindowBgAlpha(0f);
+        if (!ImGui.Begin($"FFXIVAuraOverlayConditionControl-{iconWindow.Id}", OverlayControlWindowFlags()))
+        {
+            ImGui.End();
+            return;
+        }
+
+        ImGui.PushID($"overlay-condition-control-{iconWindow.Id}");
+        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, framePadding);
+        ImGui.SetCursorPos(new Vector2(padding, padding));
+        ImGui.SetNextItemWidth(comboWidth);
+        if (ImGui.BeginCombo("##condition", currentLabel))
+        {
+            foreach (var (condition, label) in options)
+            {
+                var selected = iconWindow.DisplayCondition == condition;
+                if (ImGui.Selectable(label, selected))
+                {
+                    iconWindow.DisplayCondition = condition;
+                    this.QueueConfigSave();
+                }
+
+                if (selected)
+                    ImGui.SetItemDefaultFocus();
+            }
+
+            ImGui.EndCombo();
+        }
+
+        ImGui.PopStyleVar();
+        ImGui.PopID();
+        ImGui.End();
+    }
+
     private void DrawOverlayAlignmentControls(IconWindowConfig iconWindow, string job, uint level, Vector2 areaOrigin, Vector2 areaSize)
     {
         const float padding = 6f;
@@ -199,13 +299,7 @@ public sealed unsafe partial class Plugin
         ImGui.SetNextWindowPos(new Vector2(windowX, windowY), ImGuiCond.Always);
         ImGui.SetNextWindowSize(new Vector2(windowWidth, windowHeight), ImGuiCond.Always);
         ImGui.SetNextWindowBgAlpha(0f);
-        var flags = ImGuiWindowFlags.NoTitleBar
-                    | ImGuiWindowFlags.NoScrollbar
-                    | ImGuiWindowFlags.NoSavedSettings
-                    | ImGuiWindowFlags.NoDecoration
-                    | ImGuiWindowFlags.NoMove;
-
-        if (!ImGui.Begin($"FFXIVAuraOverlayControls-{iconWindow.Id}", flags))
+        if (!ImGui.Begin($"FFXIVAuraOverlayControls-{iconWindow.Id}", OverlayControlWindowFlags()))
         {
             ImGui.End();
             return;
@@ -220,15 +314,15 @@ public sealed unsafe partial class Plugin
 
         ImGui.SetCursorPos(new Vector2(padding, padding));
 
-        if (this.DrawOverlayAlignmentButton(iconWindow.Alignment == IconAlignment.Left, leftLabel))
+        if (this.DrawOverlayControlButton(iconWindow.Alignment == IconAlignment.Left, leftLabel))
             this.ApplyOverlayAlignment(iconWindow, job, level, IconAlignment.Left);
 
         ImGui.SameLine();
-        if (this.DrawOverlayAlignmentButton(iconWindow.Alignment == IconAlignment.Center, centerLabel))
+        if (this.DrawOverlayControlButton(iconWindow.Alignment == IconAlignment.Center, centerLabel))
             this.ApplyOverlayAlignment(iconWindow, job, level, IconAlignment.Center);
 
         ImGui.SameLine();
-        if (this.DrawOverlayAlignmentButton(iconWindow.Alignment == IconAlignment.Right, rightLabel))
+        if (this.DrawOverlayControlButton(iconWindow.Alignment == IconAlignment.Right, rightLabel))
             this.ApplyOverlayAlignment(iconWindow, job, level, IconAlignment.Right);
 
         ImGui.PopStyleColor(3);
@@ -237,7 +331,14 @@ public sealed unsafe partial class Plugin
         ImGui.End();
     }
 
-    private bool DrawOverlayAlignmentButton(bool selected, string label)
+    private static ImGuiWindowFlags OverlayControlWindowFlags()
+        => ImGuiWindowFlags.NoTitleBar
+           | ImGuiWindowFlags.NoScrollbar
+           | ImGuiWindowFlags.NoSavedSettings
+           | ImGuiWindowFlags.NoDecoration
+           | ImGuiWindowFlags.NoMove;
+
+    private bool DrawOverlayControlButton(bool selected, string label)
     {
         if (selected)
             ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.14f, 0.5f, 0.58f, 0.96f));

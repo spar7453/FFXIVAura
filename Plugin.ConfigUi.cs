@@ -86,10 +86,7 @@ public sealed unsafe partial class Plugin
     private bool DrawOverlayWindowSettings(IconWindowConfig activeWindow)
     {
         var changed = false;
-        changed |= this.DrawWindowRoleSelector(activeWindow);
-        changed |= this.DrawDisplayConditionSelector(activeWindow);
 
-        ImGui.Spacing();
         var iconSize = activeWindow.IconSize;
         var gap = activeWindow.Gap;
         var overlayWidth = activeWindow.Width;
@@ -248,44 +245,6 @@ public sealed unsafe partial class Plugin
         }
 
         return used.Count + 1;
-    }
-
-    private bool DrawWindowRoleSelector(IconWindowConfig activeWindow)
-    {
-        var changed = false;
-        ImGui.TextUnformatted("창 역할");
-        foreach (var (role, label) in WindowRoleOptions())
-        {
-            if (role != IconWindowRole.SkillCooldowns)
-                ImGui.SameLine();
-
-            if (ImGui.Selectable(label, activeWindow.Role == role, ImGuiSelectableFlags.DontClosePopups, new Vector2(108f, 0f)))
-            {
-                activeWindow.Role = role;
-                changed = true;
-            }
-        }
-
-        return changed;
-    }
-
-    private bool DrawDisplayConditionSelector(IconWindowConfig activeWindow)
-    {
-        var changed = false;
-        ImGui.TextUnformatted("표시 조건");
-        foreach (var (condition, label) in DisplayConditionOptions())
-        {
-            if (condition != IconDisplayCondition.Always)
-                ImGui.SameLine();
-
-            if (ImGui.Selectable(label, activeWindow.DisplayCondition == condition, ImGuiSelectableFlags.DontClosePopups, new Vector2(96f, 0f)))
-            {
-                activeWindow.DisplayCondition = condition;
-                changed = true;
-            }
-        }
-
-        return changed;
     }
 
     private static IEnumerable<(IconWindowRole Role, string Label)> WindowRoleOptions()
