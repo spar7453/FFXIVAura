@@ -6,6 +6,7 @@
   "InternalName": "FFXIVAura",
   "AssemblyVersion": "0.1.0.0",
   "ApplicableVersion": "any",
+  "RepoUrl": "https://github.com/spar7453/FFXIVAura",
   "DalamudApiLevel": 15,
   "LoadRequiredState": 0,
   "LoadSync": false,
