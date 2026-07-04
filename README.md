@@ -48,6 +48,10 @@ The goal is simple: show only the skills, buffs, debuffs, charges, cooldowns, an
 
 ![FFXIVAura overlay edit mode](docs/images/overlay-edit-example.png)
 
+### Overlay / Tracking Settings
+
+![FFXIVAura overlay and tracking settings](docs/images/settings-overlay-tracking.png)
+
 ## Configuration Overview
 
 Open the settings window with `/fa`.
