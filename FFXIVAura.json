@@ -1,0 +1,19 @@
+{
+  "Author": "spark + Codex",
+  "Name": "FFXIVAura",
+  "Punchline": "Small cooldown aura overlay powered by Dalamud.",
+  "Description": "Dalamud-native FFXIVAura style cooldown overlay for FFXIV KR.",
+  "InternalName": "FFXIVAura",
+  "AssemblyVersion": "0.1.0.0",
+  "ApplicableVersion": "any",
+  "DalamudApiLevel": 15,
+  "LoadRequiredState": 0,
+  "LoadSync": false,
+  "LoadPriority": 0,
+  "CanUnloadAsync": false,
+  "Tags": [
+    "combat",
+    "cooldown",
+    "overlay"
+  ]
+}

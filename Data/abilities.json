@@ -1,0 +1,5657 @@
+[
+  {
+    "id": "hallowed-ground",
+    "name": "천하무적",
+    "actionId": 30,
+    "actionIds": [
+      30
+    ],
+    "job": "PLD",
+    "level": 50,
+    "cooldown": 420,
+    "charges": 1,
+    "iconId": 2502
+  },
+  {
+    "id": "holmgang",
+    "name": "일대일 결투",
+    "actionId": 43,
+    "actionIds": [
+      43
+    ],
+    "job": "WAR",
+    "level": 42,
+    "cooldown": 240,
+    "charges": 1,
+    "iconId": 266
+  },
+  {
+    "id": "living-dead",
+    "name": "산송장",
+    "actionId": 3638,
+    "actionIds": [
+      3638
+    ],
+    "job": "DRK",
+    "level": 50,
+    "cooldown": 300,
+    "charges": 1,
+    "iconId": 3077
+  },
+  {
+    "id": "superbolide",
+    "name": "폭발 유성",
+    "actionId": 16152,
+    "actionIds": [
+      16152
+    ],
+    "job": "GNB",
+    "level": 50,
+    "cooldown": 360,
+    "charges": 1,
+    "iconId": 3416
+  },
+  {
+    "id": "temperance",
+    "name": "절제",
+    "actionId": 16536,
+    "actionIds": [
+      16536
+    ],
+    "job": "WHM",
+    "level": 80,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 2645
+  },
+  {
+    "id": "liturgy",
+    "name": "예배종",
+    "actionId": 25862,
+    "actionIds": [
+      25862
+    ],
+    "job": "WHM",
+    "level": 90,
+    "cooldown": 180,
+    "charges": 1,
+    "iconId": 2649
+  },
+  {
+    "id": "chain-stratagem",
+    "name": "연환계",
+    "actionId": 7436,
+    "actionIds": [
+      7436
+    ],
+    "job": "SCH",
+    "level": 66,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 2815
+  },
+  {
+    "id": "expedient",
+    "name": "질풍노도계",
+    "actionId": 25868,
+    "actionIds": [
+      25868
+    ],
+    "job": "SCH",
+    "level": 90,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 2878
+  },
+  {
+    "id": "divination",
+    "name": "점복",
+    "actionId": 16552,
+    "actionIds": [
+      16552
+    ],
+    "job": "AST",
+    "level": 50,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 3553
+  },
+  {
+    "id": "macrocosmos",
+    "name": "대우주",
+    "actionId": 25874,
+    "actionIds": [
+      25874
+    ],
+    "job": "AST",
+    "level": 90,
+    "cooldown": 180,
+    "charges": 1,
+    "iconId": 3562
+  },
+  {
+    "id": "panhaima",
+    "name": "온혈액",
+    "actionId": 24311,
+    "actionIds": [
+      24311
+    ],
+    "job": "SGE",
+    "level": 80,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 3679
+  },
+  {
+    "id": "holos",
+    "name": "전체론",
+    "actionId": 24310,
+    "actionIds": [
+      24310
+    ],
+    "job": "SGE",
+    "level": 76,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 3678
+  },
+  {
+    "id": "brotherhood",
+    "name": "도원결의",
+    "actionId": 7396,
+    "actionIds": [
+      7396
+    ],
+    "job": "MNK",
+    "level": 70,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 2542
+  },
+  {
+    "id": "battle-litany",
+    "name": "전투 기도",
+    "actionId": 3557,
+    "actionIds": [
+      3557
+    ],
+    "job": "DRG",
+    "level": 52,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 2585
+  },
+  {
+    "id": "mug",
+    "name": "약탈",
+    "actionId": 2248,
+    "actionIds": [
+      2248
+    ],
+    "job": "NIN",
+    "level": 15,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 613
+  },
+  {
+    "id": "arcane-circle",
+    "name": "신비의 원",
+    "actionId": 24405,
+    "actionIds": [
+      24405
+    ],
+    "job": "RPR",
+    "level": 72,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 3633
+  },
+  {
+    "id": "battle-voice",
+    "name": "전장의 노래",
+    "actionId": 118,
+    "actionIds": [
+      118
+    ],
+    "job": "BRD",
+    "level": 50,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 2601
+  },
+  {
+    "id": "troubadour",
+    "name": "방랑하는 음악가",
+    "actionId": 7405,
+    "actionIds": [
+      7405
+    ],
+    "job": "BRD",
+    "level": 62,
+    "cooldown": 90,
+    "charges": 1,
+    "iconId": 2612
+  },
+  {
+    "id": "tactician",
+    "name": "책략가",
+    "actionId": 16889,
+    "actionIds": [
+      16889
+    ],
+    "job": "MCH",
+    "level": 56,
+    "cooldown": 90,
+    "charges": 1,
+    "iconId": 3040
+  },
+  {
+    "id": "technical-finish",
+    "name": "기교 마무리",
+    "actionId": 16004,
+    "actionIds": [
+      16004
+    ],
+    "job": "DNC",
+    "level": 70,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 3474
+  },
+  {
+    "id": "shield-samba",
+    "name": "수세의 삼바",
+    "actionId": 16012,
+    "actionIds": [
+      16012
+    ],
+    "job": "DNC",
+    "level": 56,
+    "cooldown": 90,
+    "charges": 1,
+    "iconId": 3469
+  },
+  {
+    "id": "searing-light",
+    "name": "타오르는 빛",
+    "actionId": 25801,
+    "actionIds": [
+      25801
+    ],
+    "job": "SMN",
+    "level": 66,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 2780
+  },
+  {
+    "id": "rampart",
+    "name": "철벽 방어",
+    "actionId": 7531,
+    "actionIds": [
+      7531
+    ],
+    "job": "ROLE",
+    "level": 8,
+    "cooldown": 90,
+    "charges": 1,
+    "iconId": 801
+  },
+  {
+    "id": "low-blow",
+    "name": "비열한 기습",
+    "actionId": 7540,
+    "actionIds": [
+      7540
+    ],
+    "job": "ROLE",
+    "level": 12,
+    "cooldown": 25,
+    "charges": 1,
+    "iconId": 802
+  },
+  {
+    "id": "provoke",
+    "name": "도발",
+    "actionId": 7533,
+    "actionIds": [
+      7533
+    ],
+    "job": "ROLE",
+    "level": 15,
+    "cooldown": 30,
+    "charges": 1,
+    "iconId": 803
+  },
+  {
+    "id": "interject",
+    "name": "말참견",
+    "actionId": 7538,
+    "actionIds": [
+      7538
+    ],
+    "job": "ROLE",
+    "level": 18,
+    "cooldown": 30,
+    "charges": 1,
+    "iconId": 808
+  },
+  {
+    "id": "reprisal",
+    "name": "앙갚음",
+    "actionId": 7535,
+    "actionIds": [
+      7535
+    ],
+    "job": "ROLE",
+    "level": 22,
+    "cooldown": 60,
+    "charges": 1,
+    "iconId": 806
+  },
+  {
+    "id": "shirk",
+    "name": "기피",
+    "actionId": 7537,
+    "actionIds": [
+      7537
+    ],
+    "job": "ROLE",
+    "level": 48,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 810
+  },
+  {
+    "id": "second-wind",
+    "name": "내단",
+    "actionId": 7541,
+    "actionIds": [
+      7541
+    ],
+    "job": "ROLE",
+    "level": 8,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 821
+  },
+  {
+    "id": "bloodbath",
+    "name": "피의 갈증",
+    "actionId": 7542,
+    "actionIds": [
+      7542
+    ],
+    "job": "ROLE",
+    "level": 12,
+    "cooldown": 90,
+    "charges": 1,
+    "iconId": 823
+  },
+  {
+    "id": "leg-sweep",
+    "name": "다리 쳐내기",
+    "actionId": 7863,
+    "actionIds": [
+      7863
+    ],
+    "job": "ROLE",
+    "level": 10,
+    "cooldown": 40,
+    "charges": 1,
+    "iconId": 824
+  },
+  {
+    "id": "feint",
+    "name": "견제",
+    "actionId": 7549,
+    "actionIds": [
+      7549
+    ],
+    "job": "ROLE",
+    "level": 22,
+    "cooldown": 90,
+    "charges": 1,
+    "iconId": 828
+  },
+  {
+    "id": "true-north",
+    "name": "진북",
+    "actionId": 7546,
+    "actionIds": [
+      7546
+    ],
+    "job": "ROLE",
+    "level": 50,
+    "cooldown": 45,
+    "charges": 2,
+    "iconId": 830
+  },
+  {
+    "id": "arms-length",
+    "name": "거리 유지",
+    "actionId": 7548,
+    "actionIds": [
+      7548
+    ],
+    "job": "ROLE",
+    "level": 32,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 822
+  },
+  {
+    "id": "head-graze",
+    "name": "머리 쏘기",
+    "actionId": 7551,
+    "actionIds": [
+      7551
+    ],
+    "job": "ROLE",
+    "level": 24,
+    "cooldown": 30,
+    "charges": 1,
+    "iconId": 848
+  },
+  {
+    "id": "leg-graze",
+    "name": "다리 쏘기",
+    "actionId": 7554,
+    "actionIds": [
+      7554
+    ],
+    "job": "ROLE",
+    "level": 6,
+    "cooldown": 30,
+    "charges": 1,
+    "iconId": 843
+  },
+  {
+    "id": "foot-graze",
+    "name": "발 쏘기",
+    "actionId": 7553,
+    "actionIds": [
+      7553
+    ],
+    "job": "ROLE",
+    "level": 10,
+    "cooldown": 30,
+    "charges": 1,
+    "iconId": 842
+  },
+  {
+    "id": "peloton",
+    "name": "단체 질주",
+    "actionId": 7557,
+    "actionIds": [
+      7557
+    ],
+    "job": "ROLE",
+    "level": 20,
+    "cooldown": 5,
+    "charges": 1,
+    "iconId": 844
+  },
+  {
+    "id": "addle",
+    "name": "정신 교란",
+    "actionId": 7560,
+    "actionIds": [
+      7560
+    ],
+    "job": "ROLE",
+    "level": 8,
+    "cooldown": 90,
+    "charges": 1,
+    "iconId": 861
+  },
+  {
+    "id": "sleep",
+    "name": "슬리플",
+    "actionId": 25880,
+    "actionIds": [
+      25880
+    ],
+    "job": "ROLE",
+    "level": 10,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 871
+  },
+  {
+    "id": "lucid-dreaming",
+    "name": "자각몽",
+    "actionId": 7562,
+    "actionIds": [
+      7562
+    ],
+    "job": "ROLE",
+    "level": 14,
+    "cooldown": 60,
+    "charges": 1,
+    "iconId": 865
+  },
+  {
+    "id": "swiftcast",
+    "name": "신속한 마법",
+    "actionId": 7561,
+    "actionIds": [
+      7561
+    ],
+    "job": "ROLE",
+    "level": 18,
+    "cooldown": 40,
+    "charges": 1,
+    "iconId": 866
+  },
+  {
+    "id": "surecast",
+    "name": "견고한 마법",
+    "actionId": 7559,
+    "actionIds": [
+      7559
+    ],
+    "job": "ROLE",
+    "level": 44,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 869
+  },
+  {
+    "id": "esuna",
+    "name": "에스나",
+    "actionId": 7568,
+    "actionIds": [
+      7568
+    ],
+    "job": "ROLE",
+    "level": 10,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 884
+  },
+  {
+    "id": "repose",
+    "name": "휴면",
+    "actionId": 16560,
+    "actionIds": [
+      16560
+    ],
+    "job": "ROLE",
+    "level": 8,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 891
+  },
+  {
+    "id": "rescue",
+    "name": "구출",
+    "actionId": 7571,
+    "actionIds": [
+      7571
+    ],
+    "job": "ROLE",
+    "level": 48,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 890
+  },
+  {
+    "id": "pld-fight-or-flight",
+    "name": "임전무퇴",
+    "actionId": 20,
+    "actionIds": [
+      20
+    ],
+    "job": "PLD",
+    "level": 2,
+    "cooldown": 60,
+    "charges": 1,
+    "iconId": 166
+  },
+  {
+    "id": "pld-spirits-within",
+    "name": "내면의 기개",
+    "actionId": 29,
+    "actionIds": [
+      29
+    ],
+    "job": "PLD",
+    "level": 30,
+    "cooldown": 30,
+    "charges": 1,
+    "iconId": 2503
+  },
+  {
+    "id": "pld-sentinel",
+    "name": "경계",
+    "actionId": 17,
+    "actionIds": [
+      17
+    ],
+    "job": "PLD",
+    "level": 38,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 151
+  },
+  {
+    "id": "pld-cover",
+    "name": "감싸기",
+    "actionId": 27,
+    "actionIds": [
+      27
+    ],
+    "job": "PLD",
+    "level": 45,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 2501
+  },
+  {
+    "id": "pld-circle-of-scorn",
+    "name": "파멸의 진",
+    "actionId": 23,
+    "actionIds": [
+      23
+    ],
+    "job": "PLD",
+    "level": 50,
+    "cooldown": 30,
+    "charges": 1,
+    "iconId": 161
+  },
+  {
+    "id": "pld-bulwark",
+    "name": "방패 각성",
+    "actionId": 22,
+    "actionIds": [
+      22
+    ],
+    "job": "PLD",
+    "level": 52,
+    "cooldown": 90,
+    "charges": 1,
+    "iconId": 167
+  },
+  {
+    "id": "pld-divine-veil",
+    "name": "신성한 보호막",
+    "actionId": 3540,
+    "actionIds": [
+      3540
+    ],
+    "job": "PLD",
+    "level": 56,
+    "cooldown": 90,
+    "charges": 1,
+    "iconId": 2508
+  },
+  {
+    "id": "pld-intervention",
+    "name": "중재",
+    "actionId": 7382,
+    "actionIds": [
+      7382
+    ],
+    "job": "PLD",
+    "level": 62,
+    "cooldown": 10,
+    "charges": 1,
+    "iconId": 2512
+  },
+  {
+    "id": "pld-intervene",
+    "name": "개입",
+    "actionId": 16461,
+    "actionIds": [
+      16461
+    ],
+    "job": "PLD",
+    "level": 66,
+    "cooldown": 30,
+    "charges": 2,
+    "iconId": 2520
+  },
+  {
+    "id": "pld-requiescat",
+    "name": "안식 기도",
+    "actionId": 7383,
+    "actionIds": [
+      7383
+    ],
+    "job": "PLD",
+    "level": 68,
+    "cooldown": 60,
+    "charges": 1,
+    "iconId": 2513
+  },
+  {
+    "id": "pld-passage-of-arms",
+    "name": "결연한 수호자",
+    "actionId": 7385,
+    "actionIds": [
+      7385
+    ],
+    "job": "PLD",
+    "level": 70,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 2515
+  },
+  {
+    "id": "pld-expiacion",
+    "name": "속죄",
+    "actionId": 25747,
+    "actionIds": [
+      25747
+    ],
+    "job": "PLD",
+    "level": 86,
+    "cooldown": 30,
+    "charges": 1,
+    "iconId": 2951
+  },
+  {
+    "id": "pld-guardian",
+    "name": "극한 방어",
+    "actionId": 36920,
+    "actionIds": [
+      36920
+    ],
+    "job": "PLD",
+    "level": 92,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 2524
+  },
+  {
+    "id": "pld-imperator",
+    "name": "제왕의 명령",
+    "actionId": 36921,
+    "actionIds": [
+      36921
+    ],
+    "job": "PLD",
+    "level": 96,
+    "cooldown": 60,
+    "charges": 1,
+    "iconId": 2955
+  },
+  {
+    "id": "war-berserk",
+    "name": "광폭화",
+    "actionId": 38,
+    "actionIds": [
+      38
+    ],
+    "job": "WAR",
+    "level": 6,
+    "cooldown": 60,
+    "charges": 1,
+    "iconId": 259
+  },
+  {
+    "id": "war-thrill-of-battle",
+    "name": "전투의 짜릿함",
+    "actionId": 40,
+    "actionIds": [
+      40
+    ],
+    "job": "WAR",
+    "level": 30,
+    "cooldown": 90,
+    "charges": 1,
+    "iconId": 263
+  },
+  {
+    "id": "war-vengeance",
+    "name": "보복",
+    "actionId": 44,
+    "actionIds": [
+      44
+    ],
+    "job": "WAR",
+    "level": 38,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 267
+  },
+  {
+    "id": "war-infuriate",
+    "name": "전장의 함성",
+    "actionId": 52,
+    "actionIds": [
+      52
+    ],
+    "job": "WAR",
+    "level": 50,
+    "cooldown": 60,
+    "charges": 2,
+    "iconId": 2555
+  },
+  {
+    "id": "war-raw-intuition",
+    "name": "원초의 직감",
+    "actionId": 3551,
+    "actionIds": [
+      3551
+    ],
+    "job": "WAR",
+    "level": 56,
+    "cooldown": 25,
+    "charges": 1,
+    "iconId": 2559
+  },
+  {
+    "id": "war-equilibrium",
+    "name": "평정심",
+    "actionId": 3552,
+    "actionIds": [
+      3552
+    ],
+    "job": "WAR",
+    "level": 58,
+    "cooldown": 60,
+    "charges": 1,
+    "iconId": 2560
+  },
+  {
+    "id": "war-onslaught",
+    "name": "맹공격",
+    "actionId": 7386,
+    "actionIds": [
+      7386
+    ],
+    "job": "WAR",
+    "level": 62,
+    "cooldown": 30,
+    "charges": 3,
+    "iconId": 2561
+  },
+  {
+    "id": "war-upheaval",
+    "name": "격변",
+    "actionId": 7387,
+    "actionIds": [
+      7387
+    ],
+    "job": "WAR",
+    "level": 64,
+    "cooldown": 30,
+    "charges": 1,
+    "iconId": 2562
+  },
+  {
+    "id": "war-shake-it-off",
+    "name": "뿌리치기",
+    "actionId": 7388,
+    "actionIds": [
+      7388
+    ],
+    "job": "WAR",
+    "level": 68,
+    "cooldown": 90,
+    "charges": 1,
+    "iconId": 2563
+  },
+  {
+    "id": "war-inner-release",
+    "name": "원초의 해방",
+    "actionId": 7389,
+    "actionIds": [
+      7389
+    ],
+    "job": "WAR",
+    "level": 70,
+    "cooldown": 60,
+    "charges": 1,
+    "iconId": 2564
+  },
+  {
+    "id": "war-nascent-flash",
+    "name": "원초의 분노",
+    "actionId": 16464,
+    "actionIds": [
+      16464
+    ],
+    "job": "WAR",
+    "level": 76,
+    "cooldown": 25,
+    "charges": 1,
+    "iconId": 2567
+  },
+  {
+    "id": "war-bloodwhetting",
+    "name": "원초의 혈기",
+    "actionId": 25751,
+    "actionIds": [
+      25751
+    ],
+    "job": "WAR",
+    "level": 82,
+    "cooldown": 25,
+    "charges": 1,
+    "iconId": 2569
+  },
+  {
+    "id": "war-orogeny",
+    "name": "대지 융기",
+    "actionId": 25752,
+    "actionIds": [
+      25752
+    ],
+    "job": "WAR",
+    "level": 86,
+    "cooldown": 30,
+    "charges": 1,
+    "iconId": 2570
+  },
+  {
+    "id": "war-damnation",
+    "name": "지옥행",
+    "actionId": 36923,
+    "actionIds": [
+      36923
+    ],
+    "job": "WAR",
+    "level": 92,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 2573
+  },
+  {
+    "id": "drk-blood-weapon",
+    "name": "피의 칼날",
+    "actionId": 3625,
+    "actionIds": [
+      3625
+    ],
+    "job": "DRK",
+    "level": 35,
+    "cooldown": 60,
+    "charges": 1,
+    "iconId": 3071
+  },
+  {
+    "id": "drk-shadow-wall",
+    "name": "그림자 장벽",
+    "actionId": 3636,
+    "actionIds": [
+      3636
+    ],
+    "job": "DRK",
+    "level": 38,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 3075
+  },
+  {
+    "id": "drk-dark-mind",
+    "name": "어두운 감정",
+    "actionId": 3634,
+    "actionIds": [
+      3634
+    ],
+    "job": "DRK",
+    "level": 45,
+    "cooldown": 60,
+    "charges": 1,
+    "iconId": 3076
+  },
+  {
+    "id": "drk-salted-earth",
+    "name": "감염 지대",
+    "actionId": 3639,
+    "actionIds": [
+      3639
+    ],
+    "job": "DRK",
+    "level": 52,
+    "cooldown": 90,
+    "charges": 1,
+    "iconId": 3066
+  },
+  {
+    "id": "drk-shadowstride",
+    "name": "그림자 걸음",
+    "actionId": 36926,
+    "actionIds": [
+      36926
+    ],
+    "job": "DRK",
+    "level": 54,
+    "cooldown": 30,
+    "charges": 2,
+    "iconId": 3093
+  },
+  {
+    "id": "drk-abyssal-drain",
+    "name": "심연의 갈증",
+    "actionId": 3641,
+    "actionIds": [
+      3641
+    ],
+    "job": "DRK",
+    "level": 56,
+    "cooldown": 60,
+    "charges": 1,
+    "iconId": 3064
+  },
+  {
+    "id": "drk-carve-and-spit",
+    "name": "난도질",
+    "actionId": 3643,
+    "actionIds": [
+      3643
+    ],
+    "job": "DRK",
+    "level": 60,
+    "cooldown": 60,
+    "charges": 1,
+    "iconId": 3058
+  },
+  {
+    "id": "drk-dark-missionary",
+    "name": "어둠의 포교자",
+    "actionId": 16471,
+    "actionIds": [
+      16471
+    ],
+    "job": "DRK",
+    "level": 66,
+    "cooldown": 90,
+    "charges": 1,
+    "iconId": 3087
+  },
+  {
+    "id": "drk-delirium",
+    "name": "피의 열광",
+    "actionId": 7390,
+    "actionIds": [
+      7390
+    ],
+    "job": "DRK",
+    "level": 68,
+    "cooldown": 60,
+    "charges": 1,
+    "iconId": 3078
+  },
+  {
+    "id": "drk-the-blackest-night",
+    "name": "흑야",
+    "actionId": 7393,
+    "actionIds": [
+      7393
+    ],
+    "job": "DRK",
+    "level": 70,
+    "cooldown": 15,
+    "charges": 1,
+    "iconId": 3081
+  },
+  {
+    "id": "drk-living-shadow",
+    "name": "환영 구현",
+    "actionId": 16472,
+    "actionIds": [
+      16472
+    ],
+    "job": "DRK",
+    "level": 80,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 3088
+  },
+  {
+    "id": "drk-oblation",
+    "name": "헌신",
+    "actionId": 25754,
+    "actionIds": [
+      25754
+    ],
+    "job": "DRK",
+    "level": 82,
+    "cooldown": 60,
+    "charges": 2,
+    "iconId": 3089
+  },
+  {
+    "id": "drk-salt-and-darkness",
+    "name": "어둠 감염",
+    "actionId": 25755,
+    "actionIds": [
+      25755
+    ],
+    "job": "DRK",
+    "level": 86,
+    "cooldown": 20,
+    "charges": 1,
+    "iconId": 3090
+  },
+  {
+    "id": "drk-shadowbringer",
+    "name": "칠흑 도래",
+    "actionId": 25757,
+    "actionIds": [
+      25757
+    ],
+    "job": "DRK",
+    "level": 90,
+    "cooldown": 60,
+    "charges": 2,
+    "iconId": 3091
+  },
+  {
+    "id": "drk-shadowed-vigil",
+    "name": "그림자 요새",
+    "actionId": 36927,
+    "actionIds": [
+      36927
+    ],
+    "job": "DRK",
+    "level": 92,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 3094
+  },
+  {
+    "id": "gnb-no-mercy",
+    "name": "무자비",
+    "actionId": 16138,
+    "actionIds": [
+      16138
+    ],
+    "job": "GNB",
+    "level": 2,
+    "cooldown": 60,
+    "charges": 1,
+    "iconId": 3402
+  },
+  {
+    "id": "gnb-camouflage",
+    "name": "위장술",
+    "actionId": 16140,
+    "actionIds": [
+      16140
+    ],
+    "job": "GNB",
+    "level": 6,
+    "cooldown": 90,
+    "charges": 1,
+    "iconId": 3404
+  },
+  {
+    "id": "gnb-danger-zone",
+    "name": "위험 지대",
+    "actionId": 16144,
+    "actionIds": [
+      16144
+    ],
+    "job": "GNB",
+    "level": 18,
+    "cooldown": 30,
+    "charges": 1,
+    "iconId": 3408
+  },
+  {
+    "id": "gnb-nebula",
+    "name": "성운",
+    "actionId": 16148,
+    "actionIds": [
+      16148
+    ],
+    "job": "GNB",
+    "level": 38,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 3412
+  },
+  {
+    "id": "gnb-aurora",
+    "name": "오로라",
+    "actionId": 16151,
+    "actionIds": [
+      16151
+    ],
+    "job": "GNB",
+    "level": 45,
+    "cooldown": 60,
+    "charges": 2,
+    "iconId": 3415
+  },
+  {
+    "id": "gnb-trajectory",
+    "name": "탄도",
+    "actionId": 36934,
+    "actionIds": [
+      36934
+    ],
+    "job": "GNB",
+    "level": 56,
+    "cooldown": 30,
+    "charges": 2,
+    "iconId": 3434
+  },
+  {
+    "id": "gnb-bow-shock",
+    "name": "원형충격파",
+    "actionId": 16159,
+    "actionIds": [
+      16159
+    ],
+    "job": "GNB",
+    "level": 62,
+    "cooldown": 60,
+    "charges": 1,
+    "iconId": 3423
+  },
+  {
+    "id": "gnb-heart-of-light",
+    "name": "빛의 심장",
+    "actionId": 16160,
+    "actionIds": [
+      16160
+    ],
+    "job": "GNB",
+    "level": 64,
+    "cooldown": 90,
+    "charges": 1,
+    "iconId": 3424
+  },
+  {
+    "id": "gnb-heart-of-stone",
+    "name": "돌의 심장",
+    "actionId": 16161,
+    "actionIds": [
+      16161
+    ],
+    "job": "GNB",
+    "level": 68,
+    "cooldown": 25,
+    "charges": 1,
+    "iconId": 3425
+  },
+  {
+    "id": "gnb-bloodfest",
+    "name": "피의 소일",
+    "actionId": 16164,
+    "actionIds": [
+      16164
+    ],
+    "job": "GNB",
+    "level": 76,
+    "cooldown": 60,
+    "charges": 1,
+    "iconId": 3428
+  },
+  {
+    "id": "gnb-blasting-zone",
+    "name": "발파 지대",
+    "actionId": 16165,
+    "actionIds": [
+      16165
+    ],
+    "job": "GNB",
+    "level": 80,
+    "cooldown": 30,
+    "charges": 1,
+    "iconId": 3429
+  },
+  {
+    "id": "gnb-heart-of-corundum",
+    "name": "강옥의 심장",
+    "actionId": 25758,
+    "actionIds": [
+      25758
+    ],
+    "job": "GNB",
+    "level": 82,
+    "cooldown": 25,
+    "charges": 1,
+    "iconId": 3430
+  },
+  {
+    "id": "gnb-great-nebula",
+    "name": "대성운",
+    "actionId": 36935,
+    "actionIds": [
+      36935
+    ],
+    "job": "GNB",
+    "level": 92,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 3435
+  },
+  {
+    "id": "whm-presence-of-mind",
+    "name": "쾌속의 마법",
+    "actionId": 136,
+    "actionIds": [
+      136
+    ],
+    "job": "WHM",
+    "level": 30,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 2626
+  },
+  {
+    "id": "whm-aetherial-shift",
+    "name": "에테르 전이",
+    "actionId": 37008,
+    "actionIds": [
+      37008
+    ],
+    "job": "WHM",
+    "level": 40,
+    "cooldown": 60,
+    "charges": 1,
+    "iconId": 2125
+  },
+  {
+    "id": "whm-benediction",
+    "name": "거룩한 축복",
+    "actionId": 140,
+    "actionIds": [
+      140
+    ],
+    "job": "WHM",
+    "level": 50,
+    "cooldown": 180,
+    "charges": 1,
+    "iconId": 2627
+  },
+  {
+    "id": "whm-asylum",
+    "name": "성소",
+    "actionId": 3569,
+    "actionIds": [
+      3569
+    ],
+    "job": "WHM",
+    "level": 52,
+    "cooldown": 90,
+    "charges": 1,
+    "iconId": 2632
+  },
+  {
+    "id": "whm-assize",
+    "name": "심판",
+    "actionId": 3571,
+    "actionIds": [
+      3571
+    ],
+    "job": "WHM",
+    "level": 56,
+    "cooldown": 40,
+    "charges": 1,
+    "iconId": 2634
+  },
+  {
+    "id": "whm-thin-air",
+    "name": "실바람",
+    "actionId": 7430,
+    "actionIds": [
+      7430
+    ],
+    "job": "WHM",
+    "level": 58,
+    "cooldown": 60,
+    "charges": 2,
+    "iconId": 2636
+  },
+  {
+    "id": "whm-tetragrammaton",
+    "name": "신의 이름",
+    "actionId": 3570,
+    "actionIds": [
+      3570
+    ],
+    "job": "WHM",
+    "level": 60,
+    "cooldown": 60,
+    "charges": 2,
+    "iconId": 2633
+  },
+  {
+    "id": "whm-divine-benison",
+    "name": "신성한 축복",
+    "actionId": 7432,
+    "actionIds": [
+      7432
+    ],
+    "job": "WHM",
+    "level": 66,
+    "cooldown": 30,
+    "charges": 2,
+    "iconId": 2638
+  },
+  {
+    "id": "whm-plenary-indulgence",
+    "name": "대사면",
+    "actionId": 7433,
+    "actionIds": [
+      7433
+    ],
+    "job": "WHM",
+    "level": 70,
+    "cooldown": 60,
+    "charges": 1,
+    "iconId": 2639
+  },
+  {
+    "id": "whm-aquaveil",
+    "name": "물의 장막",
+    "actionId": 25861,
+    "actionIds": [
+      25861
+    ],
+    "job": "WHM",
+    "level": 86,
+    "cooldown": 60,
+    "charges": 1,
+    "iconId": 2648
+  },
+  {
+    "id": "sch-whispering-dawn",
+    "name": "빛의 속삭임",
+    "actionId": 16537,
+    "actionIds": [
+      16537
+    ],
+    "job": "SCH",
+    "level": 20,
+    "cooldown": 60,
+    "charges": 1,
+    "iconId": 2852
+  },
+  {
+    "id": "sch-fey-illumination",
+    "name": "요정의 광휘",
+    "actionId": 16538,
+    "actionIds": [
+      16538
+    ],
+    "job": "SCH",
+    "level": 40,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 2853
+  },
+  {
+    "id": "sch-aetherflow",
+    "name": "에테르 순환",
+    "actionId": 166,
+    "actionIds": [
+      166
+    ],
+    "job": "SCH",
+    "level": 45,
+    "cooldown": 60,
+    "charges": 1,
+    "iconId": 510
+  },
+  {
+    "id": "sch-sacred-soil",
+    "name": "야전치유진",
+    "actionId": 188,
+    "actionIds": [
+      188
+    ],
+    "job": "SCH",
+    "level": 50,
+    "cooldown": 30,
+    "charges": 1,
+    "iconId": 2804
+  },
+  {
+    "id": "sch-indomitability",
+    "name": "불요불굴책",
+    "actionId": 3583,
+    "actionIds": [
+      3583
+    ],
+    "job": "SCH",
+    "level": 52,
+    "cooldown": 30,
+    "charges": 1,
+    "iconId": 2806
+  },
+  {
+    "id": "sch-deployment-tactics",
+    "name": "전개전술",
+    "actionId": 3585,
+    "actionIds": [
+      3585
+    ],
+    "job": "SCH",
+    "level": 56,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 2808
+  },
+  {
+    "id": "sch-emergency-tactics",
+    "name": "응급전술",
+    "actionId": 3586,
+    "actionIds": [
+      3586
+    ],
+    "job": "SCH",
+    "level": 58,
+    "cooldown": 15,
+    "charges": 1,
+    "iconId": 2809
+  },
+  {
+    "id": "sch-dissipation",
+    "name": "에테르 전환",
+    "actionId": 3587,
+    "actionIds": [
+      3587
+    ],
+    "job": "SCH",
+    "level": 60,
+    "cooldown": 180,
+    "charges": 1,
+    "iconId": 2810
+  },
+  {
+    "id": "sch-excogitation",
+    "name": "심모원려책",
+    "actionId": 7434,
+    "actionIds": [
+      7434
+    ],
+    "job": "SCH",
+    "level": 62,
+    "cooldown": 45,
+    "charges": 1,
+    "iconId": 2813
+  },
+  {
+    "id": "sch-recitation",
+    "name": "비책",
+    "actionId": 16542,
+    "actionIds": [
+      16542
+    ],
+    "job": "SCH",
+    "level": 74,
+    "cooldown": 90,
+    "charges": 1,
+    "iconId": 2822
+  },
+  {
+    "id": "sch-fey-blessing",
+    "name": "요정의 축복",
+    "actionId": 16543,
+    "actionIds": [
+      16543
+    ],
+    "job": "SCH",
+    "level": 76,
+    "cooldown": 60,
+    "charges": 1,
+    "iconId": 2854
+  },
+  {
+    "id": "sch-consolation",
+    "name": "위안",
+    "actionId": 16546,
+    "actionIds": [
+      16546
+    ],
+    "job": "SCH",
+    "level": 80,
+    "cooldown": 30,
+    "charges": 2,
+    "iconId": 2851
+  },
+  {
+    "id": "sch-summon-seraph",
+    "name": "세라핌 소환",
+    "actionId": 16545,
+    "actionIds": [
+      16545
+    ],
+    "job": "SCH",
+    "level": 80,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 2850
+  },
+  {
+    "id": "sch-protraction",
+    "name": "생명회생술",
+    "actionId": 25867,
+    "actionIds": [
+      25867
+    ],
+    "job": "SCH",
+    "level": 86,
+    "cooldown": 60,
+    "charges": 1,
+    "iconId": 2877
+  },
+  {
+    "id": "sch-seraphism",
+    "name": "세라피즘",
+    "actionId": 37014,
+    "actionIds": [
+      37014
+    ],
+    "job": "SCH",
+    "level": 100,
+    "cooldown": 180,
+    "charges": 1,
+    "iconId": 2881
+  },
+  {
+    "id": "ast-lightspeed",
+    "name": "광속 시전",
+    "actionId": 3606,
+    "actionIds": [
+      3606
+    ],
+    "job": "AST",
+    "level": 6,
+    "cooldown": 90,
+    "charges": 2,
+    "iconId": 3135
+  },
+  {
+    "id": "ast-essential-dignity",
+    "name": "본질적 위계",
+    "actionId": 3614,
+    "actionIds": [
+      3614
+    ],
+    "job": "AST",
+    "level": 15,
+    "cooldown": 40,
+    "charges": 3,
+    "iconId": 3141
+  },
+  {
+    "id": "ast-astral-draw",
+    "name": "별빛 점지",
+    "actionId": 37017,
+    "actionIds": [
+      37017
+    ],
+    "job": "AST",
+    "level": 30,
+    "cooldown": 55,
+    "charges": 1,
+    "iconId": 3564
+  },
+  {
+    "id": "ast-synastry",
+    "name": "궁합",
+    "actionId": 3612,
+    "actionIds": [
+      3612
+    ],
+    "job": "AST",
+    "level": 50,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 3139
+  },
+  {
+    "id": "ast-collective-unconscious",
+    "name": "운명의 수레바퀴",
+    "actionId": 3613,
+    "actionIds": [
+      3613
+    ],
+    "job": "AST",
+    "level": 58,
+    "cooldown": 60,
+    "charges": 1,
+    "iconId": 3140
+  },
+  {
+    "id": "ast-celestial-opposition",
+    "name": "천궁의 반목",
+    "actionId": 16553,
+    "actionIds": [
+      16553
+    ],
+    "job": "AST",
+    "level": 60,
+    "cooldown": 60,
+    "charges": 1,
+    "iconId": 3142
+  },
+  {
+    "id": "ast-earthly-star",
+    "name": "지상의 별",
+    "actionId": 7439,
+    "actionIds": [
+      7439
+    ],
+    "job": "AST",
+    "level": 62,
+    "cooldown": 60,
+    "charges": 1,
+    "iconId": 3143
+  },
+  {
+    "id": "ast-celestial-intersection",
+    "name": "천궁의 교차",
+    "actionId": 16556,
+    "actionIds": [
+      16556
+    ],
+    "job": "AST",
+    "level": 74,
+    "cooldown": 30,
+    "charges": 2,
+    "iconId": 3556
+  },
+  {
+    "id": "ast-horoscope",
+    "name": "별점운",
+    "actionId": 16557,
+    "actionIds": [
+      16557
+    ],
+    "job": "AST",
+    "level": 76,
+    "cooldown": 60,
+    "charges": 1,
+    "iconId": 3550
+  },
+  {
+    "id": "ast-neutral-sect",
+    "name": "하루별읽기",
+    "actionId": 16559,
+    "actionIds": [
+      16559
+    ],
+    "job": "AST",
+    "level": 80,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 3552
+  },
+  {
+    "id": "ast-exaltation",
+    "name": "성위 격상",
+    "actionId": 25873,
+    "actionIds": [
+      25873
+    ],
+    "job": "AST",
+    "level": 86,
+    "cooldown": 60,
+    "charges": 1,
+    "iconId": 3561
+  },
+  {
+    "id": "sge-physis",
+    "name": "퓌시스",
+    "actionId": 24288,
+    "actionIds": [
+      24288
+    ],
+    "job": "SGE",
+    "level": 20,
+    "cooldown": 60,
+    "charges": 1,
+    "iconId": 3656
+  },
+  {
+    "id": "sge-soteria",
+    "name": "구조",
+    "actionId": 24294,
+    "actionIds": [
+      24294
+    ],
+    "job": "SGE",
+    "level": 35,
+    "cooldown": 90,
+    "charges": 1,
+    "iconId": 3662
+  },
+  {
+    "id": "sge-icarus",
+    "name": "이카로스",
+    "actionId": 24295,
+    "actionIds": [
+      24295
+    ],
+    "job": "SGE",
+    "level": 40,
+    "cooldown": 45,
+    "charges": 1,
+    "iconId": 3663
+  },
+  {
+    "id": "sge-kerachole",
+    "name": "케이라콜레",
+    "actionId": 24298,
+    "actionIds": [
+      24298
+    ],
+    "job": "SGE",
+    "level": 50,
+    "cooldown": 30,
+    "charges": 1,
+    "iconId": 3666
+  },
+  {
+    "id": "sge-ixochole",
+    "name": "익소콜레",
+    "actionId": 24299,
+    "actionIds": [
+      24299
+    ],
+    "job": "SGE",
+    "level": 52,
+    "cooldown": 30,
+    "charges": 1,
+    "iconId": 3667
+  },
+  {
+    "id": "sge-zoe",
+    "name": "생명력",
+    "actionId": 24300,
+    "actionIds": [
+      24300
+    ],
+    "job": "SGE",
+    "level": 56,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 3668
+  },
+  {
+    "id": "sge-pepsis",
+    "name": "소화 작용",
+    "actionId": 24301,
+    "actionIds": [
+      24301
+    ],
+    "job": "SGE",
+    "level": 58,
+    "cooldown": 30,
+    "charges": 1,
+    "iconId": 3669
+  },
+  {
+    "id": "sge-physis-ii",
+    "name": "퓌시스 2",
+    "actionId": 24302,
+    "actionIds": [
+      24302
+    ],
+    "job": "SGE",
+    "level": 60,
+    "cooldown": 60,
+    "charges": 1,
+    "iconId": 3670
+  },
+  {
+    "id": "sge-taurochole",
+    "name": "타우로콜레",
+    "actionId": 24303,
+    "actionIds": [
+      24303
+    ],
+    "job": "SGE",
+    "level": 62,
+    "cooldown": 45,
+    "charges": 1,
+    "iconId": 3671
+  },
+  {
+    "id": "sge-haima",
+    "name": "혈액",
+    "actionId": 24305,
+    "actionIds": [
+      24305
+    ],
+    "job": "SGE",
+    "level": 70,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 3673
+  },
+  {
+    "id": "sge-rhizomata",
+    "name": "만물의 근원",
+    "actionId": 24309,
+    "actionIds": [
+      24309
+    ],
+    "job": "SGE",
+    "level": 74,
+    "cooldown": 90,
+    "charges": 1,
+    "iconId": 3677
+  },
+  {
+    "id": "sge-krasis",
+    "name": "체액 혼화",
+    "actionId": 24317,
+    "actionIds": [
+      24317
+    ],
+    "job": "SGE",
+    "level": 86,
+    "cooldown": 60,
+    "charges": 1,
+    "iconId": 3685
+  },
+  {
+    "id": "sge-psyche",
+    "name": "프시케",
+    "actionId": 37033,
+    "actionIds": [
+      37033
+    ],
+    "job": "SGE",
+    "level": 92,
+    "cooldown": 60,
+    "charges": 1,
+    "iconId": 3688
+  },
+  {
+    "id": "sge-philosophia",
+    "name": "필로소피아",
+    "actionId": 37035,
+    "actionIds": [
+      37035
+    ],
+    "job": "SGE",
+    "level": 100,
+    "cooldown": 180,
+    "charges": 1,
+    "iconId": 3690
+  },
+  {
+    "id": "mnk-thunderclap",
+    "name": "발중보법",
+    "actionId": 25762,
+    "actionIds": [
+      25762
+    ],
+    "job": "MNK",
+    "level": 35,
+    "cooldown": 30,
+    "charges": 3,
+    "iconId": 2975
+  },
+  {
+    "id": "mnk-mantra",
+    "name": "만트라",
+    "actionId": 65,
+    "actionIds": [
+      65
+    ],
+    "job": "MNK",
+    "level": 42,
+    "cooldown": 90,
+    "charges": 1,
+    "iconId": 216
+  },
+  {
+    "id": "mnk-perfect-balance",
+    "name": "진각",
+    "actionId": 69,
+    "actionIds": [
+      69
+    ],
+    "job": "MNK",
+    "level": 50,
+    "cooldown": 40,
+    "charges": 2,
+    "iconId": 217
+  },
+  {
+    "id": "mnk-riddle-of-earth",
+    "name": "금강의 극의",
+    "actionId": 7394,
+    "actionIds": [
+      7394
+    ],
+    "job": "MNK",
+    "level": 64,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 2537
+  },
+  {
+    "id": "mnk-riddle-of-fire",
+    "name": "홍련의 극의",
+    "actionId": 7395,
+    "actionIds": [
+      7395
+    ],
+    "job": "MNK",
+    "level": 68,
+    "cooldown": 60,
+    "charges": 1,
+    "iconId": 2541
+  },
+  {
+    "id": "mnk-riddle-of-wind",
+    "name": "질풍의 극의",
+    "actionId": 25766,
+    "actionIds": [
+      25766
+    ],
+    "job": "MNK",
+    "level": 72,
+    "cooldown": 90,
+    "charges": 1,
+    "iconId": 2978
+  },
+  {
+    "id": "drg-life-surge",
+    "name": "생명력 쇄도",
+    "actionId": 83,
+    "actionIds": [
+      83
+    ],
+    "job": "DRG",
+    "level": 6,
+    "cooldown": 40,
+    "charges": 2,
+    "iconId": 304
+  },
+  {
+    "id": "drg-jump",
+    "name": "점프",
+    "actionId": 92,
+    "actionIds": [
+      92
+    ],
+    "job": "DRG",
+    "level": 30,
+    "cooldown": 30,
+    "charges": 1,
+    "iconId": 2576
+  },
+  {
+    "id": "drg-lance-charge",
+    "name": "돌격하는 창",
+    "actionId": 85,
+    "actionIds": [
+      85
+    ],
+    "job": "DRG",
+    "level": 30,
+    "cooldown": 60,
+    "charges": 1,
+    "iconId": 309
+  },
+  {
+    "id": "drg-elusive-jump",
+    "name": "교묘한 점프",
+    "actionId": 94,
+    "actionIds": [
+      94
+    ],
+    "job": "DRG",
+    "level": 35,
+    "cooldown": 30,
+    "charges": 1,
+    "iconId": 2577
+  },
+  {
+    "id": "drg-winged-glide",
+    "name": "비룡 활공",
+    "actionId": 36951,
+    "actionIds": [
+      36951
+    ],
+    "job": "DRG",
+    "level": 45,
+    "cooldown": 60,
+    "charges": 2,
+    "iconId": 2598
+  },
+  {
+    "id": "drg-dragonfire-dive",
+    "name": "화룡 강타",
+    "actionId": 96,
+    "actionIds": [
+      96
+    ],
+    "job": "DRG",
+    "level": 50,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 2578
+  },
+  {
+    "id": "drg-geirskogul",
+    "name": "게이르스코굴",
+    "actionId": 3555,
+    "actionIds": [
+      3555
+    ],
+    "job": "DRG",
+    "level": 60,
+    "cooldown": 60,
+    "charges": 1,
+    "iconId": 2583
+  },
+  {
+    "id": "drg-high-jump",
+    "name": "하이 점프",
+    "actionId": 16478,
+    "actionIds": [
+      16478
+    ],
+    "job": "DRG",
+    "level": 74,
+    "cooldown": 30,
+    "charges": 1,
+    "iconId": 2591
+  },
+  {
+    "id": "drg-stardiver",
+    "name": "천체 강하",
+    "actionId": 16480,
+    "actionIds": [
+      16480
+    ],
+    "job": "DRG",
+    "level": 80,
+    "cooldown": 30,
+    "charges": 1,
+    "iconId": 2593
+  },
+  {
+    "id": "drg-wyrmwind-thrust",
+    "name": "천룡점정",
+    "actionId": 25773,
+    "actionIds": [
+      25773
+    ],
+    "job": "DRG",
+    "level": 90,
+    "cooldown": 10,
+    "charges": 1,
+    "iconId": 2597
+  },
+  {
+    "id": "nin-shade-shift",
+    "name": "잔영",
+    "actionId": 2241,
+    "actionIds": [
+      2241
+    ],
+    "job": "NIN",
+    "level": 2,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 607
+  },
+  {
+    "id": "nin-hide",
+    "name": "은신술",
+    "actionId": 2245,
+    "actionIds": [
+      2245
+    ],
+    "job": "NIN",
+    "level": 10,
+    "cooldown": 20,
+    "charges": 1,
+    "iconId": 609
+  },
+  {
+    "id": "nin-trick-attack",
+    "name": "속임수 공격",
+    "actionId": 2258,
+    "actionIds": [
+      2258
+    ],
+    "job": "NIN",
+    "level": 18,
+    "cooldown": 60,
+    "charges": 1,
+    "iconId": 618
+  },
+  {
+    "id": "nin-ten",
+    "name": "하늘의 인",
+    "actionId": 2259,
+    "actionIds": [
+      2259
+    ],
+    "job": "NIN",
+    "level": 30,
+    "cooldown": 20,
+    "charges": 2,
+    "iconId": 2901
+  },
+  {
+    "id": "nin-chi",
+    "name": "땅의 인",
+    "actionId": 2261,
+    "actionIds": [
+      2261
+    ],
+    "job": "NIN",
+    "level": 35,
+    "cooldown": 20,
+    "charges": 2,
+    "iconId": 2902
+  },
+  {
+    "id": "nin-assassinate",
+    "name": "마무리 일격",
+    "actionId": 2246,
+    "actionIds": [
+      2246
+    ],
+    "job": "NIN",
+    "level": 40,
+    "cooldown": 60,
+    "charges": 1,
+    "iconId": 612
+  },
+  {
+    "id": "nin-shukuchi",
+    "name": "축지법",
+    "actionId": 2262,
+    "actionIds": [
+      2262
+    ],
+    "job": "NIN",
+    "level": 40,
+    "cooldown": 60,
+    "charges": 2,
+    "iconId": 2905
+  },
+  {
+    "id": "nin-jin",
+    "name": "사람의 인",
+    "actionId": 2263,
+    "actionIds": [
+      2263
+    ],
+    "job": "NIN",
+    "level": 45,
+    "cooldown": 20,
+    "charges": 2,
+    "iconId": 2903
+  },
+  {
+    "id": "nin-kassatsu",
+    "name": "생사여탈",
+    "actionId": 2264,
+    "actionIds": [
+      2264
+    ],
+    "job": "NIN",
+    "level": 50,
+    "cooldown": 60,
+    "charges": 1,
+    "iconId": 2906
+  },
+  {
+    "id": "nin-dream-within-a-dream",
+    "name": "몽환삼단",
+    "actionId": 3566,
+    "actionIds": [
+      3566
+    ],
+    "job": "NIN",
+    "level": 56,
+    "cooldown": 60,
+    "charges": 1,
+    "iconId": 2918
+  },
+  {
+    "id": "nin-dokumori",
+    "name": "강탈",
+    "actionId": 36957,
+    "actionIds": [
+      36957
+    ],
+    "job": "NIN",
+    "level": 66,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 619
+  },
+  {
+    "id": "nin-ten-chi-jin",
+    "name": "천지인",
+    "actionId": 7403,
+    "actionIds": [
+      7403
+    ],
+    "job": "NIN",
+    "level": 70,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 2922
+  },
+  {
+    "id": "nin-meisui",
+    "name": "생명의 물",
+    "actionId": 16489,
+    "actionIds": [
+      16489
+    ],
+    "job": "NIN",
+    "level": 72,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 2924
+  },
+  {
+    "id": "nin-bunshin",
+    "name": "분신술",
+    "actionId": 16493,
+    "actionIds": [
+      16493
+    ],
+    "job": "NIN",
+    "level": 80,
+    "cooldown": 90,
+    "charges": 1,
+    "iconId": 2927
+  },
+  {
+    "id": "nin-kunai-s-bane",
+    "name": "백뢰총",
+    "actionId": 36958,
+    "actionIds": [
+      36958
+    ],
+    "job": "NIN",
+    "level": 92,
+    "cooldown": 60,
+    "charges": 1,
+    "iconId": 620
+  },
+  {
+    "id": "sam-third-eye",
+    "name": "심안",
+    "actionId": 7498,
+    "actionIds": [
+      7498
+    ],
+    "job": "SAM",
+    "level": 6,
+    "cooldown": 15,
+    "charges": 1,
+    "iconId": 3153
+  },
+  {
+    "id": "sam-meikyo-shisui",
+    "name": "명경지수",
+    "actionId": 7499,
+    "actionIds": [
+      7499
+    ],
+    "job": "SAM",
+    "level": 50,
+    "cooldown": 55,
+    "charges": 2,
+    "iconId": 3167
+  },
+  {
+    "id": "sam-hissatsu-yaten",
+    "name": "필살검: 야천",
+    "actionId": 7493,
+    "actionIds": [
+      7493
+    ],
+    "job": "SAM",
+    "level": 56,
+    "cooldown": 10,
+    "charges": 1,
+    "iconId": 3170
+  },
+  {
+    "id": "sam-meditate",
+    "name": "묵상",
+    "actionId": 7497,
+    "actionIds": [
+      7497
+    ],
+    "job": "SAM",
+    "level": 60,
+    "cooldown": 60,
+    "charges": 1,
+    "iconId": 3172
+  },
+  {
+    "id": "sam-ikishoten",
+    "name": "의기충천",
+    "actionId": 16482,
+    "actionIds": [
+      16482
+    ],
+    "job": "SAM",
+    "level": 68,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 3179
+  },
+  {
+    "id": "sam-hissatsu-guren",
+    "name": "필살검: 홍련",
+    "actionId": 7496,
+    "actionIds": [
+      7496
+    ],
+    "job": "SAM",
+    "level": 70,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 3177
+  },
+  {
+    "id": "sam-hissatsu-senei",
+    "name": "필살검: 섬영",
+    "actionId": 16481,
+    "actionIds": [
+      16481
+    ],
+    "job": "SAM",
+    "level": 72,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 3178
+  },
+  {
+    "id": "sam-shoha",
+    "name": "조파",
+    "actionId": 16487,
+    "actionIds": [
+      16487
+    ],
+    "job": "SAM",
+    "level": 80,
+    "cooldown": 15,
+    "charges": 1,
+    "iconId": 3184
+  },
+  {
+    "id": "sam-tengentsu",
+    "name": "천안통",
+    "actionId": 36962,
+    "actionIds": [
+      36962
+    ],
+    "job": "SAM",
+    "level": 82,
+    "cooldown": 15,
+    "charges": 1,
+    "iconId": 3190
+  },
+  {
+    "id": "rpr-hell-s-egress",
+    "name": "지옥 퇴장",
+    "actionId": 24402,
+    "actionIds": [
+      24402
+    ],
+    "job": "RPR",
+    "level": 20,
+    "cooldown": 20,
+    "charges": 1,
+    "iconId": 3630
+  },
+  {
+    "id": "rpr-hell-s-ingress",
+    "name": "지옥 입장",
+    "actionId": 24401,
+    "actionIds": [
+      24401
+    ],
+    "job": "RPR",
+    "level": 20,
+    "cooldown": 20,
+    "charges": 1,
+    "iconId": 3629
+  },
+  {
+    "id": "rpr-arcane-crest",
+    "name": "신비의 문장",
+    "actionId": 24404,
+    "actionIds": [
+      24404
+    ],
+    "job": "RPR",
+    "level": 40,
+    "cooldown": 30,
+    "charges": 1,
+    "iconId": 3632
+  },
+  {
+    "id": "rpr-gluttony",
+    "name": "탐식",
+    "actionId": 24393,
+    "actionIds": [
+      24393
+    ],
+    "job": "RPR",
+    "level": 76,
+    "cooldown": 60,
+    "charges": 1,
+    "iconId": 3621
+  },
+  {
+    "id": "vpr-slither",
+    "name": "뱀걸음",
+    "actionId": 34646,
+    "actionIds": [
+      34646
+    ],
+    "job": "VPR",
+    "level": 40,
+    "cooldown": 30,
+    "charges": 3,
+    "iconId": 3741
+  },
+  {
+    "id": "vpr-serpent-s-ire",
+    "name": "뱀의 영기",
+    "actionId": 34647,
+    "actionIds": [
+      34647
+    ],
+    "job": "VPR",
+    "level": 86,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 3742
+  },
+  {
+    "id": "brd-raging-strikes",
+    "name": "용맹한 사격",
+    "actionId": 101,
+    "actionIds": [
+      101
+    ],
+    "job": "BRD",
+    "level": 4,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 352
+  },
+  {
+    "id": "brd-bloodletter",
+    "name": "사혈 화살",
+    "actionId": 110,
+    "actionIds": [
+      110
+    ],
+    "job": "BRD",
+    "level": 12,
+    "cooldown": 15,
+    "charges": 3,
+    "iconId": 361
+  },
+  {
+    "id": "brd-repelling-shot",
+    "name": "후퇴 사격",
+    "actionId": 112,
+    "actionIds": [
+      112
+    ],
+    "job": "BRD",
+    "level": 15,
+    "cooldown": 30,
+    "charges": 1,
+    "iconId": 366
+  },
+  {
+    "id": "brd-mage-s-ballad",
+    "name": "현인의 담시곡",
+    "actionId": 114,
+    "actionIds": [
+      114
+    ],
+    "job": "BRD",
+    "level": 30,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 2602
+  },
+  {
+    "id": "brd-the-warden-s-paean",
+    "name": "시간신의 찬미가",
+    "actionId": 3561,
+    "actionIds": [
+      3561
+    ],
+    "job": "BRD",
+    "level": 35,
+    "cooldown": 45,
+    "charges": 1,
+    "iconId": 2609
+  },
+  {
+    "id": "brd-barrage",
+    "name": "마구 쏘기",
+    "actionId": 107,
+    "actionIds": [
+      107
+    ],
+    "job": "BRD",
+    "level": 38,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 353
+  },
+  {
+    "id": "brd-army-s-paeon",
+    "name": "군신의 찬가",
+    "actionId": 116,
+    "actionIds": [
+      116
+    ],
+    "job": "BRD",
+    "level": 40,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 2603
+  },
+  {
+    "id": "brd-rain-of-death",
+    "name": "죽음의 화살비",
+    "actionId": 117,
+    "actionIds": [
+      117
+    ],
+    "job": "BRD",
+    "level": 45,
+    "cooldown": 15,
+    "charges": 3,
+    "iconId": 2605
+  },
+  {
+    "id": "brd-the-wanderer-s-minuet",
+    "name": "여행신의 무곡",
+    "actionId": 3559,
+    "actionIds": [
+      3559
+    ],
+    "job": "BRD",
+    "level": 52,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 2607
+  },
+  {
+    "id": "brd-empyreal-arrow",
+    "name": "천상의 화살",
+    "actionId": 3558,
+    "actionIds": [
+      3558
+    ],
+    "job": "BRD",
+    "level": 54,
+    "cooldown": 15,
+    "charges": 1,
+    "iconId": 2606
+  },
+  {
+    "id": "brd-sidewinder",
+    "name": "독사 강습",
+    "actionId": 3562,
+    "actionIds": [
+      3562
+    ],
+    "job": "BRD",
+    "level": 60,
+    "cooldown": 60,
+    "charges": 1,
+    "iconId": 2610
+  },
+  {
+    "id": "brd-nature-s-minne",
+    "name": "대지신의 연가",
+    "actionId": 7408,
+    "actionIds": [
+      7408
+    ],
+    "job": "BRD",
+    "level": 66,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 2615
+  },
+  {
+    "id": "brd-radiant-finale",
+    "name": "빛신의 종곡",
+    "actionId": 25785,
+    "actionIds": [
+      25785
+    ],
+    "job": "BRD",
+    "level": 90,
+    "cooldown": 110,
+    "charges": 1,
+    "iconId": 2622
+  },
+  {
+    "id": "brd-heartbreak-shot",
+    "name": "파혈 화살",
+    "actionId": 36975,
+    "actionIds": [
+      36975
+    ],
+    "job": "BRD",
+    "level": 92,
+    "cooldown": 15,
+    "charges": 3,
+    "iconId": 2623
+  },
+  {
+    "id": "mch-reassemble",
+    "name": "정비",
+    "actionId": 2876,
+    "actionIds": [
+      2876
+    ],
+    "job": "MCH",
+    "level": 10,
+    "cooldown": 55,
+    "charges": 2,
+    "iconId": 3022
+  },
+  {
+    "id": "mch-gauss-round",
+    "name": "가우스탄",
+    "actionId": 2874,
+    "actionIds": [
+      2874
+    ],
+    "job": "MCH",
+    "level": 15,
+    "cooldown": 30,
+    "charges": 3,
+    "iconId": 3005
+  },
+  {
+    "id": "mch-hypercharge",
+    "name": "과충전",
+    "actionId": 17209,
+    "actionIds": [
+      17209
+    ],
+    "job": "MCH",
+    "level": 30,
+    "cooldown": 10,
+    "charges": 1,
+    "iconId": 3041
+  },
+  {
+    "id": "mch-rook-overdrive",
+    "name": "급속출력: 룩",
+    "actionId": 7415,
+    "actionIds": [
+      7415
+    ],
+    "job": "MCH",
+    "level": 40,
+    "cooldown": 15,
+    "charges": 1,
+    "iconId": 3035
+  },
+  {
+    "id": "mch-wildfire",
+    "name": "소이탄",
+    "actionId": 2878,
+    "actionIds": [
+      2878
+    ],
+    "job": "MCH",
+    "level": 45,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 3018
+  },
+  {
+    "id": "mch-ricochet",
+    "name": "도탄 사격",
+    "actionId": 2890,
+    "actionIds": [
+      2890
+    ],
+    "job": "MCH",
+    "level": 50,
+    "cooldown": 30,
+    "charges": 3,
+    "iconId": 3017
+  },
+  {
+    "id": "mch-dismantle",
+    "name": "무기 파괴",
+    "actionId": 2887,
+    "actionIds": [
+      2887
+    ],
+    "job": "MCH",
+    "level": 62,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 3011
+  },
+  {
+    "id": "mch-barrel-stabilizer",
+    "name": "열기 조절",
+    "actionId": 7414,
+    "actionIds": [
+      7414
+    ],
+    "job": "MCH",
+    "level": 66,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 3034
+  },
+  {
+    "id": "mch-flamethrower",
+    "name": "화염 방사",
+    "actionId": 7418,
+    "actionIds": [
+      7418
+    ],
+    "job": "MCH",
+    "level": 70,
+    "cooldown": 60,
+    "charges": 1,
+    "iconId": 3038
+  },
+  {
+    "id": "mch-queen-overdrive",
+    "name": "급속출력: 퀸",
+    "actionId": 16502,
+    "actionIds": [
+      16502
+    ],
+    "job": "MCH",
+    "level": 80,
+    "cooldown": 15,
+    "charges": 1,
+    "iconId": 3502
+  },
+  {
+    "id": "mch-checkmate",
+    "name": "체크메이트",
+    "actionId": 36980,
+    "actionIds": [
+      36980
+    ],
+    "job": "MCH",
+    "level": 92,
+    "cooldown": 30,
+    "charges": 3,
+    "iconId": 3508
+  },
+  {
+    "id": "mch-double-check",
+    "name": "더블 체크",
+    "actionId": 36979,
+    "actionIds": [
+      36979
+    ],
+    "job": "MCH",
+    "level": 92,
+    "cooldown": 30,
+    "charges": 3,
+    "iconId": 3507
+  },
+  {
+    "id": "dnc-en-avant",
+    "name": "앞걸음",
+    "actionId": 16010,
+    "actionIds": [
+      16010
+    ],
+    "job": "DNC",
+    "level": 50,
+    "cooldown": 30,
+    "charges": 3,
+    "iconId": 3467
+  },
+  {
+    "id": "dnc-curing-waltz",
+    "name": "치유의 왈츠",
+    "actionId": 16015,
+    "actionIds": [
+      16015
+    ],
+    "job": "DNC",
+    "level": 52,
+    "cooldown": 60,
+    "charges": 1,
+    "iconId": 3468
+  },
+  {
+    "id": "dnc-closed-position",
+    "name": "마주서기",
+    "actionId": 16006,
+    "actionIds": [
+      16006
+    ],
+    "job": "DNC",
+    "level": 60,
+    "cooldown": 30,
+    "charges": 1,
+    "iconId": 3470
+  },
+  {
+    "id": "dnc-devilment",
+    "name": "공세의 탱고",
+    "actionId": 16011,
+    "actionIds": [
+      16011
+    ],
+    "job": "DNC",
+    "level": 62,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 3471
+  },
+  {
+    "id": "dnc-flourish",
+    "name": "플러리쉬",
+    "actionId": 16013,
+    "actionIds": [
+      16013
+    ],
+    "job": "DNC",
+    "level": 72,
+    "cooldown": 60,
+    "charges": 1,
+    "iconId": 3475
+  },
+  {
+    "id": "dnc-improvisation",
+    "name": "즉흥 연기",
+    "actionId": 16014,
+    "actionIds": [
+      16014
+    ],
+    "job": "DNC",
+    "level": 80,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 3477
+  },
+  {
+    "id": "blm-manafont",
+    "name": "마나샘",
+    "actionId": 158,
+    "actionIds": [
+      158
+    ],
+    "job": "BLM",
+    "level": 30,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 2651
+  },
+  {
+    "id": "blm-manaward",
+    "name": "마배리어",
+    "actionId": 157,
+    "actionIds": [
+      157
+    ],
+    "job": "BLM",
+    "level": 30,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 463
+  },
+  {
+    "id": "blm-aetherial-manipulation",
+    "name": "에테르 촉진",
+    "actionId": 155,
+    "actionIds": [
+      155
+    ],
+    "job": "BLM",
+    "level": 50,
+    "cooldown": 10,
+    "charges": 1,
+    "iconId": 467
+  },
+  {
+    "id": "blm-ley-lines",
+    "name": "흑마법 문양",
+    "actionId": 3573,
+    "actionIds": [
+      3573
+    ],
+    "job": "BLM",
+    "level": 52,
+    "cooldown": 120,
+    "charges": 2,
+    "iconId": 2656
+  },
+  {
+    "id": "blm-triplecast",
+    "name": "삼연속 마법",
+    "actionId": 7421,
+    "actionIds": [
+      7421
+    ],
+    "job": "BLM",
+    "level": 66,
+    "cooldown": 60,
+    "charges": 2,
+    "iconId": 2663
+  },
+  {
+    "id": "blm-amplifier",
+    "name": "언어 확장",
+    "actionId": 25796,
+    "actionIds": [
+      25796
+    ],
+    "job": "BLM",
+    "level": 86,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 2671
+  },
+  {
+    "id": "blm-retrace",
+    "name": "흑마법 문양 이동",
+    "actionId": 36988,
+    "actionIds": [
+      36988
+    ],
+    "job": "BLM",
+    "level": 96,
+    "cooldown": 40,
+    "charges": 1,
+    "iconId": 2150
+  },
+  {
+    "id": "smn-radiant-aegis",
+    "name": "수호의 빛",
+    "actionId": 25799,
+    "actionIds": [
+      25799
+    ],
+    "job": "SMN",
+    "level": 2,
+    "cooldown": 60,
+    "charges": 2,
+    "iconId": 2750
+  },
+  {
+    "id": "smn-energy-drain",
+    "name": "생명력 흡수",
+    "actionId": 16508,
+    "actionIds": [
+      16508
+    ],
+    "job": "SMN",
+    "level": 10,
+    "cooldown": 60,
+    "charges": 1,
+    "iconId": 514
+  },
+  {
+    "id": "smn-energy-siphon",
+    "name": "생명력 흡입",
+    "actionId": 16510,
+    "actionIds": [
+      16510
+    ],
+    "job": "SMN",
+    "level": 52,
+    "cooldown": 60,
+    "charges": 1,
+    "iconId": 2697
+  },
+  {
+    "id": "smn-enkindle-bahamut",
+    "name": "바하무트 점화",
+    "actionId": 7429,
+    "actionIds": [
+      7429
+    ],
+    "job": "SMN",
+    "level": 70,
+    "cooldown": 20,
+    "charges": 1,
+    "iconId": 2693
+  },
+  {
+    "id": "smn-lux-solaris",
+    "name": "태양의 빛",
+    "actionId": 36997,
+    "actionIds": [
+      36997
+    ],
+    "job": "SMN",
+    "level": 100,
+    "cooldown": 60,
+    "charges": 1,
+    "iconId": 2787
+  },
+  {
+    "id": "rdm-corps-a-corps",
+    "name": "코르 아 코르",
+    "actionId": 7506,
+    "actionIds": [
+      7506
+    ],
+    "job": "RDM",
+    "level": 6,
+    "cooldown": 35,
+    "charges": 2,
+    "iconId": 3204
+  },
+  {
+    "id": "rdm-displacement",
+    "name": "데플라스망",
+    "actionId": 7515,
+    "actionIds": [
+      7515
+    ],
+    "job": "RDM",
+    "level": 40,
+    "cooldown": 35,
+    "charges": 2,
+    "iconId": 3211
+  },
+  {
+    "id": "rdm-engagement",
+    "name": "앙가주망",
+    "actionId": 16527,
+    "actionIds": [
+      16527
+    ],
+    "job": "RDM",
+    "level": 40,
+    "cooldown": 35,
+    "charges": 2,
+    "iconId": 3231
+  },
+  {
+    "id": "rdm-fleche",
+    "name": "플레슈",
+    "actionId": 7517,
+    "actionIds": [
+      7517
+    ],
+    "job": "RDM",
+    "level": 45,
+    "cooldown": 25,
+    "charges": 1,
+    "iconId": 3212
+  },
+  {
+    "id": "rdm-acceleration",
+    "name": "가속화",
+    "actionId": 7518,
+    "actionIds": [
+      7518
+    ],
+    "job": "RDM",
+    "level": 50,
+    "cooldown": 55,
+    "charges": 2,
+    "iconId": 3214
+  },
+  {
+    "id": "rdm-contre-sixte",
+    "name": "콩트르 식스트",
+    "actionId": 7519,
+    "actionIds": [
+      7519
+    ],
+    "job": "RDM",
+    "level": 56,
+    "cooldown": 45,
+    "charges": 1,
+    "iconId": 3217
+  },
+  {
+    "id": "rdm-embolden",
+    "name": "성원",
+    "actionId": 7520,
+    "actionIds": [
+      7520
+    ],
+    "job": "RDM",
+    "level": 58,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 3218
+  },
+  {
+    "id": "rdm-manafication",
+    "name": "마나 증량",
+    "actionId": 7521,
+    "actionIds": [
+      7521
+    ],
+    "job": "RDM",
+    "level": 60,
+    "cooldown": 110,
+    "charges": 1,
+    "iconId": 3219
+  },
+  {
+    "id": "rdm-magick-barrier",
+    "name": "바매직",
+    "actionId": 25857,
+    "actionIds": [
+      25857
+    ],
+    "job": "RDM",
+    "level": 86,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 3237
+  },
+  {
+    "id": "pct-tempera-coat",
+    "name": "템페라 밑칠",
+    "actionId": 34685,
+    "actionIds": [
+      34685
+    ],
+    "job": "PCT",
+    "level": 10,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 3835
+  },
+  {
+    "id": "pct-smudge",
+    "name": "붓번짐",
+    "actionId": 34684,
+    "actionIds": [
+      34684
+    ],
+    "job": "PCT",
+    "level": 20,
+    "cooldown": 20,
+    "charges": 1,
+    "iconId": 3834
+  },
+  {
+    "id": "pct-living-muse",
+    "name": "동물 구현",
+    "actionId": 35347,
+    "actionIds": [
+      35347
+    ],
+    "job": "PCT",
+    "level": 30,
+    "cooldown": 40,
+    "charges": 3,
+    "iconId": 3842
+  },
+  {
+    "id": "pct-mog-of-the-ages",
+    "name": "모그리 격류",
+    "actionId": 34676,
+    "actionIds": [
+      34676
+    ],
+    "job": "PCT",
+    "level": 30,
+    "cooldown": 30,
+    "charges": 1,
+    "iconId": 3827
+  },
+  {
+    "id": "pct-steel-muse",
+    "name": "무기 구현",
+    "actionId": 35348,
+    "actionIds": [
+      35348
+    ],
+    "job": "PCT",
+    "level": 50,
+    "cooldown": 60,
+    "charges": 2,
+    "iconId": 3843
+  },
+  {
+    "id": "pct-scenic-muse",
+    "name": "풍경 구현",
+    "actionId": 35349,
+    "actionIds": [
+      35349
+    ],
+    "job": "PCT",
+    "level": 70,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 3844
+  },
+  {
+    "id": "pld-fast-blade",
+    "name": "재빠른 검격",
+    "actionId": 9,
+    "actionIds": [
+      9
+    ],
+    "job": "PLD",
+    "level": 1,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 158
+  },
+  {
+    "id": "pld-riot-blade",
+    "name": "폭도의 검격",
+    "actionId": 15,
+    "actionIds": [
+      15
+    ],
+    "job": "PLD",
+    "level": 4,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 156
+  },
+  {
+    "id": "pld-total-eclipse",
+    "name": "개기식",
+    "actionId": 7381,
+    "actionIds": [
+      7381
+    ],
+    "job": "PLD",
+    "level": 6,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 2511
+  },
+  {
+    "id": "pld-shield-bash",
+    "name": "방패 가격",
+    "actionId": 16,
+    "actionIds": [
+      16
+    ],
+    "job": "PLD",
+    "level": 10,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 154
+  },
+  {
+    "id": "pld-shield-lob",
+    "name": "방패 던지기",
+    "actionId": 24,
+    "actionIds": [
+      24
+    ],
+    "job": "PLD",
+    "level": 15,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 164
+  },
+  {
+    "id": "pld-rage-of-halone",
+    "name": "할로네의 분노",
+    "actionId": 21,
+    "actionIds": [
+      21
+    ],
+    "job": "PLD",
+    "level": 26,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 155
+  },
+  {
+    "id": "pld-prominence",
+    "name": "홍염",
+    "actionId": 16457,
+    "actionIds": [
+      16457
+    ],
+    "job": "PLD",
+    "level": 40,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 2516
+  },
+  {
+    "id": "pld-goring-blade",
+    "name": "꿰뚫는 검격",
+    "actionId": 3538,
+    "actionIds": [
+      3538
+    ],
+    "job": "PLD",
+    "level": 54,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 2506
+  },
+  {
+    "id": "pld-royal-authority",
+    "name": "제왕의 권위",
+    "actionId": 3539,
+    "actionIds": [
+      3539
+    ],
+    "job": "PLD",
+    "level": 60,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 2507
+  },
+  {
+    "id": "pld-atonement",
+    "name": "회한의 검",
+    "actionId": 16460,
+    "actionIds": [
+      16460
+    ],
+    "job": "PLD",
+    "level": 76,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 2519
+  },
+  {
+    "id": "war-heavy-swing",
+    "name": "육중한 일격",
+    "actionId": 31,
+    "actionIds": [
+      31
+    ],
+    "job": "WAR",
+    "level": 1,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 260
+  },
+  {
+    "id": "war-maim",
+    "name": "관절 파괴",
+    "actionId": 37,
+    "actionIds": [
+      37
+    ],
+    "job": "WAR",
+    "level": 4,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 255
+  },
+  {
+    "id": "war-overpower",
+    "name": "압도",
+    "actionId": 41,
+    "actionIds": [
+      41
+    ],
+    "job": "WAR",
+    "level": 10,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 254
+  },
+  {
+    "id": "war-tomahawk",
+    "name": "도끼 던지기",
+    "actionId": 46,
+    "actionIds": [
+      46
+    ],
+    "job": "WAR",
+    "level": 15,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 261
+  },
+  {
+    "id": "war-storm-s-path",
+    "name": "폭풍 쐐기",
+    "actionId": 42,
+    "actionIds": [
+      42
+    ],
+    "job": "WAR",
+    "level": 26,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 258
+  },
+  {
+    "id": "war-inner-beast",
+    "name": "원초의 혼",
+    "actionId": 49,
+    "actionIds": [
+      49
+    ],
+    "job": "WAR",
+    "level": 35,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 2553
+  },
+  {
+    "id": "war-mythril-tempest",
+    "name": "미스릴 폭풍",
+    "actionId": 16462,
+    "actionIds": [
+      16462
+    ],
+    "job": "WAR",
+    "level": 40,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 2565
+  },
+  {
+    "id": "war-steel-cyclone",
+    "name": "강철 회오리",
+    "actionId": 51,
+    "actionIds": [
+      51
+    ],
+    "job": "WAR",
+    "level": 45,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 2552
+  },
+  {
+    "id": "war-storm-s-eye",
+    "name": "폭풍의 눈",
+    "actionId": 45,
+    "actionIds": [
+      45
+    ],
+    "job": "WAR",
+    "level": 50,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 264
+  },
+  {
+    "id": "war-fell-cleave",
+    "name": "참수",
+    "actionId": 3549,
+    "actionIds": [
+      3549
+    ],
+    "job": "WAR",
+    "level": 54,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 2557
+  },
+  {
+    "id": "war-decimate",
+    "name": "섬멸",
+    "actionId": 3550,
+    "actionIds": [
+      3550
+    ],
+    "job": "WAR",
+    "level": 60,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 2558
+  },
+  {
+    "id": "war-primal-rend",
+    "name": "원초적 분쇄",
+    "actionId": 25753,
+    "actionIds": [
+      25753
+    ],
+    "job": "WAR",
+    "level": 90,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 2571
+  },
+  {
+    "id": "drk-hard-slash",
+    "name": "강렬한 참격",
+    "actionId": 3617,
+    "actionIds": [
+      3617
+    ],
+    "job": "DRK",
+    "level": 1,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3051
+  },
+  {
+    "id": "drk-syphon-strike",
+    "name": "흡수의 일격",
+    "actionId": 3623,
+    "actionIds": [
+      3623
+    ],
+    "job": "DRK",
+    "level": 2,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3054
+  },
+  {
+    "id": "drk-souleater",
+    "name": "흡혼검",
+    "actionId": 3632,
+    "actionIds": [
+      3632
+    ],
+    "job": "DRK",
+    "level": 26,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3055
+  },
+  {
+    "id": "drk-bloodspiller",
+    "name": "피보라",
+    "actionId": 7392,
+    "actionIds": [
+      7392
+    ],
+    "job": "DRK",
+    "level": 62,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3080
+  },
+  {
+    "id": "drk-quietus",
+    "name": "종지부",
+    "actionId": 7391,
+    "actionIds": [
+      7391
+    ],
+    "job": "DRK",
+    "level": 64,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3079
+  },
+  {
+    "id": "drk-disesteem",
+    "name": "경멸",
+    "actionId": 36932,
+    "actionIds": [
+      36932
+    ],
+    "job": "DRK",
+    "level": 100,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3099
+  },
+  {
+    "id": "gnb-keen-edge",
+    "name": "예리한 총검",
+    "actionId": 16137,
+    "actionIds": [
+      16137
+    ],
+    "job": "GNB",
+    "level": 1,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3401
+  },
+  {
+    "id": "gnb-brutal-shell",
+    "name": "잔혹한 탄피",
+    "actionId": 16139,
+    "actionIds": [
+      16139
+    ],
+    "job": "GNB",
+    "level": 4,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3403
+  },
+  {
+    "id": "gnb-demon-slice",
+    "name": "악마의 절단",
+    "actionId": 16141,
+    "actionIds": [
+      16141
+    ],
+    "job": "GNB",
+    "level": 10,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3405
+  },
+  {
+    "id": "gnb-lightning-shot",
+    "name": "번개 탄환",
+    "actionId": 16143,
+    "actionIds": [
+      16143
+    ],
+    "job": "GNB",
+    "level": 15,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3407
+  },
+  {
+    "id": "gnb-solid-barrel",
+    "name": "곧은 총열",
+    "actionId": 16145,
+    "actionIds": [
+      16145
+    ],
+    "job": "GNB",
+    "level": 26,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3409
+  },
+  {
+    "id": "gnb-burst-strike",
+    "name": "파열격",
+    "actionId": 16162,
+    "actionIds": [
+      16162
+    ],
+    "job": "GNB",
+    "level": 30,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3426
+  },
+  {
+    "id": "gnb-demon-slaughter",
+    "name": "악마의 살육",
+    "actionId": 16149,
+    "actionIds": [
+      16149
+    ],
+    "job": "GNB",
+    "level": 40,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3413
+  },
+  {
+    "id": "gnb-sonic-break",
+    "name": "음속 파괴",
+    "actionId": 16153,
+    "actionIds": [
+      16153
+    ],
+    "job": "GNB",
+    "level": 54,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3417
+  },
+  {
+    "id": "gnb-gnashing-fang",
+    "name": "난폭한 송곳니",
+    "actionId": 16146,
+    "actionIds": [
+      16146
+    ],
+    "job": "GNB",
+    "level": 60,
+    "cooldown": 30,
+    "charges": 2,
+    "iconId": 3410
+  },
+  {
+    "id": "gnb-fated-circle",
+    "name": "운명의 고리",
+    "actionId": 16163,
+    "actionIds": [
+      16163
+    ],
+    "job": "GNB",
+    "level": 72,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3427
+  },
+  {
+    "id": "gnb-double-down",
+    "name": "이중 절단",
+    "actionId": 25760,
+    "actionIds": [
+      25760
+    ],
+    "job": "GNB",
+    "level": 90,
+    "cooldown": 60,
+    "charges": 1,
+    "iconId": 3432
+  },
+  {
+    "id": "gnb-reign-of-beasts",
+    "name": "심장의 비상",
+    "actionId": 36937,
+    "actionIds": [
+      36937
+    ],
+    "job": "GNB",
+    "level": 100,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3437
+  },
+  {
+    "id": "mnk-bootshine",
+    "name": "연격",
+    "actionId": 53,
+    "actionIds": [
+      53
+    ],
+    "job": "MNK",
+    "level": 1,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 208
+  },
+  {
+    "id": "mnk-true-strike",
+    "name": "정권 지르기",
+    "actionId": 54,
+    "actionIds": [
+      54
+    ],
+    "job": "MNK",
+    "level": 4,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 209
+  },
+  {
+    "id": "mnk-snap-punch",
+    "name": "붕권",
+    "actionId": 56,
+    "actionIds": [
+      56
+    ],
+    "job": "MNK",
+    "level": 6,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 210
+  },
+  {
+    "id": "mnk-twin-snakes",
+    "name": "쌍장타",
+    "actionId": 61,
+    "actionIds": [
+      61
+    ],
+    "job": "MNK",
+    "level": 18,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 213
+  },
+  {
+    "id": "mnk-arm-of-the-destroyer",
+    "name": "파괴신장",
+    "actionId": 62,
+    "actionIds": [
+      62
+    ],
+    "job": "MNK",
+    "level": 26,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 215
+  },
+  {
+    "id": "mnk-demolish",
+    "name": "파쇄권",
+    "actionId": 66,
+    "actionIds": [
+      66
+    ],
+    "job": "MNK",
+    "level": 30,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 204
+  },
+  {
+    "id": "mnk-rockbreaker",
+    "name": "지열참",
+    "actionId": 70,
+    "actionIds": [
+      70
+    ],
+    "job": "MNK",
+    "level": 30,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 2529
+  },
+  {
+    "id": "mnk-four-point-fury",
+    "name": "사면각",
+    "actionId": 16473,
+    "actionIds": [
+      16473
+    ],
+    "job": "MNK",
+    "level": 45,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 2544
+  },
+  {
+    "id": "mnk-dragon-kick",
+    "name": "쌍룡각",
+    "actionId": 74,
+    "actionIds": [
+      74
+    ],
+    "job": "MNK",
+    "level": 50,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 2528
+  },
+  {
+    "id": "mnk-form-shift",
+    "name": "연무",
+    "actionId": 4262,
+    "actionIds": [
+      4262
+    ],
+    "job": "MNK",
+    "level": 52,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 2536
+  },
+  {
+    "id": "mnk-masterful-blitz",
+    "name": "필살기",
+    "actionId": 25764,
+    "actionIds": [
+      25764
+    ],
+    "job": "MNK",
+    "level": 60,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 2976
+  },
+  {
+    "id": "mnk-six-sided-star",
+    "name": "육합성도각",
+    "actionId": 16476,
+    "actionIds": [
+      16476
+    ],
+    "job": "MNK",
+    "level": 80,
+    "cooldown": 5,
+    "charges": 1,
+    "iconId": 2547
+  },
+  {
+    "id": "mnk-shadow-of-the-destroyer",
+    "name": "파괴신각",
+    "actionId": 25767,
+    "actionIds": [
+      25767
+    ],
+    "job": "MNK",
+    "level": 82,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 2979
+  },
+  {
+    "id": "mnk-leaping-opo",
+    "name": "원무연격",
+    "actionId": 36945,
+    "actionIds": [
+      36945
+    ],
+    "job": "MNK",
+    "level": 92,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 2982
+  },
+  {
+    "id": "mnk-pouncing-coeurl",
+    "name": "호습붕권",
+    "actionId": 36947,
+    "actionIds": [
+      36947
+    ],
+    "job": "MNK",
+    "level": 92,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 2984
+  },
+  {
+    "id": "mnk-rising-raptor",
+    "name": "용함정권격",
+    "actionId": 36946,
+    "actionIds": [
+      36946
+    ],
+    "job": "MNK",
+    "level": 92,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 2983
+  },
+  {
+    "id": "mnk-wind-s-reply",
+    "name": "절공권",
+    "actionId": 36949,
+    "actionIds": [
+      36949
+    ],
+    "job": "MNK",
+    "level": 96,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 2986
+  },
+  {
+    "id": "mnk-fire-s-reply",
+    "name": "건곤투기탄",
+    "actionId": 36950,
+    "actionIds": [
+      36950
+    ],
+    "job": "MNK",
+    "level": 100,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 2987
+  },
+  {
+    "id": "drg-true-thrust",
+    "name": "직선 찌르기",
+    "actionId": 75,
+    "actionIds": [
+      75
+    ],
+    "job": "DRG",
+    "level": 1,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 310
+  },
+  {
+    "id": "drg-raiden-thrust",
+    "name": "용안뇌전",
+    "actionId": 16479,
+    "actionIds": [
+      16479
+    ],
+    "job": "DRG",
+    "level": 76,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 2592
+  },
+  {
+    "id": "drg-vorpal-thrust",
+    "name": "사선 찌르기",
+    "actionId": 78,
+    "actionIds": [
+      78
+    ],
+    "job": "DRG",
+    "level": 4,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 312
+  },
+  {
+    "id": "drg-piercing-talon",
+    "name": "꿰뚫는 발톱",
+    "actionId": 90,
+    "actionIds": [
+      90
+    ],
+    "job": "DRG",
+    "level": 15,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 315
+  },
+  {
+    "id": "drg-disembowel",
+    "name": "몸통 가르기",
+    "actionId": 87,
+    "actionIds": [
+      87
+    ],
+    "job": "DRG",
+    "level": 18,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 317
+  },
+  {
+    "id": "drg-full-thrust",
+    "name": "올려 찌르기",
+    "actionId": 84,
+    "actionIds": [
+      84
+    ],
+    "job": "DRG",
+    "level": 26,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 314
+  },
+  {
+    "id": "drg-doom-spike",
+    "name": "악몽의 쐐기",
+    "actionId": 86,
+    "actionIds": [
+      86
+    ],
+    "job": "DRG",
+    "level": 40,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 306
+  },
+  {
+    "id": "drg-draconian-fury",
+    "name": "용안창궁",
+    "actionId": 25770,
+    "actionIds": [
+      25770
+    ],
+    "job": "DRG",
+    "level": 82,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 2594
+  },
+  {
+    "id": "drg-chaos-thrust",
+    "name": "꽃잎 폭풍",
+    "actionId": 88,
+    "actionIds": [
+      88
+    ],
+    "job": "DRG",
+    "level": 50,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 308
+  },
+  {
+    "id": "drg-fang-and-claw",
+    "name": "용의 발톱",
+    "actionId": 3554,
+    "actionIds": [
+      3554
+    ],
+    "job": "DRG",
+    "level": 56,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 2582
+  },
+  {
+    "id": "drg-wheeling-thrust",
+    "name": "용의 꼬리",
+    "actionId": 3556,
+    "actionIds": [
+      3556
+    ],
+    "job": "DRG",
+    "level": 58,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 2584
+  },
+  {
+    "id": "drg-drakesbane",
+    "name": "운증용변",
+    "actionId": 36952,
+    "actionIds": [
+      36952
+    ],
+    "job": "DRG",
+    "level": 64,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 2599
+  },
+  {
+    "id": "drg-sonic-thrust",
+    "name": "음속 찌르기",
+    "actionId": 7397,
+    "actionIds": [
+      7397
+    ],
+    "job": "DRG",
+    "level": 62,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 2586
+  },
+  {
+    "id": "drg-coerthan-torment",
+    "name": "커르다스의 고통",
+    "actionId": 16477,
+    "actionIds": [
+      16477
+    ],
+    "job": "DRG",
+    "level": 72,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 2590
+  },
+  {
+    "id": "drg-chaotic-spring",
+    "name": "꽃잎 만발",
+    "actionId": 25772,
+    "actionIds": [
+      25772
+    ],
+    "job": "DRG",
+    "level": 86,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 2596
+  },
+  {
+    "id": "drg-heavens-thrust",
+    "name": "하늘 찌르기",
+    "actionId": 25771,
+    "actionIds": [
+      25771
+    ],
+    "job": "DRG",
+    "level": 86,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 2595
+  },
+  {
+    "id": "drg-lance-barrage",
+    "name": "전진 찌르기",
+    "actionId": 36954,
+    "actionIds": [
+      36954
+    ],
+    "job": "DRG",
+    "level": 96,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 2076
+  },
+  {
+    "id": "drg-spiral-blow",
+    "name": "나선 가르기",
+    "actionId": 36955,
+    "actionIds": [
+      36955
+    ],
+    "job": "DRG",
+    "level": 96,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 2077
+  },
+  {
+    "id": "nin-spinning-edge",
+    "name": "쌍검 회전베기",
+    "actionId": 2240,
+    "actionIds": [
+      2240
+    ],
+    "job": "NIN",
+    "level": 1,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 601
+  },
+  {
+    "id": "nin-gust-slash",
+    "name": "돌풍베기",
+    "actionId": 2242,
+    "actionIds": [
+      2242
+    ],
+    "job": "NIN",
+    "level": 4,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 602
+  },
+  {
+    "id": "nin-throwing-dagger",
+    "name": "칼 던지기",
+    "actionId": 2247,
+    "actionIds": [
+      2247
+    ],
+    "job": "NIN",
+    "level": 15,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 614
+  },
+  {
+    "id": "nin-aeolian-edge",
+    "name": "칼날 선풍",
+    "actionId": 2255,
+    "actionIds": [
+      2255
+    ],
+    "job": "NIN",
+    "level": 26,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 605
+  },
+  {
+    "id": "nin-death-blossom",
+    "name": "피의 비",
+    "actionId": 2254,
+    "actionIds": [
+      2254
+    ],
+    "job": "NIN",
+    "level": 38,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 615
+  },
+  {
+    "id": "nin-hakke-mujinsatsu",
+    "name": "팔괘무인살",
+    "actionId": 16488,
+    "actionIds": [
+      16488
+    ],
+    "job": "NIN",
+    "level": 52,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 2923
+  },
+  {
+    "id": "nin-armor-crush",
+    "name": "강갑파점 찌르기",
+    "actionId": 3563,
+    "actionIds": [
+      3563
+    ],
+    "job": "NIN",
+    "level": 54,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 2915
+  },
+  {
+    "id": "nin-phantom-kamaitachi",
+    "name": "잔영 바람칼",
+    "actionId": 25774,
+    "actionIds": [
+      25774
+    ],
+    "job": "NIN",
+    "level": 82,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 2929
+  },
+  {
+    "id": "nin-fleeting-raiju",
+    "name": "월영뇌수아",
+    "actionId": 25778,
+    "actionIds": [
+      25778
+    ],
+    "job": "NIN",
+    "level": 90,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 2932
+  },
+  {
+    "id": "nin-forked-raiju",
+    "name": "월영뇌수조",
+    "actionId": 25777,
+    "actionIds": [
+      25777
+    ],
+    "job": "NIN",
+    "level": 90,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 2931
+  },
+  {
+    "id": "sam-hakaze",
+    "name": "검풍",
+    "actionId": 7477,
+    "actionIds": [
+      7477
+    ],
+    "job": "SAM",
+    "level": 1,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3151
+  },
+  {
+    "id": "sam-jinpu",
+    "name": "진풍",
+    "actionId": 7478,
+    "actionIds": [
+      7478
+    ],
+    "job": "SAM",
+    "level": 4,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3152
+  },
+  {
+    "id": "sam-enpi",
+    "name": "제비오름",
+    "actionId": 7486,
+    "actionIds": [
+      7486
+    ],
+    "job": "SAM",
+    "level": 15,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3155
+  },
+  {
+    "id": "sam-shifu",
+    "name": "사풍",
+    "actionId": 7479,
+    "actionIds": [
+      7479
+    ],
+    "job": "SAM",
+    "level": 18,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3156
+  },
+  {
+    "id": "sam-fuga",
+    "name": "풍아",
+    "actionId": 7483,
+    "actionIds": [
+      7483
+    ],
+    "job": "SAM",
+    "level": 26,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3157
+  },
+  {
+    "id": "sam-gekko",
+    "name": "월광",
+    "actionId": 7481,
+    "actionIds": [
+      7481
+    ],
+    "job": "SAM",
+    "level": 30,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3158
+  },
+  {
+    "id": "sam-iaijutsu",
+    "name": "거합술",
+    "actionId": 7867,
+    "actionIds": [
+      7867
+    ],
+    "job": "SAM",
+    "level": 30,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3159
+  },
+  {
+    "id": "sam-mangetsu",
+    "name": "만월",
+    "actionId": 7484,
+    "actionIds": [
+      7484
+    ],
+    "job": "SAM",
+    "level": 35,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3163
+  },
+  {
+    "id": "sam-kasha",
+    "name": "화차",
+    "actionId": 7482,
+    "actionIds": [
+      7482
+    ],
+    "job": "SAM",
+    "level": 40,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3164
+  },
+  {
+    "id": "sam-oka",
+    "name": "앵화",
+    "actionId": 7485,
+    "actionIds": [
+      7485
+    ],
+    "job": "SAM",
+    "level": 45,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3165
+  },
+  {
+    "id": "sam-yukikaze",
+    "name": "설풍",
+    "actionId": 7480,
+    "actionIds": [
+      7480
+    ],
+    "job": "SAM",
+    "level": 50,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3166
+  },
+  {
+    "id": "sam-tsubame-gaeshi",
+    "name": "제비반전",
+    "actionId": 16483,
+    "actionIds": [
+      16483
+    ],
+    "job": "SAM",
+    "level": 74,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3180
+  },
+  {
+    "id": "sam-fuko",
+    "name": "풍광",
+    "actionId": 25780,
+    "actionIds": [
+      25780
+    ],
+    "job": "SAM",
+    "level": 86,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3189
+  },
+  {
+    "id": "sam-ogi-namikiri",
+    "name": "오의파절",
+    "actionId": 25781,
+    "actionIds": [
+      25781
+    ],
+    "job": "SAM",
+    "level": 90,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3187
+  },
+  {
+    "id": "sam-gyofu",
+    "name": "효풍",
+    "actionId": 36963,
+    "actionIds": [
+      36963
+    ],
+    "job": "SAM",
+    "level": 92,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3191
+  },
+  {
+    "id": "rpr-slice",
+    "name": "낫질",
+    "actionId": 24373,
+    "actionIds": [
+      24373
+    ],
+    "job": "RPR",
+    "level": 1,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3601
+  },
+  {
+    "id": "rpr-waxing-slice",
+    "name": "반달 낫질",
+    "actionId": 24374,
+    "actionIds": [
+      24374
+    ],
+    "job": "RPR",
+    "level": 5,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3602
+  },
+  {
+    "id": "rpr-shadow-of-death",
+    "name": "죽음의 그림자",
+    "actionId": 24378,
+    "actionIds": [
+      24378
+    ],
+    "job": "RPR",
+    "level": 10,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3606
+  },
+  {
+    "id": "rpr-spinning-scythe",
+    "name": "회전 낫",
+    "actionId": 24376,
+    "actionIds": [
+      24376
+    ],
+    "job": "RPR",
+    "level": 25,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3604
+  },
+  {
+    "id": "rpr-infernal-slice",
+    "name": "지옥 낫질",
+    "actionId": 24375,
+    "actionIds": [
+      24375
+    ],
+    "job": "RPR",
+    "level": 30,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3603
+  },
+  {
+    "id": "rpr-whorl-of-death",
+    "name": "죽음의 회오리",
+    "actionId": 24379,
+    "actionIds": [
+      24379
+    ],
+    "job": "RPR",
+    "level": 35,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3607
+  },
+  {
+    "id": "rpr-nightmare-scythe",
+    "name": "악몽의 낫",
+    "actionId": 24377,
+    "actionIds": [
+      24377
+    ],
+    "job": "RPR",
+    "level": 45,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3605
+  },
+  {
+    "id": "rpr-soul-slice",
+    "name": "영혼 낫질",
+    "actionId": 24380,
+    "actionIds": [
+      24380
+    ],
+    "job": "RPR",
+    "level": 60,
+    "cooldown": 30,
+    "charges": 2,
+    "iconId": 3608
+  },
+  {
+    "id": "rpr-soul-scythe",
+    "name": "영혼의 낫",
+    "actionId": 24381,
+    "actionIds": [
+      24381
+    ],
+    "job": "RPR",
+    "level": 65,
+    "cooldown": 30,
+    "charges": 2,
+    "iconId": 3609
+  },
+  {
+    "id": "rpr-gallows",
+    "name": "교수형",
+    "actionId": 24383,
+    "actionIds": [
+      24383
+    ],
+    "job": "RPR",
+    "level": 70,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3611
+  },
+  {
+    "id": "rpr-gibbet",
+    "name": "효수형",
+    "actionId": 24382,
+    "actionIds": [
+      24382
+    ],
+    "job": "RPR",
+    "level": 70,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3610
+  },
+  {
+    "id": "rpr-guillotine",
+    "name": "참수형",
+    "actionId": 24384,
+    "actionIds": [
+      24384
+    ],
+    "job": "RPR",
+    "level": 70,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3612
+  },
+  {
+    "id": "rpr-plentiful-harvest",
+    "name": "풍성한 수확",
+    "actionId": 24385,
+    "actionIds": [
+      24385
+    ],
+    "job": "RPR",
+    "level": 88,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3613
+  },
+  {
+    "id": "vpr-steel-fangs",
+    "name": "송곳니 하나: 교상",
+    "actionId": 34606,
+    "actionIds": [
+      34606
+    ],
+    "job": "VPR",
+    "level": 1,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3701
+  },
+  {
+    "id": "vpr-reaving-fangs",
+    "name": "송곳니 하나: 열상",
+    "actionId": 34607,
+    "actionIds": [
+      34607
+    ],
+    "job": "VPR",
+    "level": 10,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3702
+  },
+  {
+    "id": "vpr-writhing-snap",
+    "name": "날뱀의 송곳니",
+    "actionId": 34632,
+    "actionIds": [
+      34632
+    ],
+    "job": "VPR",
+    "level": 15,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3727
+  },
+  {
+    "id": "vpr-steel-maw",
+    "name": "큰송곳니 하나: 교상",
+    "actionId": 34614,
+    "actionIds": [
+      34614
+    ],
+    "job": "VPR",
+    "level": 25,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3709
+  },
+  {
+    "id": "vpr-reaving-maw",
+    "name": "큰송곳니 하나: 열상",
+    "actionId": 34615,
+    "actionIds": [
+      34615
+    ],
+    "job": "VPR",
+    "level": 35,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3710
+  },
+  {
+    "id": "vpr-hunter-s-coil",
+    "name": "뱀 둘: 맹습",
+    "actionId": 34621,
+    "actionIds": [
+      34621
+    ],
+    "job": "VPR",
+    "level": 65,
+    "cooldown": 3,
+    "charges": 1,
+    "iconId": 3716
+  },
+  {
+    "id": "vpr-swiftskin-s-coil",
+    "name": "뱀 둘: 질주",
+    "actionId": 34622,
+    "actionIds": [
+      34622
+    ],
+    "job": "VPR",
+    "level": 65,
+    "cooldown": 3,
+    "charges": 1,
+    "iconId": 3717
+  },
+  {
+    "id": "vpr-vicewinder",
+    "name": "뱀 하나: 분쇄",
+    "actionId": 34620,
+    "actionIds": [
+      34620
+    ],
+    "job": "VPR",
+    "level": 65,
+    "cooldown": 40,
+    "charges": 2,
+    "iconId": 3715
+  },
+  {
+    "id": "vpr-hunter-s-den",
+    "name": "큰뱀 둘: 맹습",
+    "actionId": 34624,
+    "actionIds": [
+      34624
+    ],
+    "job": "VPR",
+    "level": 70,
+    "cooldown": 3,
+    "charges": 1,
+    "iconId": 3719
+  },
+  {
+    "id": "vpr-swiftskin-s-den",
+    "name": "큰뱀 둘: 질주",
+    "actionId": 34625,
+    "actionIds": [
+      34625
+    ],
+    "job": "VPR",
+    "level": 70,
+    "cooldown": 3,
+    "charges": 1,
+    "iconId": 3720
+  },
+  {
+    "id": "vpr-vicepit",
+    "name": "큰뱀 하나: 분쇄",
+    "actionId": 34623,
+    "actionIds": [
+      34623
+    ],
+    "job": "VPR",
+    "level": 70,
+    "cooldown": 40,
+    "charges": 2,
+    "iconId": 3718
+  },
+  {
+    "id": "vpr-uncoiled-fury",
+    "name": "날뱀의 꼬리",
+    "actionId": 34633,
+    "actionIds": [
+      34633
+    ],
+    "job": "VPR",
+    "level": 82,
+    "cooldown": 3.5,
+    "charges": 1,
+    "iconId": 3728
+  },
+  {
+    "id": "vpr-reawaken",
+    "name": "조상령 빙의",
+    "actionId": 34626,
+    "actionIds": [
+      34626
+    ],
+    "job": "VPR",
+    "level": 90,
+    "cooldown": 2.2,
+    "charges": 1,
+    "iconId": 3721
+  },
+  {
+    "id": "brd-heavy-shot",
+    "name": "육중한 사격",
+    "actionId": 97,
+    "actionIds": [
+      97
+    ],
+    "job": "BRD",
+    "level": 1,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 358
+  },
+  {
+    "id": "brd-straight-shot",
+    "name": "직선 사격",
+    "actionId": 98,
+    "actionIds": [
+      98
+    ],
+    "job": "BRD",
+    "level": 2,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 359
+  },
+  {
+    "id": "brd-venomous-bite",
+    "name": "독화살",
+    "actionId": 100,
+    "actionIds": [
+      100
+    ],
+    "job": "BRD",
+    "level": 6,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 363
+  },
+  {
+    "id": "brd-quick-nock",
+    "name": "재빠른 활시위",
+    "actionId": 106,
+    "actionIds": [
+      106
+    ],
+    "job": "BRD",
+    "level": 18,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 360
+  },
+  {
+    "id": "brd-wide-volley",
+    "name": "일제 사격",
+    "actionId": 36974,
+    "actionIds": [
+      36974
+    ],
+    "job": "BRD",
+    "level": 25,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 357
+  },
+  {
+    "id": "brd-windbite",
+    "name": "바람 화살",
+    "actionId": 113,
+    "actionIds": [
+      113
+    ],
+    "job": "BRD",
+    "level": 30,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 367
+  },
+  {
+    "id": "brd-iron-jaws",
+    "name": "굳은 결의",
+    "actionId": 3560,
+    "actionIds": [
+      3560
+    ],
+    "job": "BRD",
+    "level": 56,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 2608
+  },
+  {
+    "id": "brd-caustic-bite",
+    "name": "맹독 화살",
+    "actionId": 7406,
+    "actionIds": [
+      7406
+    ],
+    "job": "BRD",
+    "level": 64,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 2613
+  },
+  {
+    "id": "brd-stormbite",
+    "name": "폭풍 화살",
+    "actionId": 7407,
+    "actionIds": [
+      7407
+    ],
+    "job": "BRD",
+    "level": 64,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 2614
+  },
+  {
+    "id": "brd-refulgent-arrow",
+    "name": "찬란한 화살",
+    "actionId": 7409,
+    "actionIds": [
+      7409
+    ],
+    "job": "BRD",
+    "level": 70,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 2616
+  },
+  {
+    "id": "brd-shadowbite",
+    "name": "그림자 화살",
+    "actionId": 16494,
+    "actionIds": [
+      16494
+    ],
+    "job": "BRD",
+    "level": 72,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 2617
+  },
+  {
+    "id": "brd-burst-shot",
+    "name": "파열 사격",
+    "actionId": 16495,
+    "actionIds": [
+      16495
+    ],
+    "job": "BRD",
+    "level": 76,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 2618
+  },
+  {
+    "id": "brd-apex-arrow",
+    "name": "정점의 화살",
+    "actionId": 16496,
+    "actionIds": [
+      16496
+    ],
+    "job": "BRD",
+    "level": 80,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 2619
+  },
+  {
+    "id": "brd-ladonsbite",
+    "name": "라돈 화살",
+    "actionId": 25783,
+    "actionIds": [
+      25783
+    ],
+    "job": "BRD",
+    "level": 82,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 2620
+  },
+  {
+    "id": "brd-resonant-arrow",
+    "name": "공명 화살",
+    "actionId": 36976,
+    "actionIds": [
+      36976
+    ],
+    "job": "BRD",
+    "level": 96,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 2624
+  },
+  {
+    "id": "brd-radiant-encore",
+    "name": "빛신의 앙코르",
+    "actionId": 36977,
+    "actionIds": [
+      36977
+    ],
+    "job": "BRD",
+    "level": 100,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 2100
+  },
+  {
+    "id": "mch-split-shot",
+    "name": "분열탄",
+    "actionId": 2866,
+    "actionIds": [
+      2866
+    ],
+    "job": "MCH",
+    "level": 1,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3001
+  },
+  {
+    "id": "mch-slug-shot",
+    "name": "슬러그탄",
+    "actionId": 2868,
+    "actionIds": [
+      2868
+    ],
+    "job": "MCH",
+    "level": 2,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3002
+  },
+  {
+    "id": "mch-hot-shot",
+    "name": "강렬한 사격",
+    "actionId": 2872,
+    "actionIds": [
+      2872
+    ],
+    "job": "MCH",
+    "level": 4,
+    "cooldown": 40,
+    "charges": 1,
+    "iconId": 3003
+  },
+  {
+    "id": "mch-spread-shot",
+    "name": "확산 사격",
+    "actionId": 2870,
+    "actionIds": [
+      2870
+    ],
+    "job": "MCH",
+    "level": 18,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3014
+  },
+  {
+    "id": "mch-clean-shot",
+    "name": "정밀탄",
+    "actionId": 2873,
+    "actionIds": [
+      2873
+    ],
+    "job": "MCH",
+    "level": 26,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3004
+  },
+  {
+    "id": "mch-heat-blast",
+    "name": "열기 분사",
+    "actionId": 7410,
+    "actionIds": [
+      7410
+    ],
+    "job": "MCH",
+    "level": 35,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3030
+  },
+  {
+    "id": "mch-auto-crossbow",
+    "name": "자동 석궁",
+    "actionId": 16497,
+    "actionIds": [
+      16497
+    ],
+    "job": "MCH",
+    "level": 52,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3042
+  },
+  {
+    "id": "mch-heated-split-shot",
+    "name": "열분열탄",
+    "actionId": 7411,
+    "actionIds": [
+      7411
+    ],
+    "job": "MCH",
+    "level": 54,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3031
+  },
+  {
+    "id": "mch-drill",
+    "name": "드릴",
+    "actionId": 16498,
+    "actionIds": [
+      16498
+    ],
+    "job": "MCH",
+    "level": 58,
+    "cooldown": 20,
+    "charges": 2,
+    "iconId": 3043
+  },
+  {
+    "id": "mch-heated-slug-shot",
+    "name": "열슬러그탄",
+    "actionId": 7412,
+    "actionIds": [
+      7412
+    ],
+    "job": "MCH",
+    "level": 60,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3032
+  },
+  {
+    "id": "mch-heated-clean-shot",
+    "name": "열정밀탄",
+    "actionId": 7413,
+    "actionIds": [
+      7413
+    ],
+    "job": "MCH",
+    "level": 64,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3033
+  },
+  {
+    "id": "mch-blazing-shot",
+    "name": "맹염탄",
+    "actionId": 36978,
+    "actionIds": [
+      36978
+    ],
+    "job": "MCH",
+    "level": 68,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3506
+  },
+  {
+    "id": "mch-bioblaster",
+    "name": "생화학무기",
+    "actionId": 16499,
+    "actionIds": [
+      16499
+    ],
+    "job": "MCH",
+    "level": 72,
+    "cooldown": 20,
+    "charges": 2,
+    "iconId": 3044
+  },
+  {
+    "id": "mch-air-anchor",
+    "name": "사슬닻",
+    "actionId": 16500,
+    "actionIds": [
+      16500
+    ],
+    "job": "MCH",
+    "level": 76,
+    "cooldown": 40,
+    "charges": 1,
+    "iconId": 3045
+  },
+  {
+    "id": "mch-scattergun",
+    "name": "산탄총",
+    "actionId": 25786,
+    "actionIds": [
+      25786
+    ],
+    "job": "MCH",
+    "level": 82,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3046
+  },
+  {
+    "id": "mch-chain-saw",
+    "name": "회전톱",
+    "actionId": 25788,
+    "actionIds": [
+      25788
+    ],
+    "job": "MCH",
+    "level": 90,
+    "cooldown": 60,
+    "charges": 1,
+    "iconId": 3048
+  },
+  {
+    "id": "mch-full-metal-field",
+    "name": "전탄발사",
+    "actionId": 36982,
+    "actionIds": [
+      36982
+    ],
+    "job": "MCH",
+    "level": 100,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3049
+  },
+  {
+    "id": "dnc-cascade",
+    "name": "캐스케이드",
+    "actionId": 15989,
+    "actionIds": [
+      15989
+    ],
+    "job": "DNC",
+    "level": 1,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3451
+  },
+  {
+    "id": "dnc-fountain",
+    "name": "파운틴",
+    "actionId": 15990,
+    "actionIds": [
+      15990
+    ],
+    "job": "DNC",
+    "level": 2,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3452
+  },
+  {
+    "id": "dnc-standard-step",
+    "name": "정석 무도",
+    "actionId": 15997,
+    "actionIds": [
+      15997
+    ],
+    "job": "DNC",
+    "level": 15,
+    "cooldown": 30,
+    "charges": 1,
+    "iconId": 3454
+  },
+  {
+    "id": "dnc-windmill",
+    "name": "윈드밀",
+    "actionId": 15993,
+    "actionIds": [
+      15993
+    ],
+    "job": "DNC",
+    "level": 15,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3453
+  },
+  {
+    "id": "dnc-reverse-cascade",
+    "name": "리버스 캐스케이드",
+    "actionId": 15991,
+    "actionIds": [
+      15991
+    ],
+    "job": "DNC",
+    "level": 20,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3460
+  },
+  {
+    "id": "dnc-bladeshower",
+    "name": "블레이드 샤워",
+    "actionId": 15994,
+    "actionIds": [
+      15994
+    ],
+    "job": "DNC",
+    "level": 25,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3461
+  },
+  {
+    "id": "dnc-rising-windmill",
+    "name": "라이징 윈드밀",
+    "actionId": 15995,
+    "actionIds": [
+      15995
+    ],
+    "job": "DNC",
+    "level": 35,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3463
+  },
+  {
+    "id": "dnc-fountainfall",
+    "name": "파운틴 폴",
+    "actionId": 15992,
+    "actionIds": [
+      15992
+    ],
+    "job": "DNC",
+    "level": 40,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3464
+  },
+  {
+    "id": "dnc-bloodshower",
+    "name": "블러드 샤워",
+    "actionId": 15996,
+    "actionIds": [
+      15996
+    ],
+    "job": "DNC",
+    "level": 45,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3465
+  },
+  {
+    "id": "dnc-technical-step",
+    "name": "기교 무도",
+    "actionId": 15998,
+    "actionIds": [
+      15998
+    ],
+    "job": "DNC",
+    "level": 70,
+    "cooldown": 120,
+    "charges": 1,
+    "iconId": 3473
+  },
+  {
+    "id": "dnc-saber-dance",
+    "name": "검무",
+    "actionId": 16005,
+    "actionIds": [
+      16005
+    ],
+    "job": "DNC",
+    "level": 76,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3476
+  },
+  {
+    "id": "dnc-starfall-dance",
+    "name": "별똥별 춤",
+    "actionId": 25792,
+    "actionIds": [
+      25792
+    ],
+    "job": "DNC",
+    "level": 90,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3482
+  },
+  {
+    "id": "dnc-last-dance",
+    "name": "마지막 춤",
+    "actionId": 36983,
+    "actionIds": [
+      36983
+    ],
+    "job": "DNC",
+    "level": 92,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3483
+  },
+  {
+    "id": "rdm-riposte",
+    "name": "리포스트",
+    "actionId": 7504,
+    "actionIds": [
+      7504
+    ],
+    "job": "RDM",
+    "level": 1,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3201
+  },
+  {
+    "id": "rdm-zwerchhau",
+    "name": "츠베르크하우",
+    "actionId": 7512,
+    "actionIds": [
+      7512
+    ],
+    "job": "RDM",
+    "level": 35,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3210
+  },
+  {
+    "id": "rdm-redoublement",
+    "name": "르두블망",
+    "actionId": 7516,
+    "actionIds": [
+      7516
+    ],
+    "job": "RDM",
+    "level": 50,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3213
+  },
+  {
+    "id": "rdm-moulinet",
+    "name": "물리네",
+    "actionId": 7513,
+    "actionIds": [
+      7513
+    ],
+    "job": "RDM",
+    "level": 52,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3215
+  },
+  {
+    "id": "rdm-reprise",
+    "name": "르프리즈",
+    "actionId": 16529,
+    "actionIds": [
+      16529
+    ],
+    "job": "RDM",
+    "level": 76,
+    "cooldown": 2.5,
+    "charges": 1,
+    "iconId": 3233
+  }
+]
