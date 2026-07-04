@@ -65,7 +65,7 @@ public sealed unsafe partial class Plugin
     {
         ImGui.TextUnformatted($"현재 직업: {job} / 레벨: {level}");
         ImGui.TextUnformatted($"로드된 스킬: {this.abilities.Count}");
-        ImGui.TextUnformatted("명령어: /fxa 또는 /wa");
+        ImGui.TextUnformatted("명령어: /fa");
     }
 
     private bool DrawGeneralSettings()

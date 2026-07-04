@@ -29,7 +29,7 @@ Development source is copied to:
 
 ## Command
 
-Use `/fxa` or `/wa` in game to open the config window.
+Use `/fa` in game to open the config window.
 
 ## Next Patch Points
 

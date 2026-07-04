@@ -2,7 +2,7 @@ namespace FFXIVAura;
 
 public sealed unsafe partial class Plugin : IDalamudPlugin
 {
-    private static readonly string[] CommandNames = ["/fxa", "/wa"];
+    private static readonly string[] CommandNames = ["/fa"];
 
     [PluginService] private static IDalamudPluginInterface PluginInterface { get; set; } = null!;
     [PluginService] private static ICommandManager CommandManager { get; set; } = null!;
