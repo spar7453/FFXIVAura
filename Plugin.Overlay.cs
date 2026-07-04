@@ -100,6 +100,7 @@ public sealed unsafe partial class Plugin
         {
             this.DrawOverlayRoleControls(iconWindow, areaOrigin, areaSize);
             this.DrawOverlayDisplayConditionControl(iconWindow, areaOrigin, areaSize);
+            this.DrawOverlayNameControl(iconWindow, areaOrigin, areaSize);
             this.DrawOverlayAlignmentControls(iconWindow, job, level, areaOrigin, areaSize);
         }
     }
@@ -271,6 +272,40 @@ public sealed unsafe partial class Plugin
             }
 
             ImGui.EndCombo();
+        }
+
+        ImGui.PopStyleVar();
+        ImGui.PopID();
+        ImGui.End();
+    }
+
+    private void DrawOverlayNameControl(IconWindowConfig iconWindow, Vector2 areaOrigin, Vector2 areaSize)
+    {
+        const float padding = 6f;
+        var framePadding = new Vector2(7f, 3f);
+        var inputWidth = Math.Clamp(areaSize.X * 0.32f, 120f, 220f);
+        var windowWidth = inputWidth + padding * 2f;
+        var windowHeight = ImGui.GetTextLineHeight() + framePadding.Y * 2f + padding * 2f;
+        var windowY = areaOrigin.Y + areaSize.Y + 4f;
+
+        ImGui.SetNextWindowPos(new Vector2(areaOrigin.X, windowY), ImGuiCond.Always);
+        ImGui.SetNextWindowSize(new Vector2(windowWidth, windowHeight), ImGuiCond.Always);
+        ImGui.SetNextWindowBgAlpha(0f);
+        if (!ImGui.Begin($"FFXIVAuraOverlayNameControl-{iconWindow.Id}", OverlayControlWindowFlags()))
+        {
+            ImGui.End();
+            return;
+        }
+
+        ImGui.PushID($"overlay-name-control-{iconWindow.Id}");
+        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, framePadding);
+        ImGui.SetCursorPos(new Vector2(padding, padding));
+        ImGui.SetNextItemWidth(inputWidth);
+        var name = iconWindow.Name;
+        if (ImGui.InputText("##name", ref name, 40))
+        {
+            iconWindow.Name = string.IsNullOrWhiteSpace(name) ? iconWindow.Id : name.Trim();
+            this.QueueConfigSave();
         }
 
         ImGui.PopStyleVar();

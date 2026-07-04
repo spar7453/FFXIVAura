@@ -12,6 +12,7 @@ The goal is simple: show only the skills, buffs, debuffs, charges, cooldowns, an
 - `/fa` command opens the settings window.
 - Multiple overlay windows.
 - Per-window options for size, gap, font scale, position, role, and display condition.
+- Overlay edit controls for window role, display condition, window name, alignment, and resize.
 - Overlay roles:
   - Skill cooldowns
   - Player buffs
@@ -20,8 +21,9 @@ The goal is simple: show only the skills, buffs, debuffs, charges, cooldowns, an
 - Per-job tracked skill lists.
 - Per-job icon positions.
 - Manual icon dragging inside the overlay grid.
+- Drag resize handle for overlay width and height.
 - Row-based display order editor.
-- Icon alignment and position reset tools.
+- Per-window left, center, and right icon alignment.
 - Effective level filtering for synced content.
 - Role action support is always enabled.
 - Cooldown display using Dalamud ActionManager data.
@@ -38,44 +40,34 @@ The goal is simple: show only the skills, buffs, debuffs, charges, cooldowns, an
   - Cooling/active only
   - Ready/missing only
 - Aura search and tracking for recently seen buffs/debuffs.
+- Party aura options for own-only filtering and party member count display.
 
+## Screenshots
+
+### Overlay Edit Mode
+
+![FFXIVAura overlay edit mode](docs/images/overlay-edit-example.png)
 
 ## Configuration Overview
 
 Open the settings window with `/fa`.
 
-### General
+### General / Display
 
 - Enable or disable the plugin.
 - Lock overlay movement.
 - Hide overlays during zone loading.
 - Check current job, effective level, loaded action count, and command name.
-
-### Overlay
-
-- Add or delete icon windows.
-- Rename each window.
-- Choose a window role:
-  - Skill
-  - Player buff
-  - Target debuff
-  - Party buff
-- Choose a display condition.
-- Change icon size, gap, overlay width, overlay height, and font scale.
-- Align icons.
-- Reset icon positions.
-
-Each window stores its own display settings and icon positions.
-
-### Display Effects
-
 - Highlight ready actions.
 - Highlight adjusted/transformed actions.
 - Show keybind text for skill cooldown windows.
 - Show missing auras for aura windows.
+- Show own-only party auras and party aura count labels.
 
-### Tracking
+### Overlay / Tracking
 
+- Add or delete icon windows.
+- Change icon size, gap, overlay width, overlay height, and font scale.
 - Select tracked skills by job.
 - Filter skills by category:
   - Weapon skills
@@ -86,6 +78,16 @@ Each window stores its own display settings and icon positions.
 - Edit row-based display order.
 - Resize the tracked order editor area by dragging the divider.
 - Search and add recently seen buffs/debuffs.
+
+The most common per-window controls are available directly on the unlocked overlay:
+
+- Top-left buttons switch the window role.
+- Top-right display condition combo changes when the window is shown.
+- Bottom-left name field renames the window.
+- Bottom-right buttons change icon alignment.
+- The lower-right corner handle resizes the overlay box.
+
+Each window stores its own display settings and icon positions.
 
 ## Data Files
 
