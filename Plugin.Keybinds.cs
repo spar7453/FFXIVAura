@@ -29,6 +29,24 @@ public sealed unsafe partial class Plugin
 
     private string GetActionKeybindText(uint baseActionId, uint displayActionId)
     {
+        if (this.keybindCacheDirty)
+        {
+            this.keybindTextCache.Clear();
+            this.keybindCacheDirty = false;
+        }
+
+        var key = (baseActionId, displayActionId);
+        if (!this.keybindTextCache.TryGetValue(key, out var text))
+        {
+            text = this.ComputeActionKeybindText(baseActionId, displayActionId);
+            this.keybindTextCache[key] = text;
+        }
+
+        return text;
+    }
+
+    private string ComputeActionKeybindText(uint baseActionId, uint displayActionId)
+    {
         try
         {
             var adjustedBaseActionId = ActionManager.Instance()->GetAdjustedActionId(baseActionId);

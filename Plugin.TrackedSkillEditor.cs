@@ -22,14 +22,14 @@ public sealed unsafe partial class Plugin
                 .ThenByDescending(a => a.Cooldown)
                 .ThenBy(a => a.Level)
                 .Select(a => a.Id));
-            PluginInterface.SavePluginConfig(this.config);
+            this.QueueConfigSave();
         }
 
         ImGui.SameLine();
         if (ImGui.Button("추적 초기화"))
         {
             tracked.Clear();
-            PluginInterface.SavePluginConfig(this.config);
+            this.QueueConfigSave();
         }
 
         var allCandidates = this.GetJobCandidates(job, level).ToList();
@@ -48,7 +48,7 @@ public sealed unsafe partial class Plugin
             if (ImGui.Selectable(tabLabel, string.Equals(this.config.TrackedEditorTab, id, StringComparison.OrdinalIgnoreCase), ImGuiSelectableFlags.DontClosePopups, new Vector2(82f, 0f)))
             {
                 this.config.TrackedEditorTab = id;
-                PluginInterface.SavePluginConfig(this.config);
+                this.QueueConfigSave();
             }
         }
 
@@ -58,7 +58,7 @@ public sealed unsafe partial class Plugin
         if (ImGui.InputTextWithHint("##FFXIVAuraTrackedSkillSearch", "스킬 이름 또는 ID 검색", ref search, 80))
         {
             this.config.TrackedSkillSearch = search;
-            PluginInterface.SavePluginConfig(this.config);
+            this.QueueConfigSave();
         }
 
         if (!string.IsNullOrWhiteSpace(this.config.TrackedSkillSearch))
@@ -67,7 +67,7 @@ public sealed unsafe partial class Plugin
             if (ImGui.Button("검색 지우기"))
             {
                 this.config.TrackedSkillSearch = string.Empty;
-                PluginInterface.SavePluginConfig(this.config);
+                this.QueueConfigSave();
             }
         }
 
@@ -114,7 +114,7 @@ public sealed unsafe partial class Plugin
                 tracked.RemoveAll(id => string.Equals(id, ability.Id, StringComparison.OrdinalIgnoreCase));
             }
 
-            PluginInterface.SavePluginConfig(this.config);
+            this.QueueConfigSave();
         }
 
         ImGui.EndChild();
@@ -146,7 +146,7 @@ public sealed unsafe partial class Plugin
         if (ImGui.IsItemActive() && ImGui.IsMouseDragging(ImGuiMouseButton.Left))
         {
             iconWindow.OrderEditorHeight = Math.Clamp(iconWindow.OrderEditorHeight + ImGui.GetIO().MouseDelta.Y, 90f, 520f);
-            PluginInterface.SavePluginConfig(this.config);
+            this.QueueConfigSave();
         }
     }
     private void DrawTrackedOrderEditorTabbed(IconWindowConfig iconWindow, string job, List<AbilityDefinition> allCandidates, List<string> tracked)
@@ -159,7 +159,7 @@ public sealed unsafe partial class Plugin
             .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
 
         if (tracked.RemoveAll(id => !byId.ContainsKey(id)) > 0)
-            PluginInterface.SavePluginConfig(this.config);
+            this.QueueConfigSave();
 
         var visible = tracked
             .Select(id => byId.TryGetValue(id, out var ability) ? ability : null)
@@ -187,7 +187,7 @@ public sealed unsafe partial class Plugin
             if (ImGui.Selectable($"{rowIndex + 1}줄", iconWindow.ActiveOrderRow == rowIndex, ImGuiSelectableFlags.DontClosePopups, new Vector2(58f, 0f)))
             {
                 iconWindow.ActiveOrderRow = rowIndex;
-                PluginInterface.SavePluginConfig(this.config);
+                this.QueueConfigSave();
             }
         }
 
@@ -268,7 +268,7 @@ public sealed unsafe partial class Plugin
     {
         var level = (uint)(PlayerState.EffectiveLevel > 0 ? PlayerState.EffectiveLevel : PlayerState.Level);
         this.AlignOverlayIcons(iconWindow, job, level, preferTrackedOrder: true);
-        PluginInterface.SavePluginConfig(this.config);
+        this.QueueConfigSave();
     }
 
     private void UntrackAbility(IconWindowConfig iconWindow, string job, string abilityId)

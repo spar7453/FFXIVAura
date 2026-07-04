@@ -27,6 +27,9 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private readonly List<AbilityDefinition> abilities = [];
     private readonly Dictionary<uint, (uint RowId, string Name)> actionCategoryCache = new();
     private readonly Dictionary<IconWindowRole, Dictionary<uint, DateTime>> auraFirstSeenByRole = new();
+    private readonly Dictionary<string, List<AbilityDefinition>> gameActionCandidatesCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, CooldownState> cooldownFrameCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<(uint BaseActionId, uint DisplayActionId), string> keybindTextCache = new();
     private readonly Dictionary<IconWindowRole, HashSet<uint>> visibleAurasByRole = new();
     private readonly Dictionary<uint, IDalamudTextureWrap> grayscaleIconCache = new();
     private readonly Dictionary<string, string> visibleAbilityKeys = new(StringComparer.OrdinalIgnoreCase);
@@ -35,9 +38,13 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private string? draggedTrackedId;
     private string? draggedOverlayId;
     private bool auraSearchWindowVisible;
+    private bool configSavePending;
+    private bool configWasVisible;
+    private bool keybindCacheDirty = true;
     private int pendingStatusId;
     private Vector2 draggedOverlayMouseStart;
     private Vector2 draggedOverlayPositionStart;
+    private DateTime configSaveAfter = DateTime.MinValue;
     private PluginConfig config;
     private bool configVisible;
     private bool zoneLoadActive;
@@ -55,13 +62,13 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
             this.config.Version = 2;
             this.config.OverlayWidth = 760f;
             this.config.OverlayHeight = 170f;
-            PluginInterface.SavePluginConfig(this.config);
+            this.SaveConfigNow();
         }
         if (this.config.Version < 3)
         {
             this.config.Version = 3;
             this.EnsureIconWindows();
-            PluginInterface.SavePluginConfig(this.config);
+            this.SaveConfigNow();
         }
 
         this.cooldownFont = PluginInterface.UiBuilder.FontAtlas.NewGameFontHandle(new GameFontStyle(GameFontFamily.Meidinger, 20f)
@@ -95,6 +102,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
 
     public void Dispose()
     {
+        this.FlushConfigSave(force: true);
         PluginInterface.UiBuilder.Draw -= this.Draw;
         PluginInterface.UiBuilder.OpenMainUi -= this.OpenConfig;
         PluginInterface.UiBuilder.OpenConfigUi -= this.OpenConfig;
@@ -139,11 +147,14 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private void OnCommand(string command, string args)
     {
         this.configVisible = !this.configVisible;
+        if (this.configVisible)
+            this.InvalidateKeybindCache();
     }
 
     private void OpenConfig()
     {
         this.configVisible = true;
+        this.InvalidateKeybindCache();
     }
 
     private void OnZoneInit(ZoneInitEventArgs args)
@@ -169,16 +180,63 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
 
     private void Draw()
     {
+        this.BeginFrameCache();
+        if (this.configVisible && !this.configWasVisible)
+            this.InvalidateKeybindCache();
+
+        this.configWasVisible = this.configVisible;
+
         if (this.configVisible)
             this.DrawConfig();
 
         if (!this.config.Enabled || !ClientState.IsLoggedIn || !PlayerState.IsLoaded)
+        {
+            this.FlushConfigSave(force: false);
             return;
+        }
 
         if (this.config.HideDuringZoneLoad && this.IsLoading())
+        {
+            this.FlushConfigSave(force: false);
             return;
+        }
 
         this.DrawOverlay();
+        this.FlushConfigSave(force: false);
+    }
+
+    private void BeginFrameCache()
+    {
+        this.cooldownFrameCache.Clear();
+    }
+
+    private void QueueConfigSave()
+    {
+        this.configSavePending = true;
+        this.configSaveAfter = DateTime.UtcNow.AddMilliseconds(400);
+    }
+
+    private void SaveConfigNow()
+    {
+        PluginInterface.SavePluginConfig(this.config);
+        this.configSavePending = false;
+        this.configSaveAfter = DateTime.MinValue;
+    }
+
+    private void FlushConfigSave(bool force)
+    {
+        if (!this.configSavePending)
+            return;
+
+        if (!force && DateTime.UtcNow < this.configSaveAfter)
+            return;
+
+        this.SaveConfigNow();
+    }
+
+    private void InvalidateKeybindCache()
+    {
+        this.keybindCacheDirty = true;
     }
 
     private bool IsLoading()

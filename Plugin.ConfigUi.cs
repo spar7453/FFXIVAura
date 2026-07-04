@@ -22,27 +22,19 @@ public sealed unsafe partial class Plugin
         var changed = false;
         if (ImGui.BeginTabBar("FFXIVAuraConfigTabs"))
         {
-            if (ImGui.BeginTabItem("일반"))
+            if (ImGui.BeginTabItem("일반/표시"))
             {
                 changed |= this.DrawGeneralSettings();
-                ImGui.EndTabItem();
-            }
-
-            if (ImGui.BeginTabItem("오버레이"))
-            {
-                this.DrawIconWindowControls(ref activeWindow);
-                changed |= this.DrawOverlayWindowSettings(activeWindow, job, level);
-                ImGui.EndTabItem();
-            }
-
-            if (ImGui.BeginTabItem("표시 효과"))
-            {
+                ImGui.Separator();
                 changed |= this.DrawVisualSettings(activeWindow);
                 ImGui.EndTabItem();
             }
 
-            if (ImGui.BeginTabItem("추적"))
+            if (ImGui.BeginTabItem("오버레이/추적"))
             {
+                this.DrawIconWindowControls(ref activeWindow);
+                changed |= this.DrawOverlayWindowSettings(activeWindow);
+                ImGui.Separator();
                 this.DrawTrackingSettings(activeWindow, job, level);
                 ImGui.EndTabItem();
             }
@@ -51,7 +43,10 @@ public sealed unsafe partial class Plugin
         }
 
         if (changed)
-            PluginInterface.SavePluginConfig(this.config);
+        {
+            this.QueueConfigSave();
+            this.InvalidateKeybindCache();
+        }
 
         ImGui.End();
     }
@@ -88,7 +83,7 @@ public sealed unsafe partial class Plugin
         return true;
     }
 
-    private bool DrawOverlayWindowSettings(IconWindowConfig activeWindow, string job, uint level)
+    private bool DrawOverlayWindowSettings(IconWindowConfig activeWindow)
     {
         var changed = false;
         changed |= this.DrawWindowRoleSelector(activeWindow);
@@ -116,22 +111,6 @@ public sealed unsafe partial class Plugin
             activeWindow.FontScale = fontScale;
         }
 
-        ImGui.Spacing();
-        if (job != "JOB" && ImGui.Button("아이콘 정렬"))
-        {
-            this.AlignOverlayIcons(activeWindow, job, level);
-            changed = true;
-        }
-
-        if (job != "JOB")
-            ImGui.SameLine();
-
-        if (job != "JOB" && ImGui.Button("아이콘 위치 초기화"))
-        {
-            activeWindow.IconPositionsByJob.Remove(job);
-            changed = true;
-        }
-
         return changed;
     }
 
@@ -142,6 +121,8 @@ public sealed unsafe partial class Plugin
         var highlightAdjusted = activeWindow.HighlightAdjusted;
         var showKeybindText = activeWindow.ShowKeybindText;
         var showMissingAuras = activeWindow.ShowMissingAuras;
+        var partyAurasOwnOnly = activeWindow.PartyAurasOwnOnly;
+        var showPartyAuraCount = activeWindow.ShowPartyAuraCount;
 
         changed |= ImGui.Checkbox("사용 가능 강조", ref highlightReady);
         changed |= ImGui.Checkbox("변환 스킬 강조", ref highlightAdjusted);
@@ -152,6 +133,12 @@ public sealed unsafe partial class Plugin
         if (activeWindow.Role != IconWindowRole.SkillCooldowns)
             changed |= ImGui.Checkbox("없는 버프/디버프 표시", ref showMissingAuras);
 
+        if (activeWindow.Role == IconWindowRole.PartyBuffs)
+        {
+            changed |= ImGui.Checkbox("내가 건 파티 버프만 표시", ref partyAurasOwnOnly);
+            changed |= ImGui.Checkbox("파티 적용 인원 표시", ref showPartyAuraCount);
+        }
+
         if (!changed)
             return false;
 
@@ -159,6 +146,8 @@ public sealed unsafe partial class Plugin
         activeWindow.HighlightAdjusted = highlightAdjusted;
         activeWindow.ShowKeybindText = showKeybindText;
         activeWindow.ShowMissingAuras = showMissingAuras;
+        activeWindow.PartyAurasOwnOnly = partyAurasOwnOnly;
+        activeWindow.ShowPartyAuraCount = showPartyAuraCount;
         return true;
     }
 
@@ -182,7 +171,7 @@ public sealed unsafe partial class Plugin
             {
                 this.config.ActiveWindowId = window.Id;
                 activeWindow = window;
-                PluginInterface.SavePluginConfig(this.config);
+                this.QueueConfigSave();
             }
         }
 
@@ -191,7 +180,7 @@ public sealed unsafe partial class Plugin
         if (ImGui.InputText("창 이름", ref windowName, 40))
         {
             activeWindow.Name = string.IsNullOrWhiteSpace(windowName) ? activeWindow.Id : windowName.Trim();
-            PluginInterface.SavePluginConfig(this.config);
+            this.QueueConfigSave();
         }
 
         if (ImGui.Button("창 추가"))
@@ -213,15 +202,18 @@ public sealed unsafe partial class Plugin
                 OrderEditorHeight = activeWindow.OrderEditorHeight,
                 Role = activeWindow.Role,
                 DisplayCondition = activeWindow.DisplayCondition,
+                Alignment = activeWindow.Alignment,
                 HighlightReady = activeWindow.HighlightReady,
                 HighlightAdjusted = activeWindow.HighlightAdjusted,
                 ShowKeybindText = activeWindow.ShowKeybindText,
                 ShowMissingAuras = activeWindow.ShowMissingAuras,
+                PartyAurasOwnOnly = activeWindow.PartyAurasOwnOnly,
+                ShowPartyAuraCount = activeWindow.ShowPartyAuraCount,
             };
             this.config.IconWindows.Add(window);
             this.config.ActiveWindowId = id;
             activeWindow = window;
-            PluginInterface.SavePluginConfig(this.config);
+            this.QueueConfigSave();
         }
 
         if (this.config.IconWindows.Count > 1)
@@ -233,7 +225,7 @@ public sealed unsafe partial class Plugin
                 this.config.IconWindows.RemoveAll(window => string.Equals(window.Id, deleteId, StringComparison.OrdinalIgnoreCase));
                 this.config.ActiveWindowId = this.config.IconWindows[0].Id;
                 activeWindow = this.config.IconWindows[0];
-                PluginInterface.SavePluginConfig(this.config);
+                this.QueueConfigSave();
             }
         }
 

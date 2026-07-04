@@ -6,5 +6,7 @@ public readonly record struct AuraState(
     uint IconId,
     float Remaining,
     ushort Param,
+    int Count,
+    int OwnCount,
     bool Present,
     bool FromSelf);

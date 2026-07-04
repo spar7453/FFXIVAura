@@ -168,6 +168,18 @@ public sealed unsafe partial class Plugin
 
     private IEnumerable<AbilityDefinition> GetGameActionCandidates(string job, uint level)
     {
+        var key = $"{job}:{level}";
+        if (!this.gameActionCandidatesCache.TryGetValue(key, out var cached))
+        {
+            cached = this.BuildGameActionCandidates(job, level).ToList();
+            this.gameActionCandidatesCache[key] = cached;
+        }
+
+        return cached;
+    }
+
+    private IEnumerable<AbilityDefinition> BuildGameActionCandidates(string job, uint level)
+    {
         var classJobIds = JobInfo.ApplicableClassJobIds(job);
         if (classJobIds.Count == 0)
             yield break;

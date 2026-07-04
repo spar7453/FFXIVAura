@@ -45,6 +45,17 @@ public sealed unsafe partial class Plugin
 
     private CooldownState GetCooldown(AbilityDefinition ability)
     {
+        var key = $"{ability.Id}:{ability.ActionId}";
+        if (this.cooldownFrameCache.TryGetValue(key, out var cached))
+            return cached;
+
+        var state = this.ComputeCooldown(ability);
+        this.cooldownFrameCache[key] = state;
+        return state;
+    }
+
+    private CooldownState ComputeCooldown(AbilityDefinition ability)
+    {
         var baseActionId = ability.ActionId;
         var actionId = baseActionId;
         var manager = ActionManager.Instance();

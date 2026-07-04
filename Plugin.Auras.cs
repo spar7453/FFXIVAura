@@ -11,7 +11,7 @@ public sealed unsafe partial class Plugin
         if (ImGui.InputTextWithHint("##FFXIVAuraAuraSearch", "\uBC84\uD504/\uB514\uBC84\uD504 \uC774\uB984 \uB610\uB294 ID \uAC80\uC0C9", ref search, 80))
         {
             iconWindow.AuraSearch = search;
-            PluginInterface.SavePluginConfig(this.config);
+            this.QueueConfigSave();
         }
 
         ImGui.SameLine();
@@ -24,7 +24,7 @@ public sealed unsafe partial class Plugin
             if (ImGui.Button("\uAC80\uC0C9 \uC9C0\uC6B0\uAE30"))
             {
                 iconWindow.AuraSearch = string.Empty;
-                PluginInterface.SavePluginConfig(this.config);
+                this.QueueConfigSave();
             }
         }
 
@@ -32,7 +32,7 @@ public sealed unsafe partial class Plugin
         if (ImGui.Checkbox("\uD604\uC7AC \uBCF4\uC774\uB294 \uBC84\uD504/\uB514\uBC84\uD504\uB9CC \uAC80\uC0C9", ref activeOnly))
         {
             iconWindow.AuraSearchActiveOnly = activeOnly;
-            PluginInterface.SavePluginConfig(this.config);
+            this.QueueConfigSave();
         }
 
         this.DrawAuraSearchWindow(iconWindow);
@@ -46,7 +46,7 @@ public sealed unsafe partial class Plugin
             if (!iconWindow.TrackedStatusIds.Contains(id))
             {
                 iconWindow.TrackedStatusIds.Add(id);
-                PluginInterface.SavePluginConfig(this.config);
+                this.QueueConfigSave();
             }
         }
 
@@ -63,7 +63,7 @@ public sealed unsafe partial class Plugin
             if (ImGui.SmallButton("\uC0AD\uC81C"))
             {
                 iconWindow.TrackedStatusIds.RemoveAt(i);
-                PluginInterface.SavePluginConfig(this.config);
+                this.QueueConfigSave();
                 ImGui.PopID();
                 break;
             }
@@ -91,21 +91,21 @@ public sealed unsafe partial class Plugin
         if (ImGui.InputTextWithHint("##FFXIVAuraAuraSearchWindowInput", "\uC774\uB984 \uB610\uB294 ID", ref search, 80))
         {
             iconWindow.AuraSearch = search;
-            PluginInterface.SavePluginConfig(this.config);
+            this.QueueConfigSave();
         }
 
         ImGui.SameLine();
         if (ImGui.Button("\uC9C0\uC6B0\uAE30"))
         {
             iconWindow.AuraSearch = string.Empty;
-            PluginInterface.SavePluginConfig(this.config);
+            this.QueueConfigSave();
         }
 
         var activeOnly = iconWindow.AuraSearchActiveOnly;
         if (ImGui.Checkbox("\uD604\uC7AC \uBCF4\uC774\uB294 \uBC84\uD504/\uB514\uBC84\uD504\uB9CC", ref activeOnly))
         {
             iconWindow.AuraSearchActiveOnly = activeOnly;
-            PluginInterface.SavePluginConfig(this.config);
+            this.QueueConfigSave();
         }
 
         ImGui.Separator();
@@ -145,7 +145,7 @@ public sealed unsafe partial class Plugin
             else if (ImGui.SmallButton("\uCD94\uAC00"))
             {
                 iconWindow.TrackedStatusIds.Add(result.StatusId);
-                PluginInterface.SavePluginConfig(this.config);
+                this.QueueConfigSave();
             }
 
             ImGui.PopID();
@@ -315,6 +315,12 @@ public sealed unsafe partial class Plugin
     }
 
     private IEnumerable<uint> GetCurrentStatusIds(IconWindowRole role)
+        => this.GetCurrentStatusIds(role, ownOnly: false);
+
+    private IEnumerable<uint> GetCurrentStatusIds(IconWindowConfig iconWindow)
+        => this.GetCurrentStatusIds(iconWindow.Role, iconWindow.Role == IconWindowRole.PartyBuffs && iconWindow.PartyAurasOwnOnly);
+
+    private IEnumerable<uint> GetCurrentStatusIds(IconWindowRole role, bool ownOnly)
     {
         switch (role)
         {
@@ -339,7 +345,7 @@ public sealed unsafe partial class Plugin
 
                     foreach (var status in member.Statuses)
                     {
-                        if (status.StatusId > 0)
+                        if (status.StatusId > 0 && (!ownOnly || this.IsStatusFromSelf(status.SourceId)))
                             yield return status.StatusId;
                     }
                 }
@@ -394,7 +400,7 @@ public sealed unsafe partial class Plugin
 
         foreach (var statusId in iconWindow.TrackedStatusIds.Distinct())
         {
-            var aura = this.GetAuraState(iconWindow.Role, statusId);
+            var aura = this.GetAuraState(iconWindow, statusId);
             if (!aura.Present && !iconWindow.ShowMissingAuras)
                 continue;
 
@@ -417,39 +423,48 @@ public sealed unsafe partial class Plugin
         };
     }
 
-    private AuraState GetAuraState(IconWindowRole role, uint statusId)
+    private AuraState GetAuraState(IconWindowConfig iconWindow, uint statusId)
     {
         var definition = this.GetStatusDefinition(statusId);
-        var active = role switch
+        var active = iconWindow.Role switch
         {
             IconWindowRole.TargetDebuffs => this.FindStatusOnTarget(statusId),
-            IconWindowRole.PartyBuffs => this.FindStatusOnParty(statusId),
+            IconWindowRole.PartyBuffs => this.FindStatusOnParty(statusId, iconWindow.PartyAurasOwnOnly),
             _ => this.FindStatusOnPlayer(statusId),
         };
 
         if (active is null)
-            return new AuraState(statusId, definition.Name, definition.IconId, 0f, 0, false, false);
+            return new AuraState(statusId, definition.Name, definition.IconId, 0f, 0, 0, 0, false, false);
 
-        return new AuraState(statusId, definition.Name, definition.IconId, Math.Max(0f, active.Value.Remaining), active.Value.Param, true, active.Value.FromSelf);
+        return new AuraState(
+            statusId,
+            definition.Name,
+            definition.IconId,
+            Math.Max(0f, active.Value.Remaining),
+            active.Value.Param,
+            active.Value.Count,
+            active.Value.OwnCount,
+            true,
+            active.Value.FromSelf);
     }
 
-    private (float Remaining, ushort Param, bool FromSelf)? FindStatusOnPlayer(uint statusId)
+    private (float Remaining, ushort Param, int Count, int OwnCount, bool FromSelf)? FindStatusOnPlayer(uint statusId)
     {
         return ObjectTable.LocalPlayer is IBattleChara chara
             ? this.FindStatus(chara, statusId, preferOwnStatus: false)
             : null;
     }
 
-    private (float Remaining, ushort Param, bool FromSelf)? FindStatusOnTarget(uint statusId)
+    private (float Remaining, ushort Param, int Count, int OwnCount, bool FromSelf)? FindStatusOnTarget(uint statusId)
     {
         return TargetManager.Target is IBattleChara chara
             ? this.FindStatus(chara, statusId, preferOwnStatus: true)
             : null;
     }
 
-    private (float Remaining, ushort Param, bool FromSelf)? FindStatusOnParty(uint statusId)
+    private (float Remaining, ushort Param, int Count, int OwnCount, bool FromSelf)? FindStatusOnParty(uint statusId, bool ownOnly)
     {
-        (float Remaining, ushort Param, bool FromSelf)? best = null;
+        (float Remaining, ushort Param, int Count, int OwnCount, bool FromSelf)? best = null;
         for (var i = 0; i < PartyList.Length; i++)
         {
             var member = PartyList[i];
@@ -461,25 +476,56 @@ public sealed unsafe partial class Plugin
                 if (status.StatusId != statusId)
                     continue;
 
-                var candidate = (Math.Max(0f, status.RemainingTime), status.Param, this.IsStatusFromSelf(status.SourceId));
-                if (best is null || candidate.Item1 > best.Value.Remaining)
-                    best = candidate;
+                var fromSelf = this.IsStatusFromSelf(status.SourceId);
+                if (ownOnly && !fromSelf)
+                    continue;
+
+                var remaining = Math.Max(0f, status.RemainingTime);
+                if (best is null)
+                {
+                    best = (remaining, status.Param, 1, fromSelf ? 1 : 0, fromSelf);
+                    continue;
+                }
+
+                var current = best.Value;
+                current.Count++;
+                if (fromSelf)
+                    current.OwnCount++;
+
+                if (remaining > current.Remaining)
+                {
+                    current.Remaining = remaining;
+                    current.Param = status.Param;
+                    current.FromSelf = fromSelf;
+                }
+                else
+                {
+                    current.FromSelf |= fromSelf;
+                }
+
+                best = current;
             }
         }
 
         return best;
     }
 
-    private (float Remaining, ushort Param, bool FromSelf)? FindStatus(IBattleChara chara, uint statusId, bool preferOwnStatus)
+    private (float Remaining, ushort Param, int Count, int OwnCount, bool FromSelf)? FindStatus(IBattleChara chara, uint statusId, bool preferOwnStatus)
     {
-        (float Remaining, ushort Param, bool FromSelf)? fallback = null;
+        (float Remaining, ushort Param, int Count, int OwnCount, bool FromSelf)? fallback = null;
         foreach (var status in chara.StatusList)
         {
             if (status.StatusId != statusId)
                 continue;
 
-            var candidate = (Math.Max(0f, status.RemainingTime), status.Param, this.IsStatusFromSelf(status.SourceId));
-            if (candidate.Item3 || !preferOwnStatus)
+            var fromSelf = this.IsStatusFromSelf(status.SourceId);
+            var candidate = (
+                Remaining: Math.Max(0f, status.RemainingTime),
+                Param: status.Param,
+                Count: 1,
+                OwnCount: fromSelf ? 1 : 0,
+                FromSelf: fromSelf);
+            if (candidate.FromSelf || !preferOwnStatus)
                 return candidate;
 
             fallback ??= candidate;
@@ -537,8 +583,22 @@ public sealed unsafe partial class Plugin
         if (aura.Param > 1)
             this.DrawChargeText(draw, pos, max, aura.Param);
 
+        if (iconWindow.Role == IconWindowRole.PartyBuffs && iconWindow.ShowPartyAuraCount && aura.Count > 0)
+            this.DrawAuraCountText(draw, pos, max, aura.Count);
+
         if (aura.FromSelf)
             draw.AddRect(pos, max, ImGui.GetColorU32(new Vector4(0.45f, 0.75f, 1f, 0.95f)), 3f, ImDrawFlags.None, 1.5f);
+    }
+
+    private void DrawAuraCountText(ImDrawListPtr draw, Vector2 min, Vector2 max, int count)
+    {
+        var text = count.ToString();
+        using (this.keybindFont.Push())
+        {
+            var size = ImGui.CalcTextSize(text);
+            var pos = new Vector2(max.X - size.X - 2f, min.Y + 1f);
+            this.DrawOutlinedText(draw, pos, text, new Vector4(0.82f, 1f, 0.82f, 1f), new Vector4(0f, 0f, 0f, 0.95f), 1f);
+        }
     }
 
     private void DrawStatusListIcon(uint iconId, float size)

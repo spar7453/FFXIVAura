@@ -44,15 +44,26 @@ public sealed unsafe partial class Plugin
             return;
         }
 
-        iconWindow.Position = ImGui.GetWindowPos();
+        var windowPosition = ImGui.GetWindowPos();
+        if (!this.config.LockOverlay && Vector2.DistanceSquared(iconWindow.Position, windowPosition) > 0.25f)
+        {
+            iconWindow.Position = windowPosition;
+            this.QueueConfigSave();
+        }
+        else
+        {
+            iconWindow.Position = windowPosition;
+        }
         ImGui.SetWindowFontScale(iconWindow.FontScale);
 
         var iconSize = iconWindow.IconSize;
         var gap = iconWindow.Gap;
-        var areaSize = ImGui.GetContentRegionAvail();
+        var areaSize = new Vector2(iconWindow.Width, iconWindow.Height);
         var areaOrigin = ImGui.GetCursorScreenPos();
         if (!this.config.LockOverlay)
             this.DrawOverlayEditStage(ImGui.GetWindowDrawList(), areaOrigin, areaOrigin + areaSize);
+        if (!this.config.LockOverlay)
+            this.HandleOverlayResize(iconWindow, areaOrigin, areaSize);
 
         if (!ImGui.IsMouseDown(ImGuiMouseButton.Left))
         {
@@ -75,17 +86,30 @@ public sealed unsafe partial class Plugin
         for (var i = 0; i < auras.Count; i++)
         {
             var aura = auras[i];
-            var localPos = this.GetAuraIconPosition(i, auras.Count, areaSize, iconSize, gap);
-            ImGui.SetCursorScreenPos(areaOrigin + localPos);
+            var localPos = this.GetAuraIconPosition(iconWindow, aura, i, auras.Count, areaSize, iconSize, gap);
+            var iconPos = areaOrigin + localPos;
+            ImGui.SetCursorScreenPos(iconPos);
             this.DrawAuraIcon(aura, iconSize, iconWindow);
+            this.HandleAuraIconInteraction(iconWindow, aura, localPos, iconPos, areaSize, iconSize);
         }
 
         ImGui.End();
         ImGui.PopStyleVar();
+
+        if (!this.config.LockOverlay)
+            this.DrawOverlayAlignmentControls(iconWindow, job, level, areaOrigin, areaSize);
     }
 
-    private Vector2 GetAuraIconPosition(int index, int visibleCount, Vector2 areaSize, float iconSize, float gap)
-        => this.GetOverlayAutoPosition(index, visibleCount, areaSize, iconSize, gap);
+    private Vector2 GetAuraIconPosition(IconWindowConfig iconWindow, AuraState aura, int index, int visibleCount, Vector2 areaSize, float iconSize, float gap)
+    {
+        if (iconWindow.AuraPositionsByRole.TryGetValue(GetAuraPositionGroupKey(iconWindow), out var positions)
+            && positions.TryGetValue(GetAuraPositionKey(aura.StatusId), out var saved))
+        {
+            return this.ClampOverlayIconPosition(saved, areaSize, iconSize);
+        }
+
+        return this.GetOverlayAutoPosition(iconWindow, index, visibleCount, areaSize, iconSize, gap);
+    }
 
     private void AutoAlignWhenVisibleSkillsChanged(IconWindowConfig iconWindow, string job, uint level, IReadOnlyList<AbilityDefinition> visible)
     {
@@ -95,8 +119,11 @@ public sealed unsafe partial class Plugin
             return;
 
         this.visibleAbilityKeys[key] = visibleKey;
+        if (iconWindow.IconPositionsByJob.TryGetValue(job, out var positions) && positions.Count > 0)
+            return;
+
         this.AlignOverlayIcons(iconWindow, job, level);
-        PluginInterface.SavePluginConfig(this.config);
+        this.QueueConfigSave();
     }
 
     private void DrawOverlayEditStage(ImDrawListPtr draw, Vector2 min, Vector2 max)
@@ -113,6 +140,126 @@ public sealed unsafe partial class Plugin
         draw.AddRect(min - new Vector2(2f, 2f), max + new Vector2(2f, 2f), ImGui.GetColorU32(new Vector4(0f, 0f, 0f, 0.82f)), 9f, ImDrawFlags.None, 2f);
     }
 
+    private void HandleOverlayResize(IconWindowConfig iconWindow, Vector2 areaOrigin, Vector2 areaSize)
+    {
+        const float handleSize = 18f;
+        const float minWidth = 120f;
+        const float minHeight = 40f;
+        const float maxWidth = 1200f;
+        const float maxHeight = 400f;
+
+        var handleMax = areaOrigin + areaSize;
+        var handleMin = handleMax - new Vector2(handleSize, handleSize);
+        var draw = ImGui.GetWindowDrawList();
+        var color = ImGui.GetColorU32(new Vector4(0.4f, 0.91f, 0.98f, 0.9f));
+        var shadow = ImGui.GetColorU32(new Vector4(0f, 0f, 0f, 0.75f));
+
+        draw.AddTriangleFilled(
+            handleMax - new Vector2(handleSize, 0f),
+            handleMax,
+            handleMax - new Vector2(0f, handleSize),
+            shadow);
+        draw.AddLine(handleMax - new Vector2(13f, 3f), handleMax - new Vector2(3f, 13f), color, 2f);
+        draw.AddLine(handleMax - new Vector2(8f, 3f), handleMax - new Vector2(3f, 8f), color, 2f);
+
+        ImGui.SetCursorScreenPos(handleMin);
+        ImGui.InvisibleButton($"##overlay-resize-{iconWindow.Id}", new Vector2(handleSize, handleSize));
+        if (!ImGui.IsItemActive() || !ImGui.IsMouseDragging(ImGuiMouseButton.Left, 2f))
+            return;
+
+        var delta = ImGui.GetIO().MouseDelta;
+        var nextWidth = Math.Clamp(iconWindow.Width + delta.X, minWidth, maxWidth);
+        var nextHeight = Math.Clamp(iconWindow.Height + delta.Y, minHeight, maxHeight);
+        if (Math.Abs(nextWidth - iconWindow.Width) <= 0.1f && Math.Abs(nextHeight - iconWindow.Height) <= 0.1f)
+            return;
+
+        iconWindow.Width = nextWidth;
+        iconWindow.Height = nextHeight;
+        this.QueueConfigSave();
+    }
+
+    private void DrawOverlayAlignmentControls(IconWindowConfig iconWindow, string job, uint level, Vector2 areaOrigin, Vector2 areaSize)
+    {
+        const float padding = 6f;
+        const string leftLabel = "왼쪽";
+        const string centerLabel = "가운데";
+        const string rightLabel = "오른쪽";
+        var framePadding = new Vector2(7f, 3f);
+        var itemSpacing = new Vector2(4f, 0f);
+
+        var leftWidth = ImGui.CalcTextSize(leftLabel).X + framePadding.X * 2f;
+        var centerWidth = ImGui.CalcTextSize(centerLabel).X + framePadding.X * 2f;
+        var rightWidth = ImGui.CalcTextSize(rightLabel).X + framePadding.X * 2f;
+        var contentWidth = leftWidth + centerWidth + rightWidth + itemSpacing.X * 2f;
+        var windowWidth = contentWidth + padding * 2f;
+        var windowHeight = ImGui.GetTextLineHeight() + framePadding.Y * 2f + padding * 2f;
+        var windowX = Math.Max(areaOrigin.X, areaOrigin.X + areaSize.X - windowWidth);
+        var windowY = areaOrigin.Y + areaSize.Y + 4f;
+
+        ImGui.SetNextWindowPos(new Vector2(windowX, windowY), ImGuiCond.Always);
+        ImGui.SetNextWindowSize(new Vector2(windowWidth, windowHeight), ImGuiCond.Always);
+        ImGui.SetNextWindowBgAlpha(0f);
+        var flags = ImGuiWindowFlags.NoTitleBar
+                    | ImGuiWindowFlags.NoScrollbar
+                    | ImGuiWindowFlags.NoSavedSettings
+                    | ImGuiWindowFlags.NoDecoration
+                    | ImGuiWindowFlags.NoMove;
+
+        if (!ImGui.Begin($"FFXIVAuraOverlayControls-{iconWindow.Id}", flags))
+        {
+            ImGui.End();
+            return;
+        }
+
+        ImGui.PushID($"overlay-controls-{iconWindow.Id}");
+        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, framePadding);
+        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, itemSpacing);
+        ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.05f, 0.08f, 0.1f, 0.82f));
+        ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new Vector4(0.08f, 0.32f, 0.38f, 0.95f));
+        ImGui.PushStyleColor(ImGuiCol.ButtonActive, new Vector4(0.12f, 0.48f, 0.56f, 1f));
+
+        ImGui.SetCursorPos(new Vector2(padding, padding));
+
+        if (this.DrawOverlayAlignmentButton(iconWindow.Alignment == IconAlignment.Left, leftLabel))
+            this.ApplyOverlayAlignment(iconWindow, job, level, IconAlignment.Left);
+
+        ImGui.SameLine();
+        if (this.DrawOverlayAlignmentButton(iconWindow.Alignment == IconAlignment.Center, centerLabel))
+            this.ApplyOverlayAlignment(iconWindow, job, level, IconAlignment.Center);
+
+        ImGui.SameLine();
+        if (this.DrawOverlayAlignmentButton(iconWindow.Alignment == IconAlignment.Right, rightLabel))
+            this.ApplyOverlayAlignment(iconWindow, job, level, IconAlignment.Right);
+
+        ImGui.PopStyleColor(3);
+        ImGui.PopStyleVar(2);
+        ImGui.PopID();
+        ImGui.End();
+    }
+
+    private bool DrawOverlayAlignmentButton(bool selected, string label)
+    {
+        if (selected)
+            ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.14f, 0.5f, 0.58f, 0.96f));
+
+        var clicked = ImGui.Button(label);
+        if (selected)
+            ImGui.PopStyleColor();
+
+        return clicked;
+    }
+
+    private void ApplyOverlayAlignment(IconWindowConfig iconWindow, string job, uint level, IconAlignment alignment)
+    {
+        iconWindow.Alignment = alignment;
+        if (iconWindow.Role == IconWindowRole.SkillCooldowns)
+            this.AlignOverlayIcons(iconWindow, job, level);
+        else
+            this.AlignAuraIcons(iconWindow);
+
+        this.QueueConfigSave();
+    }
+
     private Vector2 GetOverlayIconPosition(IconWindowConfig iconWindow, string job, AbilityDefinition ability, int index, int visibleCount, Vector2 areaSize, float iconSize, float gap)
     {
         if (iconWindow.IconPositionsByJob.TryGetValue(job, out var positions)
@@ -121,10 +268,10 @@ public sealed unsafe partial class Plugin
             return this.ClampOverlayIconPosition(saved, areaSize, iconSize);
         }
 
-        return this.GetOverlayAutoPosition(index, visibleCount, areaSize, iconSize, gap);
+        return this.GetOverlayAutoPosition(iconWindow, index, visibleCount, areaSize, iconSize, gap);
     }
 
-    private Vector2 GetOverlayAutoPosition(int index, int visibleCount, Vector2 areaSize, float iconSize, float gap)
+    private Vector2 GetOverlayAutoPosition(IconWindowConfig iconWindow, int index, int visibleCount, Vector2 areaSize, float iconSize, float gap)
     {
         var cell = iconSize + gap;
         var columns = Math.Max(1, (int)Math.Floor((areaSize.X + gap) / Math.Max(1f, cell)));
@@ -135,9 +282,20 @@ public sealed unsafe partial class Plugin
         var itemsInRow = row == rows - 1 ? count - row * columns : columns;
         var rowWidth = Math.Max(0f, itemsInRow * iconSize + Math.Max(0, itemsInRow - 1) * gap);
         var blockHeight = Math.Max(0f, rows * iconSize + Math.Max(0, rows - 1) * gap);
-        var x = Math.Max(0f, MathF.Round((areaSize.X - rowWidth) * 0.5f)) + column * cell;
+        var x = this.GetAlignedRowStartX(iconWindow, areaSize.X, rowWidth) + column * cell;
         var y = Math.Max(0f, MathF.Round((areaSize.Y - blockHeight) * 0.5f)) + row * cell;
         return this.ClampOverlayIconPosition(new Vector2(x, y), areaSize, iconSize);
+    }
+
+    private float GetAlignedRowStartX(IconWindowConfig iconWindow, float areaWidth, float rowWidth)
+    {
+        var remaining = Math.Max(0f, areaWidth - rowWidth);
+        return iconWindow.Alignment switch
+        {
+            IconAlignment.Left => 0f,
+            IconAlignment.Right => MathF.Round(remaining),
+            _ => MathF.Round(remaining * 0.5f),
+        };
     }
 
     private Vector2 ClampOverlayIconPosition(Vector2 position, Vector2 areaSize, float iconSize)
@@ -152,21 +310,22 @@ public sealed unsafe partial class Plugin
         if (this.config.LockOverlay)
             return;
 
+        var dragId = $"{iconWindow.Id}:{job}:{ability.Id}";
         ImGui.SetCursorScreenPos(iconPos);
         ImGui.InvisibleButton($"##overlay-drag-{ability.Id}", new Vector2(iconSize, iconSize));
 
         if (ImGui.IsItemHovered() && ImGui.IsMouseClicked(ImGuiMouseButton.Right))
         {
             this.UntrackAbility(iconWindow, job, ability.Id);
-            PluginInterface.SavePluginConfig(this.config);
+            this.QueueConfigSave();
             return;
         }
 
         if (ImGui.IsItemActive() && ImGui.IsMouseDragging(ImGuiMouseButton.Left, 2f))
         {
-            if (!string.Equals(this.draggedOverlayId, ability.Id, StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(this.draggedOverlayId, dragId, StringComparison.OrdinalIgnoreCase))
             {
-                this.draggedOverlayId = ability.Id;
+                this.draggedOverlayId = dragId;
                 this.draggedOverlayMouseStart = ImGui.GetMousePos();
                 this.draggedOverlayPositionStart = localPos;
             }
@@ -176,10 +335,10 @@ public sealed unsafe partial class Plugin
                 areaSize,
                 iconSize);
             this.SetOverlayIconPosition(iconWindow, job, ability.Id, next);
-            PluginInterface.SavePluginConfig(this.config);
+            this.QueueConfigSave();
         }
 
-        if (string.Equals(this.draggedOverlayId, ability.Id, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(this.draggedOverlayId, dragId, StringComparison.OrdinalIgnoreCase))
         {
             var min = ImGui.GetItemRectMin();
             var max = ImGui.GetItemRectMax();
@@ -197,6 +356,59 @@ public sealed unsafe partial class Plugin
 
         positions[abilityId] = position;
     }
+
+    private void HandleAuraIconInteraction(IconWindowConfig iconWindow, AuraState aura, Vector2 localPos, Vector2 iconPos, Vector2 areaSize, float iconSize)
+    {
+        if (this.config.LockOverlay)
+            return;
+
+        var id = GetAuraPositionKey(aura.StatusId);
+        var dragId = $"{iconWindow.Id}:{id}";
+        ImGui.SetCursorScreenPos(iconPos);
+        ImGui.InvisibleButton($"##aura-drag-{iconWindow.Id}-{id}", new Vector2(iconSize, iconSize));
+
+        if (ImGui.IsItemActive() && ImGui.IsMouseDragging(ImGuiMouseButton.Left, 2f))
+        {
+            if (!string.Equals(this.draggedOverlayId, dragId, StringComparison.OrdinalIgnoreCase))
+            {
+                this.draggedOverlayId = dragId;
+                this.draggedOverlayMouseStart = ImGui.GetMousePos();
+                this.draggedOverlayPositionStart = localPos;
+            }
+
+            var next = this.ClampOverlayIconPosition(
+                this.draggedOverlayPositionStart + ImGui.GetMousePos() - this.draggedOverlayMouseStart,
+                areaSize,
+                iconSize);
+            this.SetAuraIconPosition(iconWindow, aura.StatusId, next);
+            this.QueueConfigSave();
+        }
+
+        if (string.Equals(this.draggedOverlayId, dragId, StringComparison.OrdinalIgnoreCase))
+        {
+            var min = ImGui.GetItemRectMin();
+            var max = ImGui.GetItemRectMax();
+            ImGui.GetWindowDrawList().AddRect(min, max, ImGui.GetColorU32(new Vector4(0.45f, 0.72f, 1f, 0.95f)), 3f, ImDrawFlags.None, 2f);
+        }
+    }
+
+    private void SetAuraIconPosition(IconWindowConfig iconWindow, uint statusId, Vector2 position)
+    {
+        var groupKey = GetAuraPositionGroupKey(iconWindow);
+        if (!iconWindow.AuraPositionsByRole.TryGetValue(groupKey, out var positions))
+        {
+            positions = new Dictionary<string, Vector2>(StringComparer.OrdinalIgnoreCase);
+            iconWindow.AuraPositionsByRole[groupKey] = positions;
+        }
+
+        positions[GetAuraPositionKey(statusId)] = position;
+    }
+
+    private static string GetAuraPositionGroupKey(IconWindowConfig iconWindow)
+        => $"{iconWindow.Id}:{iconWindow.Role}";
+
+    private static string GetAuraPositionKey(uint statusId)
+        => $"status-{statusId}";
 
     private void AlignOverlayIcons(IconWindowConfig iconWindow, string job, uint level, bool preferTrackedOrder = false)
     {
@@ -231,7 +443,7 @@ public sealed unsafe partial class Plugin
                 .ThenBy(item => item.Index)
                 .ToList();
             var rowWidth = Math.Max(0f, items.Count * iconWindow.IconSize + Math.Max(0, items.Count - 1) * iconWindow.Gap);
-            var startX = Math.Max(0f, MathF.Round((areaSize.X - rowWidth) * 0.5f));
+            var startX = this.GetAlignedRowStartX(iconWindow, areaSize.X, rowWidth);
             var y = Math.Clamp(MathF.Round(startY + rowIndex * rowStep), 0f, Math.Max(0f, areaSize.Y - iconWindow.IconSize));
 
             for (var column = 0; column < items.Count; column++)
@@ -244,6 +456,25 @@ public sealed unsafe partial class Plugin
         }
 
         iconWindow.IconPositionsByJob[job] = positions;
+    }
+
+    private void AlignAuraIcons(IconWindowConfig iconWindow)
+    {
+        var statusIds = iconWindow.TrackedStatusIds
+            .Distinct()
+            .ToList();
+        if (statusIds.Count == 0)
+            return;
+
+        var areaSize = new Vector2(iconWindow.Width, iconWindow.Height);
+        var positions = new Dictionary<string, Vector2>(StringComparer.OrdinalIgnoreCase);
+        for (var index = 0; index < statusIds.Count; index++)
+        {
+            var position = this.GetOverlayAutoPosition(iconWindow, index, statusIds.Count, areaSize, iconWindow.IconSize, iconWindow.Gap);
+            positions[GetAuraPositionKey(statusIds[index])] = position;
+        }
+
+        iconWindow.AuraPositionsByRole[GetAuraPositionGroupKey(iconWindow)] = positions;
     }
 
     private List<List<(AbilityDefinition Ability, int Index, Vector2 Position)>> GetOverlayPositionRows(

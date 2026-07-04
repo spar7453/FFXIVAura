@@ -39,17 +39,21 @@ public sealed class IconWindowConfig
     public int ActiveOrderRow { get; set; }
     public IconWindowRole Role { get; set; } = IconWindowRole.SkillCooldowns;
     public IconDisplayCondition DisplayCondition { get; set; } = IconDisplayCondition.Always;
+    public IconAlignment Alignment { get; set; } = IconAlignment.Center;
     public bool DesaturateUnavailable { get; set; } = true;
     public bool DimUnavailable { get; set; }
     public bool HighlightReady { get; set; }
     public bool HighlightAdjusted { get; set; } = true;
     public bool ShowKeybindText { get; set; } = true;
     public bool ShowMissingAuras { get; set; } = true;
+    public bool PartyAurasOwnOnly { get; set; }
+    public bool ShowPartyAuraCount { get; set; } = true;
     public string AuraSearch { get; set; } = string.Empty;
     public bool AuraSearchActiveOnly { get; set; } = true;
     public List<uint> TrackedStatusIds { get; set; } = new();
     public Dictionary<string, List<string>> TrackedByJob { get; set; } = new();
     public Dictionary<string, Dictionary<string, System.Numerics.Vector2>> IconPositionsByJob { get; set; } = new();
+    public Dictionary<string, Dictionary<string, System.Numerics.Vector2>> AuraPositionsByRole { get; set; } = new();
 }
 
 public enum IconWindowRole
@@ -67,4 +71,11 @@ public enum IconDisplayCondition
     OutOfCombat,
     CoolingOnly,
     ReadyOnly,
+}
+
+public enum IconAlignment
+{
+    Left,
+    Center,
+    Right,
 }
