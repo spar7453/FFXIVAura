@@ -39,73 +39,6 @@ The goal is simple: show only the skills, buffs, debuffs, charges, cooldowns, an
   - Ready/missing only
 - Aura search and tracking for recently seen buffs/debuffs.
 
-## Target Environment
-
-This repository is maintained for a personal Korean FFXIV setup.
-
-Current local development assumptions:
-
-- Windows
-- XIVLauncherKR
-- Dalamud API level 15
-- .NET SDK with `net10.0-windows` support
-- Dalamud hook assemblies installed under a path like:
-
-```text
-C:\Users\<user>\AppData\Roaming\XIVLauncherKR\addon\Hooks\15.0.2.2\
-```
-
-The project file currently references Dalamud assemblies by absolute local paths. If your Dalamud install path is different, update the `HintPath` values in `FFXIVAura.csproj` before building.
-
-## Installation
-
-Build the project, then copy the runtime files into your local Dalamud plugin folder.
-
-Expected plugin folder:
-
-```text
-$env:DALAMUD_HOME\Plugins\FFXIVAura
-```
-
-Required runtime files:
-
-```text
-FFXIVAura.dll
-FFXIVAura.json
-Data\abilities.json
-```
-
-After copying the files, reload Dalamud or restart the game. In game, open the settings window with:
-
-```text
-/fa
-```
-
-## Build
-
-From the repository directory:
-
-```powershell
-dotnet build .\FFXIVAura.csproj -c Release
-```
-
-Build output:
-
-```text
-bin\Release\net10.0-windows\FFXIVAura.dll
-```
-
-Manual deploy example:
-
-```powershell
-$src = "bin\Release\net10.0-windows"
-$dst = "$env:DALAMUD_HOME\Plugins\FFXIVAura"
-New-Item -ItemType Directory -Force $dst | Out-Null
-Copy-Item -Force "$src\FFXIVAura.dll" "$dst\FFXIVAura.dll"
-Copy-Item -Force "$src\FFXIVAura.pdb" "$dst\FFXIVAura.pdb" -ErrorAction SilentlyContinue
-Copy-Item -Force ".\FFXIVAura.json" "$dst\FFXIVAura.json"
-Copy-Item -Recurse -Force "$src\Data" "$dst\Data"
-```
 
 ## Configuration Overview
 
@@ -227,8 +160,6 @@ For new jobs, add or verify:
 
 ## Known Limitations
 
-- This is not a general-purpose public Dalamud plugin distribution yet.
-- The project currently uses local absolute Dalamud reference paths.
 - Korean action names depend on curated local action data.
 - Some job-specific gauge/proc states may still need explicit modeling.
 - Aura search is based on currently or recently observed statuses, not a full clean localized status database.
