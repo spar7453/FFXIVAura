@@ -173,4 +173,4 @@ Please do not use this plugin to automate gameplay or bypass game rules. FFXIVAu
 
 ## License
 
-No license has been selected yet. Until a license is added, treat the code as all rights reserved by the repository owner.
+FFXIVAura is released under the MIT License. See [LICENSE](LICENSE).
