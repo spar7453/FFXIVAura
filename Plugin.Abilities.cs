@@ -20,95 +20,13 @@ public sealed unsafe partial class Plugin
             return resolved;
         }
 
+        var excluded = this.BuildExcludedAbilityFilter(iconWindow, job);
         return candidates
+            .Where(ability => !this.IsAbilityExcluded(excluded, ability))
             .OrderBy(a => a.Job == "ROLE" ? 1 : 0)
             .ThenBy(a => this.GetTrackedOrder(iconWindow, job, a.Id))
             .ThenByDescending(a => a.Cooldown)
             .ThenBy(a => a.Level);
-    }
-
-    private AbilityDefinition? ResolveTrackedAbilityForLevel(string trackedId, string job, uint level, IReadOnlyList<AbilityDefinition> candidates)
-    {
-        var exact = candidates.FirstOrDefault(a => string.Equals(a.Id, trackedId, StringComparison.OrdinalIgnoreCase));
-        if (exact is not null)
-            return exact;
-
-        var trackedAbility = this.FindTrackedAbilityDefinition(trackedId, job);
-        if (trackedAbility is null)
-            return null;
-
-        var equivalenceGroup = this.GetActionEquivalenceGroup(trackedAbility.ActionId);
-        if (equivalenceGroup == 0)
-            return null;
-
-        return candidates
-            .Where(a => a.Level <= level)
-            .Where(a => string.Equals(a.Job, trackedAbility.Job, StringComparison.OrdinalIgnoreCase)
-                        || (string.Equals(trackedAbility.Job, "ROLE", StringComparison.OrdinalIgnoreCase)
-                            && string.Equals(a.Job, "ROLE", StringComparison.OrdinalIgnoreCase)))
-            .Where(a => this.GetActionEquivalenceGroup(a.ActionId) == equivalenceGroup)
-            .OrderByDescending(a => a.Level)
-            .ThenByDescending(a => a.ActionId)
-            .FirstOrDefault();
-    }
-
-    private AbilityDefinition? FindTrackedAbilityDefinition(string trackedId, string job)
-    {
-        var configured = this.abilities.FirstOrDefault(a => string.Equals(a.Id, trackedId, StringComparison.OrdinalIgnoreCase));
-        if (configured is not null)
-            return configured;
-
-        var actionId = ParseActionIdFromGeneratedAbilityId(trackedId);
-        if (actionId == 0)
-            return null;
-
-        var sheet = DataManager.GetExcelSheet<GameAction>();
-        if (sheet is null)
-            return null;
-
-        var row = sheet.GetRow(actionId);
-        if (row.RowId == 0)
-            return null;
-
-        var name = row.Name.ExtractText();
-        return new AbilityDefinition
-        {
-            Id = trackedId,
-            Name = string.IsNullOrWhiteSpace(name) ? trackedId : name,
-            ActionId = row.RowId,
-            ActionIds = [row.RowId],
-            Job = row.IsRoleAction ? "ROLE" : job,
-            Level = (byte)Math.Min(row.ClassJobLevel, byte.MaxValue),
-            Cooldown = row.Recast100ms / 10f,
-            Charges = Math.Max(row.MaxCharges, (byte)1),
-            IconId = row.Icon,
-        };
-    }
-
-    private static uint ParseActionIdFromGeneratedAbilityId(string trackedId)
-    {
-        var dash = trackedId.LastIndexOf('-');
-        if (dash < 0 || dash == trackedId.Length - 1)
-            return 0;
-
-        return uint.TryParse(trackedId[(dash + 1)..], out var actionId) ? actionId : 0;
-    }
-
-    private byte GetActionEquivalenceGroup(uint actionId)
-    {
-        var sheet = DataManager.GetExcelSheet<GameAction>();
-        if (sheet is null)
-            return 0;
-
-        try
-        {
-            return sheet.GetRow(actionId).EquivalenceGroup;
-        }
-        catch (Exception ex)
-        {
-            Log.Debug(ex, $"Failed to read action equivalence group for {actionId}.");
-            return 0;
-        }
     }
 
     private IEnumerable<AbilityDefinition> GetDisplayAbilities(string job, uint level, IconWindowConfig iconWindow)
@@ -124,8 +42,8 @@ public sealed unsafe partial class Plugin
         {
             IconDisplayCondition.InCombat => this.IsInCombat(),
             IconDisplayCondition.OutOfCombat => !this.IsInCombat(),
-            IconDisplayCondition.CoolingOnly => state.IsCooling || (state.MaxCharges > 1 && state.CurrentCharges == 0),
-            IconDisplayCondition.ReadyOnly => !state.IsCooling && !(state.MaxCharges > 1 && state.CurrentCharges == 0),
+            IconDisplayCondition.CoolingOnly => state.ShouldShowInCoolingOnly,
+            IconDisplayCondition.ReadyOnly => state.IsReady,
             _ => true,
         };
     }
@@ -162,7 +80,7 @@ public sealed unsafe partial class Plugin
         if (!iconWindow.TrackedByJob.TryGetValue(job, out var tracked))
             return int.MaxValue;
 
-        var index = tracked.FindIndex(item => string.Equals(item, id, StringComparison.OrdinalIgnoreCase));
+        var index = this.FindTrackedAbilityIndex(tracked, id, job);
         return index < 0 ? int.MaxValue : index;
     }
 
@@ -207,10 +125,11 @@ public sealed unsafe partial class Plugin
                 Name = name,
                 ActionId = row.RowId,
                 ActionIds = [row.RowId],
+                ActionCategoryId = row.ActionCategory.RowId,
                 Job = job,
                 Level = (byte)Math.Min(row.ClassJobLevel, byte.MaxValue),
                 Cooldown = row.Recast100ms / 10f,
-                Charges = 1,
+                Charges = Math.Max(row.MaxCharges, (byte)1),
                 IconId = row.Icon,
             };
         }

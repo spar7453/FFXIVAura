@@ -25,19 +25,45 @@ public static class JobInfo
         ["NIN"] = 29, // ROG
     };
 
-    private static readonly HashSet<string> Tanks = ["PLD", "WAR", "DRK", "GNB"];
-    private static readonly HashSet<string> Healers = ["WHM", "SCH", "AST", "SGE"];
-    private static readonly HashSet<string> Melee = ["MNK", "DRG", "NIN", "SAM", "RPR", "VPR"];
-    private static readonly HashSet<string> Ranged = ["BRD", "MCH", "DNC"];
-    private static readonly HashSet<string> Casters = ["BLM", "SMN", "RDM", "PCT"];
+    private static readonly HashSet<string> Tanks = new(StringComparer.OrdinalIgnoreCase) { "PLD", "WAR", "DRK", "GNB" };
+    private static readonly HashSet<string> Healers = new(StringComparer.OrdinalIgnoreCase) { "WHM", "SCH", "AST", "SGE" };
+    private static readonly HashSet<string> Melee = new(StringComparer.OrdinalIgnoreCase) { "MNK", "DRG", "NIN", "SAM", "RPR", "VPR" };
+    private static readonly HashSet<string> Ranged = new(StringComparer.OrdinalIgnoreCase) { "BRD", "MCH", "DNC" };
+    private static readonly HashSet<string> Casters = new(StringComparer.OrdinalIgnoreCase) { "BLM", "SMN", "RDM", "PCT" };
+
+    private static readonly HashSet<string> TankRoleActions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "rampart", "low-blow", "provoke", "interject", "reprisal", "arms-length", "shirk",
+    };
+
+    private static readonly HashSet<string> HealerRoleActions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "repose", "esuna", "swiftcast", "lucid-dreaming", "surecast", "rescue",
+    };
+
+    private static readonly HashSet<string> MeleeRoleActions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "second-wind", "leg-sweep", "bloodbath", "feint", "arms-length", "true-north",
+    };
+
+    private static readonly HashSet<string> RangedRoleActions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "leg-graze", "foot-graze", "head-graze", "peloton", "second-wind", "arms-length",
+    };
+
+    private static readonly HashSet<string> CasterRoleActions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "addle", "sleep", "swiftcast", "lucid-dreaming", "surecast",
+    };
 
     public static string Code(uint classJobId) => JobIds.GetValueOrDefault(classJobId, "JOB");
 
     public static uint Id(string code)
     {
+        var normalizedCode = code?.Trim() ?? string.Empty;
         foreach (var (id, jobCode) in JobIds)
         {
-            if (string.Equals(jobCode, code, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(jobCode, normalizedCode, StringComparison.OrdinalIgnoreCase))
                 return id;
         }
 
@@ -46,12 +72,13 @@ public static class JobInfo
 
     public static HashSet<uint> ApplicableClassJobIds(string code)
     {
+        var normalizedCode = code?.Trim() ?? string.Empty;
         var ids = new HashSet<uint>();
-        var jobId = Id(code);
+        var jobId = Id(normalizedCode);
         if (jobId != 0)
             ids.Add(jobId);
 
-        if (BaseClassIds.TryGetValue(code, out var classId))
+        if (BaseClassIds.TryGetValue(normalizedCode, out var classId))
             ids.Add(classId);
 
         return ids;
@@ -59,20 +86,21 @@ public static class JobInfo
 
     public static bool CanUseRoleAction(string job, AbilityDefinition ability)
     {
-        if (!string.Equals(ability.Job, "ROLE", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(ability.Job?.Trim(), "ROLE", StringComparison.OrdinalIgnoreCase))
             return false;
 
-        var id = ability.Id;
-        if (Tanks.Contains(job))
-            return id is "rampart" or "low-blow" or "provoke" or "interject" or "reprisal" or "arms-length" or "shirk";
-        if (Healers.Contains(job))
-            return id is "repose" or "esuna" or "swiftcast" or "lucid-dreaming" or "surecast" or "rescue";
-        if (Melee.Contains(job))
-            return id is "second-wind" or "leg-sweep" or "bloodbath" or "feint" or "arms-length" or "true-north";
-        if (Ranged.Contains(job))
-            return id is "leg-graze" or "foot-graze" or "head-graze" or "peloton" or "second-wind" or "arms-length";
-        if (Casters.Contains(job))
-            return id is "addling" or "sleep" or "swiftcast" or "lucid-dreaming" or "surecast";
+        var jobCode = job?.Trim() ?? string.Empty;
+        var id = ability.Id?.Trim() ?? string.Empty;
+        if (Tanks.Contains(jobCode))
+            return TankRoleActions.Contains(id);
+        if (Healers.Contains(jobCode))
+            return HealerRoleActions.Contains(id);
+        if (Melee.Contains(jobCode))
+            return MeleeRoleActions.Contains(id);
+        if (Ranged.Contains(jobCode))
+            return RangedRoleActions.Contains(id);
+        if (Casters.Contains(jobCode))
+            return CasterRoleActions.Contains(id);
 
         return false;
     }

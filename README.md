@@ -117,16 +117,56 @@ Typical update workflow:
   - Main settings UI.
 - `Plugin.Overlay.cs`
   - Overlay window rendering and icon interaction.
+- `Plugin.OverlayControls.cs`
+  - Floating overlay edit controls for role, display condition, name, and alignment.
+- `Plugin.OverlayPositions.cs`
+  - Shared icon position normalization, resize normalization, and stale position cleanup.
+- `Plugin.SkillPositions.cs`
+  - Skill icon position storage, auto placement, alignment, and tracked-action key matching.
+- `Plugin.AuraPositions.cs`
+  - Aura icon position storage, auto placement, alignment, and stale aura position cleanup.
+- `Plugin.OverlayItems.cs`
+  - Shared skill/aura item selection for overlay windows.
+- `OverlayLayout.cs`
+  - Pure overlay layout geometry for auto placement, row alignment, clamping, and overlap checks.
+- `OverlayPositionKeys.cs`
+  - Shared string key generation and parsing for overlay position maps.
+- `RuntimeScopeKeys.cs`
+  - Shared string key generation and matching for frame caches, drag state, and runtime window-scoped state.
 - `Plugin.Cooldowns.cs`
   - Cooldown, charge, action availability, and icon state logic.
+- `CooldownMath.cs`
+  - Pure cooldown/charge timing calculations.
 - `Plugin.Abilities.cs`
   - Ability loading, filtering, level/job visibility, adjusted action helpers.
 - `Plugin.TrackedSkillEditor.cs`
   - Tracked skill selection and display order editor.
-- `Plugin.Auras.cs`
-  - Buff/debuff tracking UI and aura state handling.
+- `Plugin.TrackedAbilityState.cs`
+  - Tracked skill list mutation, exclusion handling, and order changes.
+- `Plugin.AuraTracking.cs`
+  - Buff/debuff tracking UI and aura search window.
+- `Plugin.AuraSearch.cs`
+  - Recently/currently seen aura search and status candidate ordering.
+- `Plugin.AuraStates.cs`
+  - Player, target, and party aura state calculation.
+- `Plugin.AuraRendering.cs`
+  - Buff/debuff icon rendering.
+- `Plugin.ConfigNormalization.cs`
+  - Config migration, default window creation, and saved data normalization.
+- `ConfigMapNormalizer.cs`
+  - Pure normalization for saved string and position maps.
+- `ConfigValueNormalizer.cs`
+  - Pure normalization for saved scalar, dimension, and position values.
+- `IconWindowIdentity.cs`
+  - Overlay window ID, default name, and aura position group remapping helpers.
+- `IconWindowClone.cs`
+  - Safe deep-copy helpers for cloned overlay window tracking lists and position maps.
+- `Plugin.IconWindowRuntimeState.cs`
+  - Runtime cache cleanup for added, removed, or normalized overlay windows.
 - `Plugin.Keybinds.cs`
   - Hotbar keybind lookup and display text.
+- `KeybindTextFormatter.cs`
+  - Pure keybind label formatting and unsupported glyph filtering.
 - `PluginConfig.cs`
   - Saved configuration model.
 - `AbilityDefinition.cs`
@@ -137,6 +177,13 @@ Typical update workflow:
   - Runtime aura display state.
 - `JobInfo.cs`
   - Job and role helper data.
+
+## Verification
+
+```powershell
+dotnet build -c Release --no-restore
+dotnet run --project .\tests\FFXIVAura.Tests\FFXIVAura.Tests.csproj -c Release
+```
 
 ## Patch Notes for Maintainers
 

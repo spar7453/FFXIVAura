@@ -6,6 +6,7 @@ public sealed class AbilityDefinition
     public string Name { get; set; } = string.Empty;
     public uint ActionId { get; set; }
     public uint[] ActionIds { get; set; } = [];
+    public uint ActionCategoryId { get; set; }
     public string Job { get; set; } = string.Empty;
     public byte Level { get; set; } = 1;
     public float Cooldown { get; set; }

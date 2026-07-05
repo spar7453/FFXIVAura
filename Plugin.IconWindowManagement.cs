@@ -1,0 +1,98 @@
+namespace FFXIVAura;
+
+public sealed unsafe partial class Plugin
+{
+    private IconWindowConfig AddIconWindowClone(IconWindowConfig activeWindow)
+    {
+        var number = this.GetNextIconWindowNumber();
+        this.config.WindowCounter = Math.Max(this.config.WindowCounter, number);
+        var id = $"win{number}";
+        var windowSize = new Vector2(activeWindow.Width, activeWindow.Height);
+        var window = new IconWindowConfig
+        {
+            Id = id,
+            Name = $"\uCC3D {number}",
+            Position = ClampOverlayWindowPosition(this.GetNewIconWindowPosition(activeWindow), windowSize),
+            Width = activeWindow.Width,
+            Height = activeWindow.Height,
+            IconSize = activeWindow.IconSize,
+            Gap = activeWindow.Gap,
+            FontScale = activeWindow.FontScale,
+            OrderEditorHeight = activeWindow.OrderEditorHeight,
+            Role = activeWindow.Role,
+            DisplayCondition = activeWindow.DisplayCondition,
+            Alignment = activeWindow.Alignment,
+            HighlightReady = activeWindow.HighlightReady,
+            HighlightAdjusted = activeWindow.HighlightAdjusted,
+            ShowKeybindText = activeWindow.ShowKeybindText,
+            ShowMissingAuras = activeWindow.ShowMissingAuras,
+            PartyAurasOwnOnly = activeWindow.PartyAurasOwnOnly,
+            ShowPartyAuraCount = activeWindow.ShowPartyAuraCount,
+            AuraSearch = activeWindow.AuraSearch,
+            AuraSearchActiveOnly = activeWindow.AuraSearchActiveOnly,
+            TrackedStatusIds = activeWindow.TrackedStatusIds.ToList(),
+            TrackedByJob = IconWindowClone.CloneStringListMap(activeWindow.TrackedByJob),
+            ExcludedByJob = IconWindowClone.CloneStringListMap(activeWindow.ExcludedByJob),
+            IconPositionsByJob = IconWindowClone.CloneVector2Map(activeWindow.IconPositionsByJob),
+            AuraPositionsByRole = IconWindowClone.CloneAuraPositionsForWindow(activeWindow.AuraPositionsByRole, activeWindow.Id, id),
+        };
+
+        this.config.IconWindows.Add(window);
+        this.config.ActiveWindowId = id;
+        return window;
+    }
+
+    private IconWindowConfig DeleteIconWindow(IconWindowConfig activeWindow)
+    {
+        var deleteId = activeWindow.Id;
+        var deleteIndex = this.config.IconWindows.FindIndex(window => string.Equals(window.Id, deleteId, StringComparison.OrdinalIgnoreCase));
+        this.config.IconWindows.RemoveAll(window => string.Equals(window.Id, deleteId, StringComparison.OrdinalIgnoreCase));
+        this.RemoveIconWindowRuntimeState(deleteId);
+
+        if (this.config.IconWindows.Count == 0)
+        {
+            this.EnsureIconWindows();
+            return this.GetActiveIconWindow();
+        }
+
+        var nextIndex = Math.Clamp(deleteIndex < 0 ? 0 : deleteIndex, 0, this.config.IconWindows.Count - 1);
+        var nextWindow = this.config.IconWindows[nextIndex];
+        this.config.ActiveWindowId = nextWindow.Id;
+        return nextWindow;
+    }
+
+    private Vector2 GetNewIconWindowPosition(IconWindowConfig activeWindow)
+    {
+        var offset = Math.Min(220f, this.config.IconWindows.Count * 28f);
+        return activeWindow.Position + new Vector2(offset == 0 ? 28f : offset, 28f);
+    }
+
+    private void NormalizeActiveWindowIconPositions(IconWindowConfig activeWindow, string job, uint level)
+    {
+        var areaSize = new Vector2(activeWindow.Width, activeWindow.Height);
+        var items = this.GetOverlayItems(activeWindow, job, level, OverlayItemVisibility.Layout);
+        if (activeWindow.Role == IconWindowRole.SkillCooldowns)
+        {
+            var abilities = items.Abilities;
+            this.NormalizeIconPositionsAfterResize(activeWindow, job, abilities, Array.Empty<AuraState>(), areaSize);
+            if (abilities.Count > 0)
+                this.AddMissingOverlayIconPositions(activeWindow, job, abilities, areaSize);
+
+            return;
+        }
+
+        var auras = items.Auras;
+        this.NormalizeIconPositionsAfterResize(activeWindow, job, Array.Empty<AbilityDefinition>(), auras, areaSize);
+        this.AddMissingAuraIconPositions(activeWindow, auras, areaSize);
+    }
+
+    private static string GetIconWindowDisplayName(IconWindowConfig window)
+        => string.IsNullOrWhiteSpace(window.Name) ? window.Id : window.Name;
+
+    private int GetNextIconWindowNumber()
+    {
+        return IconWindowIdentity.GetNextAvailableNumber(
+            this.config.IconWindows.Select(window => window.Id),
+            this.config.WindowCounter);
+    }
+}

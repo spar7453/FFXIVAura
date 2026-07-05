@@ -1,0 +1,44 @@
+namespace FFXIVAura;
+
+public sealed unsafe partial class Plugin
+{
+    private bool EnsureIconWindows()
+    {
+        var changed = PluginConfigNormalizer.Normalize(this.config, GetConfigNormalizationOptions());
+        this.PruneIconWindowRuntimeState();
+        return changed;
+    }
+
+    private static PluginConfigNormalizationOptions GetConfigNormalizationOptions()
+        => new(
+            DefaultOverlayPosition: new Vector2(DefaultOverlayPositionX, DefaultOverlayPositionY),
+            DefaultOverlayWidth: DefaultOverlayWidth,
+            DefaultOverlayHeight: DefaultOverlayHeight,
+            MinOverlayWidth: MinOverlayWidth,
+            MaxOverlayWidth: MaxOverlayWidth,
+            MinOverlayHeight: MinOverlayHeight,
+            MaxOverlayHeight: MaxOverlayHeight,
+            DefaultIconSize: DefaultIconSize,
+            MinIconSize: MinIconSize,
+            MaxIconSize: MaxIconSize,
+            DefaultGap: DefaultGap,
+            MinGap: MinGap,
+            MaxGap: MaxGap,
+            DefaultFontScale: DefaultFontScale,
+            MinFontScale: MinFontScale,
+            MaxFontScale: MaxFontScale,
+            DefaultOrderEditorHeight: DefaultOrderEditorHeight,
+            MinOrderEditorHeight: MinOrderEditorHeight,
+            MaxOrderEditorHeight: MaxOrderEditorHeight,
+            DefaultTrackedEditorTab: TrackedEditorTabs[0].Id,
+            TrackedEditorTabs: TrackedEditorTabs.Select(tab => tab.Id).ToArray());
+
+    private IconWindowConfig GetActiveIconWindow()
+    {
+        if (this.EnsureIconWindows())
+            this.QueueConfigSave();
+
+        return this.config.IconWindows.FirstOrDefault(window => string.Equals(window.Id, this.config.ActiveWindowId, StringComparison.OrdinalIgnoreCase))
+               ?? this.config.IconWindows[0];
+    }
+}

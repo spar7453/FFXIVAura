@@ -3,6 +3,27 @@ namespace FFXIVAura;
 public sealed unsafe partial class Plugin : IDalamudPlugin
 {
     private static readonly string[] CommandNames = ["/fa"];
+    private const float DefaultOverlayPositionX = 520f;
+    private const float DefaultOverlayPositionY = 280f;
+    private const float DefaultOverlayWidth = 760f;
+    private const float DefaultOverlayHeight = 170f;
+    private const float MinOverlayWidth = 120f;
+    private const float MaxOverlayWidth = 1200f;
+    private const float MinOverlayHeight = 40f;
+    private const float MaxOverlayHeight = 400f;
+    private const float DefaultIconSize = 42f;
+    private const float MinIconSize = 24f;
+    private const float MaxIconSize = 72f;
+    private const float DefaultGap = 5f;
+    private const float MinGap = 0f;
+    private const float MaxGap = 16f;
+    private const float DefaultFontScale = 1f;
+    private const float MinFontScale = 0.75f;
+    private const float MaxFontScale = 1.5f;
+    private const float DefaultOrderEditorHeight = 180f;
+    private const float MinOrderEditorHeight = 90f;
+    private const float MaxOrderEditorHeight = 520f;
+    private const float OverlayWindowMargin = 4f;
 
     [PluginService] private static IDalamudPluginInterface PluginInterface { get; set; } = null!;
     [PluginService] private static ICommandManager CommandManager { get; set; } = null!;
@@ -26,17 +47,21 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     ];
     private readonly List<AbilityDefinition> abilities = [];
     private readonly Dictionary<uint, (uint RowId, string Name)> actionCategoryCache = new();
-    private readonly Dictionary<IconWindowRole, Dictionary<uint, DateTime>> auraFirstSeenByRole = new();
+    private readonly Dictionary<uint, byte> actionEquivalenceGroupCache = new();
+    private readonly Dictionary<string, Dictionary<uint, DateTime>> auraFirstSeenByScope = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<AbilityDefinition>> gameActionCandidatesCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, CooldownState> cooldownFrameCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<(uint BaseActionId, uint DisplayActionId), string> keybindTextCache = new();
-    private readonly Dictionary<IconWindowRole, HashSet<uint>> visibleAurasByRole = new();
+    private readonly Dictionary<string, HashSet<uint>> visibleAurasByScope = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<uint, IDalamudTextureWrap> grayscaleIconCache = new();
     private readonly Dictionary<string, string> visibleAbilityKeys = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Queue<uint> grayscaleIconQueue = new();
     private readonly HashSet<uint> grayscaleIconPending = new();
+    private readonly HashSet<uint> grayscaleIconFailed = new();
     private readonly object grayscaleIconLock = new();
     private string? draggedTrackedId;
     private string? draggedOverlayId;
+    private string? auraSearchWindowId;
     private bool auraSearchWindowVisible;
     private bool configSavePending;
     private bool configWasVisible;
@@ -45,6 +70,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private Vector2 draggedOverlayMouseStart;
     private Vector2 draggedOverlayPositionStart;
     private DateTime configSaveAfter = DateTime.MinValue;
+    private DateTime keybindCacheRefreshAfter = DateTime.MinValue;
     private PluginConfig config;
     private bool configVisible;
     private bool zoneLoadActive;
@@ -56,20 +82,23 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     public Plugin()
     {
         this.config = PluginInterface.GetPluginConfig() as PluginConfig ?? new PluginConfig();
-        this.EnsureIconWindows();
+        var configChanged = this.EnsureIconWindows();
         if (this.config.Version < 2)
         {
             this.config.Version = 2;
             this.config.OverlayWidth = 760f;
             this.config.OverlayHeight = 170f;
-            this.SaveConfigNow();
+            configChanged = true;
         }
+
         if (this.config.Version < 3)
         {
             this.config.Version = 3;
-            this.EnsureIconWindows();
-            this.SaveConfigNow();
+            configChanged |= this.EnsureIconWindows();
         }
+
+        if (configChanged)
+            this.SaveConfigNow();
 
         this.cooldownFont = PluginInterface.UiBuilder.FontAtlas.NewGameFontHandle(new GameFontStyle(GameFontFamily.Meidinger, 20f)
         {
@@ -116,7 +145,9 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                 texture.Dispose();
 
             this.grayscaleIconCache.Clear();
+            this.grayscaleIconQueue.Clear();
             this.grayscaleIconPending.Clear();
+            this.grayscaleIconFailed.Clear();
         }
 
         this.cooldownFont.Dispose();
@@ -136,12 +167,20 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
             });
 
             if (loaded is not null)
-                this.abilities.AddRange(loaded.Where(a => a.ActionId > 0 && a.IconId > 0));
+                this.abilities.AddRange(loaded.Where(a => a.ActionId > 0 && a.IconId > 0).Select(this.NormalizeAbilityDefinition));
         }
         catch (Exception ex)
         {
             Log.Error(ex, "Failed to load FFXIVAura ability data.");
         }
+    }
+
+    private AbilityDefinition NormalizeAbilityDefinition(AbilityDefinition ability)
+    {
+        if (ability.ActionCategoryId == 0)
+            ability.ActionCategoryId = this.GetActionCategory(ability.ActionId).RowId;
+
+        return ability;
     }
 
     private void OnCommand(string command, string args)
@@ -181,8 +220,12 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private void Draw()
     {
         this.BeginFrameCache();
-        if (this.configVisible && !this.configWasVisible)
+        var wasConfigVisible = this.configWasVisible;
+        if (this.configVisible && !wasConfigVisible)
             this.InvalidateKeybindCache();
+
+        if (!this.configVisible && wasConfigVisible)
+            this.CloseAuraSearchWindow();
 
         this.configWasVisible = this.configVisible;
 
@@ -208,6 +251,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private void BeginFrameCache()
     {
         this.cooldownFrameCache.Clear();
+        this.ProcessGrayscaleIconQueue();
     }
 
     private void QueueConfigSave()
@@ -237,6 +281,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private void InvalidateKeybindCache()
     {
         this.keybindCacheDirty = true;
+        this.keybindCacheRefreshAfter = DateTime.MinValue;
     }
 
     private bool IsLoading()
@@ -258,74 +303,4 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
         return DateTime.UtcNow < this.zoneLoadHiddenUntil;
     }
 
-    private void EnsureIconWindows()
-    {
-        if (this.config.IconWindows.Count == 0)
-        {
-            this.config.IconWindows.Add(new IconWindowConfig
-            {
-                Id = "win1",
-                Name = "창 1",
-                Position = this.config.OverlayPosition,
-                Width = this.config.OverlayWidth <= 0 ? 760f : this.config.OverlayWidth,
-                Height = this.config.OverlayHeight <= 0 ? 170f : this.config.OverlayHeight,
-                IconSize = this.config.IconSize,
-                Gap = this.config.Gap,
-                FontScale = this.config.FontScale,
-                TrackedByJob = this.config.TrackedByJob,
-                IconPositionsByJob = this.config.IconPositionsByJob,
-            });
-        }
-
-        foreach (var window in this.config.IconWindows)
-        {
-            if (IsBrokenWindowName(window.Name))
-                window.Name = GetDefaultWindowName(window);
-            if (window.IconSize <= 0)
-                window.IconSize = this.config.IconSize;
-            if (window.Gap < 0)
-                window.Gap = this.config.Gap;
-            if (window.FontScale <= 0)
-                window.FontScale = this.config.FontScale;
-            if (window.OrderEditorHeight <= 0)
-                window.OrderEditorHeight = 180f;
-        }
-
-        if (string.IsNullOrWhiteSpace(this.config.ActiveWindowId)
-            || this.config.IconWindows.All(window => !string.Equals(window.Id, this.config.ActiveWindowId, StringComparison.OrdinalIgnoreCase)))
-        {
-            this.config.ActiveWindowId = this.config.IconWindows[0].Id;
-        }
-
-        this.config.WindowCounter = Math.Max(this.config.WindowCounter, this.config.IconWindows.Count);
-    }
-
-    private static bool IsBrokenWindowName(string name)
-    {
-        if (string.IsNullOrWhiteSpace(name))
-            return true;
-
-        var trimmed = name.Trim();
-        if (trimmed.StartsWith("win", StringComparison.OrdinalIgnoreCase))
-            return true;
-
-        return trimmed.Contains('?') && trimmed.Any(ch => ch > 127);
-    }
-
-    private static string GetDefaultWindowName(IconWindowConfig window)
-    {
-        if (window.Id.StartsWith("win", StringComparison.OrdinalIgnoreCase)
-            && int.TryParse(window.Id[3..], out var number)
-            && number > 0)
-            return $"창 {number}";
-
-        return "창";
-    }
-
-    private IconWindowConfig GetActiveIconWindow()
-    {
-        this.EnsureIconWindows();
-        return this.config.IconWindows.FirstOrDefault(window => string.Equals(window.Id, this.config.ActiveWindowId, StringComparison.OrdinalIgnoreCase))
-               ?? this.config.IconWindows[0];
-    }
 }

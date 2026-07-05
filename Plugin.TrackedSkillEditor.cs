@@ -7,36 +7,23 @@ public sealed unsafe partial class Plugin
         if (job == "JOB")
             return;
 
-        if (!iconWindow.TrackedByJob.TryGetValue(job, out var tracked))
-        {
-            tracked = [];
-            iconWindow.TrackedByJob[job] = tracked;
-        }
+        var tracked = this.GetTrackedAbilityList(iconWindow, job);
 
         ImGui.TextUnformatted($"추적 스킬: {job}");
         if (ImGui.Button("현재 표시 기본값 사용"))
         {
-            tracked.Clear();
-            tracked.AddRange(this.GetJobCandidates(job, level)
-                .OrderBy(a => a.Job == "ROLE" ? 1 : 0)
-                .ThenByDescending(a => a.Cooldown)
-                .ThenBy(a => a.Level)
-                .Select(a => a.Id));
+            this.ResetTrackedAbilitiesToDefault(iconWindow, job, level);
             this.QueueConfigSave();
         }
 
         ImGui.SameLine();
         if (ImGui.Button("추적 초기화"))
         {
-            tracked.Clear();
+            this.ClearTrackedAbilities(iconWindow, job);
             this.QueueConfigSave();
         }
 
-        var allCandidates = this.GetJobCandidates(job, level).ToList();
-        var tabCounts = TrackedEditorTabs.ToDictionary(
-            tab => tab.Id,
-            tab => allCandidates.Count(a => this.IsInTrackedEditorTab(a, tab.Id)),
-            StringComparer.OrdinalIgnoreCase);
+        var editor = this.BuildTrackedSkillEditorData(iconWindow, job, level, tracked);
 
         ImGui.Spacing();
         foreach (var (id, label) in TrackedEditorTabs)
@@ -44,7 +31,7 @@ public sealed unsafe partial class Plugin
             if (id != TrackedEditorTabs[0].Id)
                 ImGui.SameLine();
 
-            var tabLabel = $"{label} ({tabCounts.GetValueOrDefault(id)})";
+            var tabLabel = $"{label} ({editor.TabCounts.GetValueOrDefault(id)})";
             if (ImGui.Selectable(tabLabel, string.Equals(this.config.TrackedEditorTab, id, StringComparison.OrdinalIgnoreCase), ImGuiSelectableFlags.DontClosePopups, new Vector2(82f, 0f)))
             {
                 this.config.TrackedEditorTab = id;
@@ -71,22 +58,32 @@ public sealed unsafe partial class Plugin
             }
         }
 
-        this.DrawTrackedOrderEditorTabbed(iconWindow, job, allCandidates, tracked);
-        this.DrawOrderEditorResizeHandle(iconWindow);
+        if (editor.ManualTracking)
+        {
+            ImGui.TextDisabled("수동 추적 모드");
+        }
+        else
+        {
+            ImGui.TextDisabled(editor.Excluded.Count > 0
+                ? $"자동 표시 모드 / 제외 {editor.Excluded.Count}개"
+                : "자동 표시 모드");
+        }
 
-        var candidates = allCandidates
-            .Where(a => this.IsInTrackedEditorTab(a, this.config.TrackedEditorTab))
-            .Where(a => this.MatchesTrackedSkillSearch(a, this.config.TrackedSkillSearch))
-            .OrderByDescending(a => tracked.Any(id => string.Equals(id, a.Id, StringComparison.OrdinalIgnoreCase)))
-            .ThenBy(a => a.Job == "ROLE" ? 1 : 0)
-            .ThenBy(a => a.Level)
-            .ThenBy(a => string.IsNullOrWhiteSpace(a.Name) ? a.Id : a.Name, StringComparer.CurrentCulture)
-            .ToList();
+        if (editor.ManualTracking)
+        {
+            if (iconWindow.TrackedByJob.TryGetValue(job, out var trackedList))
+            {
+                this.DrawTrackedOrderEditorTabbed(iconWindow, job, editor.CurrentCandidates, trackedList);
+                this.DrawOrderEditorResizeHandle(iconWindow);
+            }
+        }
 
         ImGui.BeginChild("FFXIVAuraTrackedSkillList", new Vector2(560f, 390f), true);
-        foreach (var ability in candidates)
+        foreach (var ability in editor.Candidates)
         {
-            var selected = tracked.Any(id => string.Equals(id, ability.Id, StringComparison.OrdinalIgnoreCase));
+            var selected = editor.ManualTracking
+                ? this.IsAbilityTracked(iconWindow, job, ability.Id)
+                : !this.IsAbilityExcluded(editor.ExcludedFilter, ability);
             var changed = false;
 
             ImGui.PushID($"track-{ability.Id}");
@@ -106,12 +103,21 @@ public sealed unsafe partial class Plugin
 
             if (selected)
             {
-                if (!tracked.Any(id => string.Equals(id, ability.Id, StringComparison.OrdinalIgnoreCase)))
-                    tracked.Add(ability.Id);
+                if (editor.ManualTracking)
+                {
+                    this.TrackAbility(iconWindow, job, level, ability.Id);
+                }
+                else
+                {
+                    this.IncludeAbility(iconWindow, job, ability.Id);
+                }
             }
             else
             {
-                tracked.RemoveAll(id => string.Equals(id, ability.Id, StringComparison.OrdinalIgnoreCase));
+                if (editor.ManualTracking)
+                    this.UntrackAbility(iconWindow, job, ability.Id);
+                else
+                    this.ExcludeAbility(iconWindow, job, ability.Id);
             }
 
             this.QueueConfigSave();
@@ -145,27 +151,21 @@ public sealed unsafe partial class Plugin
 
         if (ImGui.IsItemActive() && ImGui.IsMouseDragging(ImGuiMouseButton.Left))
         {
-            iconWindow.OrderEditorHeight = Math.Clamp(iconWindow.OrderEditorHeight + ImGui.GetIO().MouseDelta.Y, 90f, 520f);
-            this.QueueConfigSave();
+            var nextHeight = Math.Clamp(iconWindow.OrderEditorHeight + ImGui.GetIO().MouseDelta.Y, MinOrderEditorHeight, MaxOrderEditorHeight);
+            if (Math.Abs(nextHeight - iconWindow.OrderEditorHeight) > 0.1f)
+            {
+                iconWindow.OrderEditorHeight = nextHeight;
+                this.QueueConfigSave();
+            }
         }
     }
+
     private void DrawTrackedOrderEditorTabbed(IconWindowConfig iconWindow, string job, List<AbilityDefinition> allCandidates, List<string> tracked)
     {
         if (tracked.Count == 0)
             return;
 
-        var byId = allCandidates
-            .GroupBy(a => a.Id, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
-
-        if (tracked.RemoveAll(id => !byId.ContainsKey(id)) > 0)
-            this.QueueConfigSave();
-
-        var visible = tracked
-            .Select(id => byId.TryGetValue(id, out var ability) ? ability : null)
-            .Where(ability => ability is not null)
-            .Cast<AbilityDefinition>()
-            .ToList();
+        var visible = this.ResolveTrackedOrderAbilities(job, allCandidates, tracked);
 
         var rows = this.GetOverlayPositionRows(iconWindow, job, visible, new Vector2(iconWindow.Width, iconWindow.Height));
         if (rows.Count == 0)
@@ -175,7 +175,7 @@ public sealed unsafe partial class Plugin
 
         ImGui.Spacing();
         ImGui.TextUnformatted("표시 순서");
-        ImGui.BeginChild("FFXIVAuraTrackedOrderList", new Vector2(560f, Math.Clamp(iconWindow.OrderEditorHeight, 90f, 520f)), true);
+        ImGui.BeginChild("FFXIVAuraTrackedOrderList", new Vector2(560f, Math.Clamp(iconWindow.OrderEditorHeight, MinOrderEditorHeight, MaxOrderEditorHeight)), true);
         if (!ImGui.IsMouseDown(ImGuiMouseButton.Left))
             this.draggedTrackedId = null;
 
@@ -202,7 +202,7 @@ public sealed unsafe partial class Plugin
             var item = selectedRow[rowItemIndex];
             var ability = item.Ability;
             var id = ability.Id;
-            var trackedIndex = tracked.FindIndex(trackedId => string.Equals(trackedId, id, StringComparison.OrdinalIgnoreCase));
+            var trackedIndex = this.FindTrackedAbilityIndex(tracked, id, job);
             if (trackedIndex < 0)
                 continue;
 
@@ -212,7 +212,7 @@ public sealed unsafe partial class Plugin
             if (ImGui.SmallButton("▲") && rowItemIndex > 0)
             {
                 var previousId = selectedRow[rowItemIndex - 1].Ability.Id;
-                if (this.SwapTrackedSkills(tracked, id, previousId))
+                if (this.SwapTrackedSkills(tracked, job, id, previousId))
                     this.SaveAndRealignTrackedOrder(iconWindow, job);
             }
 
@@ -220,7 +220,7 @@ public sealed unsafe partial class Plugin
             if (ImGui.SmallButton("▼") && rowItemIndex < selectedRow.Count - 1)
             {
                 var nextId = selectedRow[rowItemIndex + 1].Ability.Id;
-                if (this.SwapTrackedSkills(tracked, id, nextId))
+                if (this.SwapTrackedSkills(tracked, job, id, nextId))
                     this.SaveAndRealignTrackedOrder(iconWindow, job);
             }
 
@@ -234,7 +234,7 @@ public sealed unsafe partial class Plugin
             if (!string.IsNullOrEmpty(this.draggedTrackedId)
                 && !string.Equals(this.draggedTrackedId, id, StringComparison.OrdinalIgnoreCase)
                 && ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenBlockedByActiveItem)
-                && this.MoveTrackedSkill(tracked, this.draggedTrackedId, trackedIndex))
+                && this.MoveTrackedSkill(tracked, job, this.draggedTrackedId, trackedIndex))
             {
                 this.SaveAndRealignTrackedOrder(iconWindow, job);
             }
@@ -255,93 +255,13 @@ public sealed unsafe partial class Plugin
             if (!string.IsNullOrEmpty(this.draggedTrackedId)
                 && ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenBlockedByActiveItem))
             {
-                var lastTrackedIndex = tracked.FindIndex(trackedId => string.Equals(trackedId, selectedRow[^1].Ability.Id, StringComparison.OrdinalIgnoreCase));
-                if (lastTrackedIndex >= 0 && this.MoveTrackedSkill(tracked, this.draggedTrackedId, lastTrackedIndex + 1))
+                var lastTrackedIndex = this.FindTrackedAbilityIndex(tracked, selectedRow[^1].Ability.Id, job);
+                if (lastTrackedIndex >= 0 && this.MoveTrackedSkill(tracked, job, this.draggedTrackedId, lastTrackedIndex + 1))
                     this.SaveAndRealignTrackedOrder(iconWindow, job);
             }
         }
 
         ImGui.EndChild();
-    }
-
-    private void SaveAndRealignTrackedOrder(IconWindowConfig iconWindow, string job)
-    {
-        var level = (uint)(PlayerState.EffectiveLevel > 0 ? PlayerState.EffectiveLevel : PlayerState.Level);
-        this.AlignOverlayIcons(iconWindow, job, level, preferTrackedOrder: true);
-        this.QueueConfigSave();
-    }
-
-    private void UntrackAbility(IconWindowConfig iconWindow, string job, string abilityId)
-    {
-        if (iconWindow.TrackedByJob.TryGetValue(job, out var tracked))
-            tracked.RemoveAll(id => string.Equals(id, abilityId, StringComparison.OrdinalIgnoreCase));
-
-        if (iconWindow.IconPositionsByJob.TryGetValue(job, out var positions))
-            positions.Remove(abilityId);
-    }
-
-    private bool MoveTrackedSkill(List<string> tracked, string id, int targetIndex)
-    {
-        var currentIndex = tracked.FindIndex(item => string.Equals(item, id, StringComparison.OrdinalIgnoreCase));
-        if (currentIndex < 0 || currentIndex == targetIndex)
-            return false;
-
-        var item = tracked[currentIndex];
-        tracked.RemoveAt(currentIndex);
-        if (currentIndex < targetIndex)
-            targetIndex--;
-
-        targetIndex = Math.Clamp(targetIndex, 0, tracked.Count);
-        tracked.Insert(targetIndex, item);
-        return true;
-    }
-
-    private bool SwapTrackedSkills(List<string> tracked, string firstId, string secondId)
-    {
-        var firstIndex = tracked.FindIndex(item => string.Equals(item, firstId, StringComparison.OrdinalIgnoreCase));
-        var secondIndex = tracked.FindIndex(item => string.Equals(item, secondId, StringComparison.OrdinalIgnoreCase));
-        if (firstIndex < 0 || secondIndex < 0 || firstIndex == secondIndex)
-            return false;
-
-        (tracked[firstIndex], tracked[secondIndex]) = (tracked[secondIndex], tracked[firstIndex]);
-        return true;
-    }
-
-    private bool MatchesTrackedSkillSearch(AbilityDefinition ability, string? search)
-    {
-        if (string.IsNullOrWhiteSpace(search))
-            return true;
-
-        var query = search.Trim();
-        var displayName = string.IsNullOrWhiteSpace(ability.Name) ? ability.Id : ability.Name;
-        return displayName.Contains(query, StringComparison.CurrentCultureIgnoreCase)
-               || ability.Id.Contains(query, StringComparison.OrdinalIgnoreCase)
-               || ability.ActionId.ToString().Contains(query, StringComparison.OrdinalIgnoreCase)
-               || ability.Level.ToString().Contains(query, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private bool IsInTrackedEditorTab(AbilityDefinition ability, string tab)
-    {
-        if (string.Equals(tab, "Role", StringComparison.OrdinalIgnoreCase))
-            return string.Equals(ability.Job, "ROLE", StringComparison.OrdinalIgnoreCase);
-
-        if (string.Equals(ability.Job, "ROLE", StringComparison.OrdinalIgnoreCase))
-            return false;
-
-        var category = this.GetActionCategory(ability.ActionId);
-        var name = category.Name;
-        return tab switch
-        {
-            "WeaponSkill" => CategoryNameContains(name, "무기", "Weapon") || category.RowId == 3,
-            "Spell" => CategoryNameContains(name, "마법", "Spell") || category.RowId == 2,
-            "Ability" => CategoryNameContains(name, "능력", "Ability") || category.RowId == 4,
-            _ => true,
-        };
-    }
-
-    private static bool CategoryNameContains(string name, params string[] needles)
-    {
-        return needles.Any(needle => name.Contains(needle, StringComparison.OrdinalIgnoreCase));
     }
 
     private (uint RowId, string Name) GetActionCategory(uint actionId)

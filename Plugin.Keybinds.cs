@@ -29,10 +29,12 @@ public sealed unsafe partial class Plugin
 
     private string GetActionKeybindText(uint baseActionId, uint displayActionId)
     {
-        if (this.keybindCacheDirty)
+        var now = DateTime.UtcNow;
+        if (this.keybindCacheDirty || now >= this.keybindCacheRefreshAfter)
         {
             this.keybindTextCache.Clear();
             this.keybindCacheDirty = false;
+            this.keybindCacheRefreshAfter = now.AddSeconds(2);
         }
 
         var key = (baseActionId, displayActionId);
@@ -52,30 +54,41 @@ public sealed unsafe partial class Plugin
             var adjustedBaseActionId = ActionManager.Instance()->GetAdjustedActionId(baseActionId);
             var adjustedDisplayActionId = ActionManager.Instance()->GetAdjustedActionId(displayActionId);
 
-            for (uint hotbarId = 0; hotbarId < 18; hotbarId++)
+            for (var visibleOnly = true; ; visibleOnly = false)
             {
-                if (!IsHotbarVisible(hotbarId))
-                    continue;
-
-                for (uint slotIndex = 0; slotIndex < 16; slotIndex++)
+                for (uint hotbarId = 0; hotbarId < 18; hotbarId++)
                 {
-                    var slot = RaptureHotbarModule.Instance()->GetSlotById(hotbarId, slotIndex);
-                    if (slot is null || slot->CommandType == RaptureHotbarModule.HotbarSlotType.Empty)
+                    var visible = IsHotbarVisible(hotbarId);
+                    if (visibleOnly != visible)
                         continue;
 
-                    if (!IsActionHotbarSlot(slot))
-                        continue;
+                    for (uint slotIndex = 0; slotIndex < 16; slotIndex++)
+                    {
+                        var slot = RaptureHotbarModule.Instance()->GetSlotById(hotbarId, slotIndex);
+                        if (slot is null || slot->CommandType == RaptureHotbarModule.HotbarSlotType.Empty)
+                            continue;
 
-                    if (!MatchesActionSlot(slot, baseActionId, displayActionId, adjustedBaseActionId, adjustedDisplayActionId))
-                        continue;
+                        if (!IsActionHotbarSlot(slot))
+                            continue;
 
-                    var text = FormatKeybindText(slot->KeybindHintString);
-                    if (HasUnknownKeybindGlyph(text))
-                        text = FormatKeybindText(slot->PopUpKeybindHintString);
+                        if (!MatchesActionSlot(slot, baseActionId, displayActionId, adjustedBaseActionId, adjustedDisplayActionId))
+                            continue;
 
-                    if (!string.IsNullOrWhiteSpace(text))
-                        return text;
+                        var text = KeybindTextFormatter.Format(slot->KeybindHintString, out var hasUnknownGlyph);
+                        if (hasUnknownGlyph || string.IsNullOrWhiteSpace(text))
+                        {
+                            var popupText = KeybindTextFormatter.Format(slot->PopUpKeybindHintString, out var popupHasUnknownGlyph);
+                            if (!string.IsNullOrWhiteSpace(popupText) && (!popupHasUnknownGlyph || string.IsNullOrWhiteSpace(text)))
+                                text = popupText;
+                        }
+
+                        if (!string.IsNullOrWhiteSpace(text))
+                            return text;
+                    }
                 }
+
+                if (!visibleOnly)
+                    break;
             }
         }
         catch (Exception ex)
@@ -148,47 +161,4 @@ public sealed unsafe partial class Plugin
                    || adjustedHotbarActionId == adjustedDisplayActionId);
     }
 
-    private static string FormatKeybindText(string? text)
-    {
-        if (string.IsNullOrWhiteSpace(text))
-            return string.Empty;
-
-        var formatted = text.Trim()
-            .Trim('[', ']')
-            .Replace("\u00a7", "s", StringComparison.Ordinal)
-            .Replace("\u00a2", "c", StringComparison.Ordinal)
-            .Replace("\u00aa", "a", StringComparison.Ordinal)
-            .Replace("\u00ba", "n", StringComparison.Ordinal)
-            .Replace("?", "a", StringComparison.Ordinal)
-            .Replace("Shift+", "s", StringComparison.OrdinalIgnoreCase)
-            .Replace("Shift-", "s", StringComparison.OrdinalIgnoreCase)
-            .Replace("Ctrl+", "c", StringComparison.OrdinalIgnoreCase)
-            .Replace("Ctrl-", "c", StringComparison.OrdinalIgnoreCase)
-            .Replace("Control+", "c", StringComparison.OrdinalIgnoreCase)
-            .Replace("Control-", "c", StringComparison.OrdinalIgnoreCase)
-            .Replace("Alt+", "a", StringComparison.OrdinalIgnoreCase)
-            .Replace("Alt-", "a", StringComparison.OrdinalIgnoreCase)
-            .Replace("Num", "n", StringComparison.OrdinalIgnoreCase)
-            .Replace("+", string.Empty, StringComparison.Ordinal)
-            .Replace("-", string.Empty, StringComparison.Ordinal)
-            .Replace(" ", string.Empty, StringComparison.Ordinal)
-            .ToLowerInvariant();
-
-        return RemoveUnsupportedKeybindGlyphs(formatted);
-    }
-
-    private static bool HasUnknownKeybindGlyph(string text)
-    {
-        return text.Any(ch => ch == '?' || ch == '\ufffd' || !IsSupportedKeybindChar(ch));
-    }
-
-    private static string RemoveUnsupportedKeybindGlyphs(string text)
-    {
-        return new string(text.Where(IsSupportedKeybindChar).ToArray());
-    }
-
-    private static bool IsSupportedKeybindChar(char ch)
-    {
-        return ch is >= 'a' and <= 'z' or >= '0' and <= '9';
-    }
 }
