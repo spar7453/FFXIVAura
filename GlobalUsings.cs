@@ -1,6 +1,8 @@
 global using System.Numerics;
 global using System.Text.Json;
 global using Dalamud.Bindings.ImGui;
+global using Dalamud.Game.Addon.Lifecycle;
+global using Dalamud.Game.Addon.Lifecycle.AddonArgTypes;
 global using Dalamud.Game.ClientState;
 global using Dalamud.Game.ClientState.Conditions;
 global using Dalamud.Game.ClientState.Objects.Enums;

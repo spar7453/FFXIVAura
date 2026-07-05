@@ -36,6 +36,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     [PluginService] private static IObjectTable ObjectTable { get; set; } = null!;
     [PluginService] private static IPartyList PartyList { get; set; } = null!;
     [PluginService] private static IGameGui GameGui { get; set; } = null!;
+    [PluginService] private static IAddonLifecycle AddonLifecycle { get; set; } = null!;
     [PluginService] private static IPluginLog Log { get; set; } = null!;
 
     private static readonly (string Id, string Label)[] TrackedEditorTabs =
@@ -74,11 +75,15 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private bool partyAuraFrameOwnCacheValid;
     private bool overlayTooltipRequestedThisFrame;
     private bool nativeActionTooltipVisible;
+    private bool nativeActionTooltipSoundStateCaptured;
+    private bool nativeActionTooltipOriginalDisableShowHideSoundEffects;
     private int pendingStatusId;
+    private short nativeActionTooltipOriginalShowSoundEffectId;
     private Vector2 draggedOverlayMouseStart;
     private Vector2 draggedOverlayPositionStart;
     private DateTime configSaveAfter = DateTime.MinValue;
     private DateTime keybindCacheRefreshAfter = DateTime.MinValue;
+    private DateTime nativeActionTooltipPositionUntil = DateTime.MinValue;
     private PluginConfig config;
     private bool configVisible;
     private bool zoneLoadActive;
@@ -135,12 +140,16 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
         PluginInterface.UiBuilder.OpenConfigUi += this.OpenConfig;
         Condition.ConditionChange += this.OnConditionChange;
         ClientState.ZoneInit += this.OnZoneInit;
+        AddonLifecycle.RegisterListener(AddonEvent.PreShow, "ActionDetail", this.OnActionDetailPreShow);
+        AddonLifecycle.RegisterListener(AddonEvent.PreDraw, "ActionDetail", this.OnActionDetailPreDraw);
     }
 
     public void Dispose()
     {
         this.FlushConfigSave(force: true);
         this.HideNativeActionTooltip();
+        AddonLifecycle.UnregisterListener(AddonEvent.PreShow, "ActionDetail", this.OnActionDetailPreShow);
+        AddonLifecycle.UnregisterListener(AddonEvent.PreDraw, "ActionDetail", this.OnActionDetailPreDraw);
         PluginInterface.UiBuilder.Draw -= this.Draw;
         PluginInterface.UiBuilder.OpenMainUi -= this.OpenConfig;
         PluginInterface.UiBuilder.OpenConfigUi -= this.OpenConfig;
