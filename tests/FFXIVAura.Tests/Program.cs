@@ -6,6 +6,7 @@ var tests = new List<(string Name, Action Run)>
 {
     ("OverlayLayout centers a single row", OverlayLayoutCentersSingleRow),
     ("OverlayLayout right-aligns a single row", OverlayLayoutRightAlignsSingleRow),
+    ("OverlayLayout compacts aura rows from top", OverlayLayoutCompactsAuraRowsFromTop),
     ("OverlayLayout clamps invalid positions", OverlayLayoutClampsInvalidPositions),
     ("OverlayLayout finds a free slot", OverlayLayoutFindsFreeSlot),
     ("CooldownMath converts aggregate charge cooldown", CooldownMathConvertsAggregateChargeCooldown),
@@ -82,6 +83,12 @@ static void OverlayLayoutRightAlignsSingleRow()
 {
     var position = OverlayLayout.GetAutoPosition(IconAlignment.Right, 0, 3, new Vector2(200, 100), 40, 5);
     AssertVector(new Vector2(70, 30), position);
+}
+
+static void OverlayLayoutCompactsAuraRowsFromTop()
+{
+    var position = OverlayLayout.GetCompactPosition(IconAlignment.Center, 0, 3, new Vector2(200, 100), 40, 5);
+    AssertVector(new Vector2(35, 0), position);
 }
 
 static void OverlayLayoutClampsInvalidPositions()

@@ -87,8 +87,7 @@ public sealed unsafe partial class Plugin
                         if (iconWindow.Role != IconWindowRole.SkillCooldowns)
                         {
                             var auras = this.GetOverlayAuras(iconWindow, OverlayItemVisibility.Layout).ToList();
-                            if (auras.Count > 0)
-                                this.AddMissingAuraIconPositions(iconWindow, auras, new Vector2(iconWindow.Width, iconWindow.Height));
+                            this.EnsureAuraIconPositions(iconWindow, auras, new Vector2(iconWindow.Width, iconWindow.Height));
                         }
 
                         this.QueueConfigSave();

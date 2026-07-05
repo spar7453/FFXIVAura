@@ -82,6 +82,7 @@ Open the settings window with `/fa`.
 - Edit row-based display order.
 - Resize the tracked order editor area by dragging the divider.
 - Search and add recently seen buffs/debuffs.
+- Buff/debuff windows set to the Active display condition continuously compact the currently active auras so expired or newly appeared statuses do not leave empty slots.
 
 The most common per-window controls are available directly on the unlocked overlay:
 
@@ -91,7 +92,7 @@ The most common per-window controls are available directly on the unlocked overl
 - Bottom-right buttons change icon alignment.
 - The lower-right corner handle resizes the overlay box.
 
-Each window stores its own display settings and icon positions.
+Each window stores its own display settings and manual icon positions. Buff/debuff windows use automatic compact placement only while their display condition is Active.
 
 ## Data Files
 
@@ -124,7 +125,7 @@ Typical update workflow:
 - `Plugin.SkillPositions.cs`
   - Skill icon position storage, auto placement, alignment, and tracked-action key matching.
 - `Plugin.AuraPositions.cs`
-  - Aura icon position storage, auto placement, alignment, and stale aura position cleanup.
+  - Aura position storage, active-only compact placement, alignment, and stale aura position cleanup.
 - `Plugin.OverlayItems.cs`
   - Shared skill/aura item selection for overlay windows.
 - `OverlayLayout.cs`

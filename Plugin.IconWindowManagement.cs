@@ -34,7 +34,9 @@ public sealed unsafe partial class Plugin
             TrackedByJob = IconWindowClone.CloneStringListMap(activeWindow.TrackedByJob),
             ExcludedByJob = IconWindowClone.CloneStringListMap(activeWindow.ExcludedByJob),
             IconPositionsByJob = IconWindowClone.CloneVector2Map(activeWindow.IconPositionsByJob),
-            AuraPositionsByRole = IconWindowClone.CloneAuraPositionsForWindow(activeWindow.AuraPositionsByRole, activeWindow.Id, id),
+            AuraPositionsByRole = UsesCompactAuraLayout(activeWindow)
+                ? new Dictionary<string, Dictionary<string, Vector2>>(StringComparer.OrdinalIgnoreCase)
+                : IconWindowClone.CloneAuraPositionsForWindow(activeWindow.AuraPositionsByRole, activeWindow.Id, id),
         };
 
         this.config.IconWindows.Add(window);
@@ -74,7 +76,7 @@ public sealed unsafe partial class Plugin
         if (activeWindow.Role == IconWindowRole.SkillCooldowns)
         {
             var abilities = items.Abilities;
-            this.NormalizeIconPositionsAfterResize(activeWindow, job, abilities, Array.Empty<AuraState>(), areaSize);
+            this.NormalizeIconPositionsAfterResize(activeWindow, job, abilities, areaSize);
             if (abilities.Count > 0)
                 this.AddMissingOverlayIconPositions(activeWindow, job, abilities, areaSize);
 
@@ -82,8 +84,8 @@ public sealed unsafe partial class Plugin
         }
 
         var auras = items.Auras;
-        this.NormalizeIconPositionsAfterResize(activeWindow, job, Array.Empty<AbilityDefinition>(), auras, areaSize);
-        this.AddMissingAuraIconPositions(activeWindow, auras, areaSize);
+        this.NormalizeAuraIconPositionsAfterResize(activeWindow, auras, areaSize);
+        this.EnsureAuraIconPositions(activeWindow, auras, areaSize);
     }
 
     private static string GetIconWindowDisplayName(IconWindowConfig window)

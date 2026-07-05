@@ -11,7 +11,7 @@ public sealed unsafe partial class Plugin
     {
         return iconWindow.Role == IconWindowRole.SkillCooldowns
             ? this.AutoAlignWhenVisibleSkillsChanged(iconWindow, job, level, items.Abilities, areaSize)
-            : this.AddMissingAuraIconPositions(iconWindow, items.Auras, areaSize);
+            : this.EnsureAuraIconPositions(iconWindow, items.Auras, areaSize);
     }
 
     private Vector2 GetOverlayAutoPosition(IconWindowConfig iconWindow, int index, int visibleCount, Vector2 areaSize, float iconSize, float gap)
@@ -29,6 +29,11 @@ public sealed unsafe partial class Plugin
         return OverlayLayout.FindFreeAutoPosition(iconWindow.Alignment, preferredIndex, visibleCount, occupied, areaSize, iconWindow.IconSize, iconWindow.Gap);
     }
 
+    private Vector2 GetAuraAutoPosition(IconWindowConfig iconWindow, int index, int visibleCount, Vector2 areaSize, float iconSize, float gap)
+    {
+        return OverlayLayout.GetCompactPosition(iconWindow.Alignment, index, visibleCount, areaSize, iconSize, gap);
+    }
+
     private float GetAlignedRowStartX(IconWindowConfig iconWindow, float areaWidth, float rowWidth)
     {
         return OverlayLayout.GetAlignedRowStartX(iconWindow.Alignment, areaWidth, rowWidth);
@@ -43,7 +48,6 @@ public sealed unsafe partial class Plugin
         IconWindowConfig iconWindow,
         string job,
         IReadOnlyList<AbilityDefinition> visible,
-        IReadOnlyList<AuraState> auras,
         Vector2 areaSize)
     {
         foreach (var (positionJob, skillPositions) in iconWindow.IconPositionsByJob.ToList())
@@ -59,6 +63,27 @@ public sealed unsafe partial class Plugin
             }
 
             this.NormalizeIconPositions(skillPositions, orderedKeys, iconWindow, areaSize, positionJob);
+        }
+
+        this.ClearAuraIconPositions(iconWindow);
+    }
+
+    private bool EnsureAuraIconPositions(IconWindowConfig iconWindow, IReadOnlyList<AuraState> auras, Vector2 areaSize)
+    {
+        return UsesCompactAuraLayout(iconWindow)
+            ? this.ClearAuraIconPositions(iconWindow)
+            : this.AddMissingAuraIconPositions(iconWindow, auras, areaSize);
+    }
+
+    private void NormalizeAuraIconPositionsAfterResize(
+        IconWindowConfig iconWindow,
+        IReadOnlyList<AuraState> auras,
+        Vector2 areaSize)
+    {
+        if (UsesCompactAuraLayout(iconWindow))
+        {
+            this.ClearAuraIconPositions(iconWindow);
+            return;
         }
 
         var auraGroupKey = OverlayPositionKeys.AuraGroup(iconWindow);

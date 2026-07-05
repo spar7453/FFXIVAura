@@ -28,6 +28,30 @@ internal static class OverlayLayout
         return ClampIconPosition(new Vector2(x, y), areaSize, iconSize);
     }
 
+    public static Vector2 GetCompactPosition(
+        IconAlignment alignment,
+        int index,
+        int visibleCount,
+        Vector2 areaSize,
+        float iconSize,
+        float gap)
+    {
+        areaSize = NormalizeAreaSize(areaSize);
+        iconSize = NormalizeIconSize(iconSize);
+        gap = NormalizeGap(gap);
+
+        var cell = iconSize + gap;
+        var columns = Math.Max(1, (int)Math.Floor((areaSize.X + gap) / Math.Max(1f, cell)));
+        var count = Math.Max(1, visibleCount);
+        var row = index / columns;
+        var column = index % columns;
+        var itemsInRow = Math.Min(columns, Math.Max(1, count - row * columns));
+        var rowWidth = Math.Max(0f, itemsInRow * iconSize + Math.Max(0, itemsInRow - 1) * gap);
+        var x = GetAlignedRowStartX(alignment, areaSize.X, rowWidth) + column * cell;
+        var y = row * cell;
+        return ClampIconPosition(new Vector2(x, y), areaSize, iconSize);
+    }
+
     public static IEnumerable<Vector2> GetAutoPositionSlots(
         IconAlignment alignment,
         Vector2 areaSize,

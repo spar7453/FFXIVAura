@@ -168,7 +168,11 @@ public sealed unsafe partial class Plugin
 
         iconWindow.Width = nextWidth;
         iconWindow.Height = nextHeight;
-        this.NormalizeIconPositionsAfterResize(iconWindow, job, visible, auras, new Vector2(nextWidth, nextHeight));
+        if (iconWindow.Role == IconWindowRole.SkillCooldowns)
+            this.NormalizeIconPositionsAfterResize(iconWindow, job, visible, new Vector2(nextWidth, nextHeight));
+        else
+            this.NormalizeAuraIconPositionsAfterResize(iconWindow, auras, new Vector2(nextWidth, nextHeight));
+
         this.QueueConfigSave();
     }
 
@@ -216,7 +220,7 @@ public sealed unsafe partial class Plugin
 
     private void HandleAuraIconInteraction(IconWindowConfig iconWindow, AuraState aura, Vector2 localPos, Vector2 iconPos, Vector2 areaSize, float iconSize)
     {
-        if (this.config.LockOverlay)
+        if (this.config.LockOverlay || UsesCompactAuraLayout(iconWindow))
             return;
 
         var id = OverlayPositionKeys.Aura(aura.StatusId);
