@@ -67,14 +67,11 @@ public sealed unsafe partial class Plugin
         if (string.IsNullOrWhiteSpace(text))
             return;
 
-        using (this.keybindFont.Push())
-        {
-            var available = Math.Max(1f, max.X - min.X - 4f);
-            if (ImGui.CalcTextSize(text).X > available)
-                text = TrimKeybindText(text, available);
+        var available = Math.Max(1f, max.X - min.X - 4f);
+        if (ImGui.CalcTextSize(text).X > available)
+            text = TrimKeybindText(text, available);
 
-            this.DrawOutlinedText(draw, min + new Vector2(2f, 1f), text, new Vector4(1f, 1f, 1f, 0.98f), new Vector4(0f, 0f, 0f, 0.95f), 1f);
-        }
+        this.DrawOutlinedText(draw, min + new Vector2(2f, 1f), text, new Vector4(1f, 1f, 1f, 0.98f), new Vector4(0f, 0f, 0f, 0.95f), 1f);
     }
 
     private static string TrimKeybindText(string text, float availableWidth)

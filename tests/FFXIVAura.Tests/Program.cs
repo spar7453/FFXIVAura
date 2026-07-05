@@ -600,6 +600,10 @@ static void KeybindTextFormatterFormatsModifiers()
     text = KeybindTextFormatter.Format("Ctrl-Alt+5", out unknown);
     AssertEqual("ca5", text);
     AssertTrue(!unknown, "known modifier text should not be marked unknown");
+
+    text = KeybindTextFormatter.Format("Shift+q", out unknown);
+    AssertEqual("sq", text);
+    AssertTrue(!unknown, "letter keys should be preserved");
 }
 
 static void KeybindTextFormatterMapsGameGlyphs()
