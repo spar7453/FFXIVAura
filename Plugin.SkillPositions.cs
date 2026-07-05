@@ -8,6 +8,10 @@ public sealed unsafe partial class Plugin
         var visibleKey = $"{level}:{string.Join("|", visible.Select(ability => ability.Id))}";
         var hasTrackedSkills = iconWindow.TrackedByJob.TryGetValue(job, out var tracked) && tracked.Count > 0;
         var hasSavedPositions = iconWindow.IconPositionsByJob.TryGetValue(job, out var positions) && positions.Count > 0;
+        var shouldRealignLevelFilteredSkills = positions is not null
+                                               && hasSavedPositions
+                                               && visible.Count > 0
+                                               && this.HasHiddenSavedSkillPositions(positions, job, visible);
         if (this.visibleAbilityKeys.TryGetValue(key, out var previous) && string.Equals(previous, visibleKey, StringComparison.Ordinal))
         {
             if (hasSavedPositions)
@@ -23,6 +27,12 @@ public sealed unsafe partial class Plugin
         }
 
         this.visibleAbilityKeys[key] = visibleKey;
+        if (shouldRealignLevelFilteredSkills)
+        {
+            this.AlignOverlayIcons(iconWindow, job, level);
+            return true;
+        }
+
         if (!hasSavedPositions)
         {
             if (hasTrackedSkills && visible.Count > 0)
@@ -35,6 +45,21 @@ public sealed unsafe partial class Plugin
         }
 
         return this.AddMissingOverlayIconPositions(iconWindow, job, visible, areaSize);
+    }
+
+    private bool HasHiddenSavedSkillPositions(Dictionary<string, Vector2> positions, string job, IReadOnlyList<AbilityDefinition> visible)
+    {
+        var visibleIds = visible.Select(ability => ability.Id).ToList();
+        foreach (var key in positions.Keys)
+        {
+            if (visibleIds.Any(visibleId => this.TrackedAbilityIdsMatch(key, visibleId, job)))
+                continue;
+
+            if (this.FindTrackedAbilityDefinition(key, job) is not null)
+                return true;
+        }
+
+        return false;
     }
 
     private bool AddMissingOverlayIconPositions(IconWindowConfig iconWindow, string job, IReadOnlyList<AbilityDefinition> visible, Vector2 areaSize)
