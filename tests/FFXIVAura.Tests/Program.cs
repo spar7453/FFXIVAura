@@ -1,6 +1,7 @@
 using System.Numerics;
 using System.Text.Json;
 using FFXIVAura;
+using FFXIVAura.Tests;
 
 var tests = new List<(string Name, Action Run)>
 {
@@ -58,6 +59,10 @@ var tests = new List<(string Name, Action Run)>
     ("PartyAuraAggregator counts party members once", PartyAuraAggregatorCountsPartyMembersOnce),
     ("PartyAuraAggregator builds own-only aggregates", PartyAuraAggregatorBuildsOwnOnlyAggregates),
 };
+
+tests.AddRange(PerformanceFrameStatsTests.Cases);
+tests.AddRange(AuraStatusFrameIndexTests.Cases);
+tests.AddRange(ActionKeybindIndexTests.Cases);
 
 var failed = 0;
 foreach (var (name, run) in tests)

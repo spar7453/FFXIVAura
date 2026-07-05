@@ -75,11 +75,13 @@ public sealed unsafe partial class Plugin
         var lockOverlay = this.config.LockOverlay;
         var hideDuringZoneLoad = this.config.HideDuringZoneLoad;
         var showTooltips = this.config.ShowTooltips;
+        var showPerformanceOverlay = this.config.ShowPerformanceOverlay;
 
         changed |= ImGui.Checkbox("사용", ref enabled);
         changed |= ImGui.Checkbox("오버레이 이동 잠금", ref lockOverlay);
         changed |= ImGui.Checkbox("지역 이동 중 숨김", ref hideDuringZoneLoad);
         changed |= ImGui.Checkbox("툴팁 표시", ref showTooltips);
+        changed |= ImGui.Checkbox("성능 계측 표시", ref showPerformanceOverlay);
 
         if (!changed)
             return false;
@@ -88,6 +90,7 @@ public sealed unsafe partial class Plugin
         this.config.LockOverlay = lockOverlay;
         this.config.HideDuringZoneLoad = hideDuringZoneLoad;
         this.config.ShowTooltips = showTooltips;
+        this.config.ShowPerformanceOverlay = showPerformanceOverlay;
         return true;
     }
 
@@ -249,27 +252,35 @@ public sealed unsafe partial class Plugin
         ImGui.Spacing();
     }
 
-    private static IEnumerable<(IconWindowRole Role, string Label)> WindowRoleOptions()
-    {
-        yield return (IconWindowRole.SkillCooldowns, "스킬");
-        yield return (IconWindowRole.PlayerBuffs, "내 버프");
-        yield return (IconWindowRole.TargetDebuffs, "대상 디버프");
-        yield return (IconWindowRole.PartyBuffs, "파티 버프");
-    }
+    private static readonly (IconWindowRole Role, string Label)[] WindowRoleOptionItems =
+    [
+        (IconWindowRole.SkillCooldowns, "스킬"),
+        (IconWindowRole.PlayerBuffs, "내 버프"),
+        (IconWindowRole.TargetDebuffs, "대상 디버프"),
+        (IconWindowRole.PartyBuffs, "파티 버프"),
+    ];
 
-    private static IEnumerable<(IconDisplayCondition Condition, string Label)> DisplayConditionOptions(IconWindowRole role)
-    {
-        yield return (IconDisplayCondition.Always, "항상");
-        yield return (IconDisplayCondition.InCombat, "전투 중");
-        yield return (IconDisplayCondition.OutOfCombat, "비전투");
-        if (role == IconWindowRole.SkillCooldowns)
-        {
-            yield return (IconDisplayCondition.CoolingOnly, "쿨/불가");
-            yield return (IconDisplayCondition.ReadyOnly, "사용 가능");
-            yield break;
-        }
+    private static readonly (IconDisplayCondition Condition, string Label)[] SkillDisplayConditionOptionItems =
+    [
+        (IconDisplayCondition.Always, "항상"),
+        (IconDisplayCondition.InCombat, "전투 중"),
+        (IconDisplayCondition.OutOfCombat, "비전투"),
+        (IconDisplayCondition.CoolingOnly, "쿨/불가"),
+        (IconDisplayCondition.ReadyOnly, "사용 가능"),
+    ];
 
-        yield return (IconDisplayCondition.CoolingOnly, "활성");
-        yield return (IconDisplayCondition.ReadyOnly, "없음");
-    }
+    private static readonly (IconDisplayCondition Condition, string Label)[] AuraDisplayConditionOptionItems =
+    [
+        (IconDisplayCondition.Always, "항상"),
+        (IconDisplayCondition.InCombat, "전투 중"),
+        (IconDisplayCondition.OutOfCombat, "비전투"),
+        (IconDisplayCondition.CoolingOnly, "활성"),
+        (IconDisplayCondition.ReadyOnly, "없음"),
+    ];
+
+    private static IReadOnlyList<(IconWindowRole Role, string Label)> WindowRoleOptions()
+        => WindowRoleOptionItems;
+
+    private static IReadOnlyList<(IconDisplayCondition Condition, string Label)> DisplayConditionOptions(IconWindowRole role)
+        => role == IconWindowRole.SkillCooldowns ? SkillDisplayConditionOptionItems : AuraDisplayConditionOptionItems;
 }

@@ -16,6 +16,7 @@ public sealed unsafe partial class Plugin
     private void DrawIconWindow(IconWindowConfig iconWindow, string job, uint level)
     {
         var frame = this.BuildOverlayFrameModel(iconWindow, job, level);
+        this.performanceStats.CountOverlayWindow(frame.DisplayAbilities.Count, frame.DisplayAuras.Count);
         if (this.EnsureOverlayPositionsForItems(iconWindow, job, level, frame.Layout, frame.AreaSize))
             this.QueueConfigSave();
 

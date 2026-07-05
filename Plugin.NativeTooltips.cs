@@ -183,6 +183,7 @@ public sealed unsafe partial class Plugin
 
     private void ControlNativeActionTooltip(AtkUnitBase* addon, bool suppressSound)
     {
+        this.performanceStats.CountNativeTooltipControl();
         this.nativeActionTooltipController.Control(addon, suppressSound, ImGui.GetMousePos(), ImGui.GetIO().DisplaySize);
     }
 

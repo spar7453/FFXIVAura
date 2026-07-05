@@ -29,75 +29,91 @@ public sealed unsafe partial class Plugin
 
     private string GetActionKeybindText(uint baseActionId, uint displayActionId)
     {
-        var now = DateTime.UtcNow;
-        if (this.keybindCacheDirty || now >= this.keybindCacheRefreshAfter)
-        {
-            this.keybindTextCache.Clear();
-            this.hotbarVisibilityCache.Clear();
-            this.keybindCacheDirty = false;
-            this.keybindCacheRefreshAfter = now.AddSeconds(2);
-        }
-
-        var key = (baseActionId, displayActionId);
-        if (!this.keybindTextCache.TryGetValue(key, out var text))
-        {
-            text = this.ComputeActionKeybindText(baseActionId, displayActionId);
-            this.keybindTextCache[key] = text;
-        }
-
-        return text;
-    }
-
-    private string ComputeActionKeybindText(uint baseActionId, uint displayActionId)
-    {
         try
         {
-            var adjustedBaseActionId = ActionManager.Instance()->GetAdjustedActionId(baseActionId);
-            var adjustedDisplayActionId = ActionManager.Instance()->GetAdjustedActionId(displayActionId);
-
-            for (var visibleOnly = true; ; visibleOnly = false)
-            {
-                for (uint hotbarId = 0; hotbarId < 18; hotbarId++)
-                {
-                    var visible = this.IsHotbarVisible(hotbarId);
-                    if (visibleOnly != visible)
-                        continue;
-
-                    for (uint slotIndex = 0; slotIndex < 16; slotIndex++)
-                    {
-                        var slot = RaptureHotbarModule.Instance()->GetSlotById(hotbarId, slotIndex);
-                        if (slot is null || slot->CommandType == RaptureHotbarModule.HotbarSlotType.Empty)
-                            continue;
-
-                        if (!IsActionHotbarSlot(slot))
-                            continue;
-
-                        if (!MatchesActionSlot(slot, baseActionId, displayActionId, adjustedBaseActionId, adjustedDisplayActionId))
-                            continue;
-
-                        var text = KeybindTextFormatter.Format(slot->KeybindHintString, out var hasUnknownGlyph);
-                        if (hasUnknownGlyph || string.IsNullOrWhiteSpace(text))
-                        {
-                            var popupText = KeybindTextFormatter.Format(slot->PopUpKeybindHintString, out var popupHasUnknownGlyph);
-                            if (!string.IsNullOrWhiteSpace(popupText) && (!popupHasUnknownGlyph || string.IsNullOrWhiteSpace(text)))
-                                text = popupText;
-                        }
-
-                        if (!string.IsNullOrWhiteSpace(text))
-                            return text;
-                    }
-                }
-
-                if (!visibleOnly)
-                    break;
-            }
+            this.EnsureActionKeybindIndex();
+            return this.actionKeybindIndex.Find(baseActionId, displayActionId, 0, 0);
         }
         catch (Exception ex)
         {
             Log.Debug(ex, $"Failed to read hotbar keybind for action {baseActionId}/{displayActionId}.");
+            return string.Empty;
         }
+    }
 
-        return string.Empty;
+    private void EnsureActionKeybindIndex()
+    {
+        var now = DateTime.UtcNow;
+        if (!this.keybindCacheDirty && now < this.keybindCacheRefreshAfter)
+            return;
+
+        this.keybindCacheDirty = false;
+        this.keybindCacheRefreshAfter = now.AddSeconds(2);
+        this.RebuildActionKeybindIndex();
+    }
+
+    private void RebuildActionKeybindIndex()
+    {
+        this.actionKeybindIndex.Clear();
+        this.hotbarVisibilityCache.Clear();
+
+        var hotbarModule = RaptureHotbarModule.Instance();
+        if (hotbarModule is null)
+            return;
+
+        for (var visibleOnly = true; ; visibleOnly = false)
+        {
+            for (uint hotbarId = 0; hotbarId < 18; hotbarId++)
+            {
+                var visible = this.IsHotbarVisible(hotbarId);
+                if (visibleOnly != visible)
+                    continue;
+
+                for (uint slotIndex = 0; slotIndex < 16; slotIndex++)
+                {
+                    var slot = hotbarModule->GetSlotById(hotbarId, slotIndex);
+                    if (slot is null || slot->CommandType == RaptureHotbarModule.HotbarSlotType.Empty)
+                        continue;
+
+                    if (!IsActionHotbarSlot(slot))
+                        continue;
+
+                    var text = GetHotbarSlotKeybindText(slot);
+                    if (!string.IsNullOrWhiteSpace(text))
+                        this.RegisterHotbarSlotKeybind(slot, text);
+                }
+            }
+
+            if (!visibleOnly)
+                break;
+        }
+    }
+
+    private void RegisterHotbarSlotKeybind(RaptureHotbarModule.HotbarSlot* slot, string text)
+    {
+        this.RegisterActionKeybind(slot->CommandId, text);
+        this.RegisterActionKeybind(slot->ApparentActionId, text);
+        this.RegisterActionKeybind(slot->OriginalApparentActionId, text);
+    }
+
+    private void RegisterActionKeybind(uint actionId, string text)
+    {
+        if (actionId == 0)
+            return;
+
+        this.actionKeybindIndex.Register(actionId, GetAdjustedActionId(actionId), text);
+    }
+
+    private static string GetHotbarSlotKeybindText(RaptureHotbarModule.HotbarSlot* slot)
+    {
+        var text = KeybindTextFormatter.Format(slot->KeybindHintString, out var hasUnknownGlyph);
+        if (!hasUnknownGlyph && !string.IsNullOrWhiteSpace(text))
+            return text;
+
+        var popupText = KeybindTextFormatter.Format(slot->PopUpKeybindHintString, out var popupHasUnknownGlyph);
+        return !string.IsNullOrWhiteSpace(popupText) && (!popupHasUnknownGlyph || string.IsNullOrWhiteSpace(text))
+            ? popupText
+            : text;
     }
 
     private bool IsHotbarVisible(uint hotbarId)
@@ -133,37 +149,6 @@ public sealed unsafe partial class Plugin
                || slot->ApparentSlotType == RaptureHotbarModule.HotbarSlotType.GeneralAction
                || slot->OriginalApparentSlotType == RaptureHotbarModule.HotbarSlotType.Action
                || slot->OriginalApparentSlotType == RaptureHotbarModule.HotbarSlotType.GeneralAction;
-    }
-
-    private static bool MatchesActionSlot(
-        RaptureHotbarModule.HotbarSlot* slot,
-        uint baseActionId,
-        uint displayActionId,
-        uint adjustedBaseActionId,
-        uint adjustedDisplayActionId)
-    {
-        return MatchesActionId(slot->CommandId, baseActionId, displayActionId, adjustedBaseActionId, adjustedDisplayActionId)
-               || MatchesActionId(slot->ApparentActionId, baseActionId, displayActionId, adjustedBaseActionId, adjustedDisplayActionId)
-               || MatchesActionId(slot->OriginalApparentActionId, baseActionId, displayActionId, adjustedBaseActionId, adjustedDisplayActionId);
-    }
-
-    private static bool MatchesActionId(uint hotbarActionId, uint baseActionId, uint displayActionId, uint adjustedBaseActionId, uint adjustedDisplayActionId)
-    {
-        if (hotbarActionId == 0)
-            return false;
-
-        if (hotbarActionId == baseActionId
-            || hotbarActionId == displayActionId
-            || hotbarActionId == adjustedBaseActionId
-            || hotbarActionId == adjustedDisplayActionId)
-            return true;
-
-        var adjustedHotbarActionId = ActionManager.Instance()->GetAdjustedActionId(hotbarActionId);
-        return adjustedHotbarActionId != 0
-               && (adjustedHotbarActionId == baseActionId
-                   || adjustedHotbarActionId == displayActionId
-                   || adjustedHotbarActionId == adjustedBaseActionId
-                   || adjustedHotbarActionId == adjustedDisplayActionId);
     }
 
 }

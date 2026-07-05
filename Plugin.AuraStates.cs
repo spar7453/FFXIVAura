@@ -62,16 +62,12 @@ public sealed unsafe partial class Plugin
 
     private (float Remaining, ushort Param, int Count, int OwnCount, bool FromSelf)? FindStatusOnPlayer(uint statusId)
     {
-        return ObjectTable.LocalPlayer is IBattleChara chara
-            ? this.FindStatus(chara, statusId, preferOwnStatus: false)
-            : null;
+        return SelectCharacterAuraStatus(this.GetPlayerAuraFrameIndex(), statusId, preferOwnStatus: false);
     }
 
     private (float Remaining, ushort Param, int Count, int OwnCount, bool FromSelf)? FindStatusOnTarget(uint statusId)
     {
-        return TargetManager.Target is IBattleChara chara
-            ? this.FindStatus(chara, statusId, preferOwnStatus: true)
-            : null;
+        return SelectCharacterAuraStatus(this.GetTargetAuraFrameIndex(), statusId, preferOwnStatus: true);
     }
 
     private (float Remaining, ushort Param, int Count, int OwnCount, bool FromSelf)? FindStatusOnParty(uint statusId, bool ownOnly)
@@ -79,6 +75,56 @@ public sealed unsafe partial class Plugin
         var index = this.GetPartyAuraFrameIndex(ownOnly);
         return index.TryGetValue(statusId, out var aggregate)
             ? (aggregate.Remaining, aggregate.Param, aggregate.Count, aggregate.OwnCount, aggregate.FromSelf)
+            : null;
+    }
+
+    private Dictionary<uint, CharacterAuraAggregate> GetPlayerAuraFrameIndex()
+    {
+        if (!this.playerAuraFrameCacheValid)
+        {
+            this.RebuildCharacterAuraFrameIndex(this.playerAuraFrameCache, ObjectTable.LocalPlayer as IBattleChara);
+            this.playerAuraFrameCacheValid = true;
+        }
+
+        return this.playerAuraFrameCache;
+    }
+
+    private Dictionary<uint, CharacterAuraAggregate> GetTargetAuraFrameIndex()
+    {
+        if (!this.targetAuraFrameCacheValid)
+        {
+            this.RebuildCharacterAuraFrameIndex(this.targetAuraFrameCache, TargetManager.Target as IBattleChara);
+            this.targetAuraFrameCacheValid = true;
+        }
+
+        return this.targetAuraFrameCache;
+    }
+
+    private void RebuildCharacterAuraFrameIndex(Dictionary<uint, CharacterAuraAggregate> auraIndex, IBattleChara? chara)
+    {
+        auraIndex.Clear();
+        if (chara is null)
+            return;
+
+        foreach (var status in chara.StatusList)
+        {
+            AuraStatusFrameIndex.AddStatus(
+                auraIndex,
+                new CharacterAuraStatusSample(
+                    status.StatusId,
+                    status.RemainingTime,
+                    status.Param,
+                    this.IsStatusFromSelf(status.SourceId)));
+        }
+    }
+
+    private static (float Remaining, ushort Param, int Count, int OwnCount, bool FromSelf)? SelectCharacterAuraStatus(
+        Dictionary<uint, CharacterAuraAggregate> auraIndex,
+        uint statusId,
+        bool preferOwnStatus)
+    {
+        return auraIndex.TryGetValue(statusId, out var aggregate)
+            ? aggregate.Select(preferOwnStatus)
             : null;
     }
 
@@ -125,43 +171,6 @@ public sealed unsafe partial class Plugin
 
             PartyAuraAggregator.MergeMemberAuras(memberAuras, aggregateAuras);
         }
-    }
-
-    private (float Remaining, ushort Param, int Count, int OwnCount, bool FromSelf)? FindStatus(IBattleChara chara, uint statusId, bool preferOwnStatus)
-    {
-        (float Remaining, ushort Param, int Count, int OwnCount, bool FromSelf)? best = null;
-        (float Remaining, ushort Param, int Count, int OwnCount, bool FromSelf)? bestOwn = null;
-        var count = 0;
-        var ownCount = 0;
-        foreach (var status in chara.StatusList)
-        {
-            if (status.StatusId != statusId)
-                continue;
-
-            var fromSelf = this.IsStatusFromSelf(status.SourceId);
-            count++;
-            if (fromSelf)
-                ownCount++;
-
-            var candidate = (
-                Remaining: Math.Max(0f, status.RemainingTime),
-                Param: status.Param,
-                Count: 1,
-                OwnCount: fromSelf ? 1 : 0,
-                FromSelf: fromSelf);
-            if (best is null || candidate.Remaining > best.Value.Remaining)
-                best = candidate;
-
-            if (fromSelf && (bestOwn is null || candidate.Remaining > bestOwn.Value.Remaining))
-                bestOwn = candidate;
-        }
-
-        var selected = preferOwnStatus ? bestOwn ?? best : best;
-        if (selected is null)
-            return null;
-
-        var value = selected.Value;
-        return (value.Remaining, value.Param, count, ownCount, value.FromSelf);
     }
 
     private bool IsStatusFromSelf(uint sourceId)

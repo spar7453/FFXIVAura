@@ -75,9 +75,11 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private readonly List<AuraSearchIndexEntry> actionGrantedStatusSearchIndex = [];
     private readonly List<AuraSearchIndexEntry> allStatusSearchIndex = [];
     private readonly Dictionary<string, CooldownState> cooldownFrameCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<uint, CharacterAuraAggregate> playerAuraFrameCache = new();
+    private readonly Dictionary<uint, CharacterAuraAggregate> targetAuraFrameCache = new();
     private readonly Dictionary<uint, PartyAuraAggregate> partyAuraFrameAllCache = new();
     private readonly Dictionary<uint, PartyAuraAggregate> partyAuraFrameOwnCache = new();
-    private readonly Dictionary<(uint BaseActionId, uint DisplayActionId), string> keybindTextCache = new();
+    private readonly ActionKeybindIndex actionKeybindIndex = new();
     private readonly Dictionary<uint, bool> hotbarVisibilityCache = new();
     private readonly Dictionary<string, HashSet<uint>> visibleAurasByScope = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<uint, IDalamudTextureWrap> grayscaleIconCache = new();
@@ -96,6 +98,8 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private bool actionGrantedStatusSearchIndexBuilt;
     private bool allStatusSearchIndexBuilt;
     private bool keybindCacheDirty = true;
+    private bool playerAuraFrameCacheValid;
+    private bool targetAuraFrameCacheValid;
     private bool partyAuraFrameAllCacheValid;
     private bool partyAuraFrameOwnCacheValid;
     private bool overlayTooltipRequestedThisFrame;
@@ -110,6 +114,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private DateTime zoneLoadHiddenUntil = DateTime.MinValue;
     private readonly NativeActionTooltipController nativeActionTooltipController = new();
     private readonly OverlayTooltipResolver overlayTooltipResolver = new();
+    private readonly PerformanceFrameStats performanceStats = new();
     private readonly IFontHandle cooldownFont;
     private readonly IFontHandle chargeFont;
     private readonly IFontHandle auraCountFont;
@@ -259,6 +264,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
 
     private void Draw()
     {
+        var performanceFrameStart = this.BeginPerformanceFrame();
         this.BeginFrameCache();
         try
         {
@@ -293,6 +299,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
         finally
         {
             this.FinishOverlayTooltipFrame();
+            this.FinishPerformanceFrame(performanceFrameStart);
         }
     }
 
@@ -301,9 +308,11 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
         this.overlayTooltipRequestedThisFrame = false;
         this.overlayTooltipResolver.Clear();
         this.cooldownFrameCache.Clear();
+        this.playerAuraFrameCacheValid = false;
+        this.targetAuraFrameCacheValid = false;
         this.partyAuraFrameAllCacheValid = false;
         this.partyAuraFrameOwnCacheValid = false;
-        this.ProcessGrayscaleIconQueue();
+        this.performanceStats.CountGrayscaleIcons(this.ProcessGrayscaleIconQueue());
     }
 
     private void QueueConfigSave()

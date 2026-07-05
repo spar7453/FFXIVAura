@@ -21,15 +21,16 @@ public sealed unsafe partial class Plugin
         return null;
     }
 
-    private void ProcessGrayscaleIconQueue(int maxPerFrame = 1)
+    private int ProcessGrayscaleIconQueue(int maxPerFrame = 1)
     {
+        var processed = 0;
         for (var index = 0; index < maxPerFrame; index++)
         {
             uint iconId;
             lock (this.grayscaleIconLock)
             {
                 if (this.grayscaleIconQueue.Count == 0)
-                    return;
+                    return processed;
 
                 iconId = this.grayscaleIconQueue.Dequeue();
                 if (this.grayscaleIconCache.ContainsKey(iconId))
@@ -40,7 +41,10 @@ public sealed unsafe partial class Plugin
             }
 
             this.CreateGrayscaleIconTexture(iconId);
+            processed++;
         }
+
+        return processed;
     }
 
     private void CreateGrayscaleIconTexture(uint iconId)

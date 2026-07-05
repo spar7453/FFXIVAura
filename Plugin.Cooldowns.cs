@@ -9,6 +9,7 @@ public sealed unsafe partial class Plugin
             return cached;
 
         var state = this.ComputeCooldown(ability);
+        this.performanceStats.CountCooldownCalculation();
         this.cooldownFrameCache[key] = state;
         return state;
     }
