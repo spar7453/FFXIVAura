@@ -76,48 +76,55 @@ public sealed unsafe partial class Plugin
 
     private (float Remaining, ushort Param, int Count, int OwnCount, bool FromSelf)? FindStatusOnParty(uint statusId, bool ownOnly)
     {
-        (float Remaining, ushort Param)? best = null;
-        var count = 0;
-        var ownCount = 0;
-        var anyFromSelf = false;
+        var index = this.GetPartyAuraFrameIndex(ownOnly);
+        return index.TryGetValue(statusId, out var aggregate)
+            ? (aggregate.Remaining, aggregate.Param, aggregate.Count, aggregate.OwnCount, aggregate.FromSelf)
+            : null;
+    }
+
+    private Dictionary<uint, PartyAuraAggregate> GetPartyAuraFrameIndex(bool ownOnly)
+    {
+        if (ownOnly)
+        {
+            if (!this.partyAuraFrameOwnCacheValid)
+            {
+                this.RebuildPartyAuraFrameIndex(this.partyAuraFrameOwnCache, ownOnly: true);
+                this.partyAuraFrameOwnCacheValid = true;
+            }
+
+            return this.partyAuraFrameOwnCache;
+        }
+
+        if (!this.partyAuraFrameAllCacheValid)
+        {
+            this.RebuildPartyAuraFrameIndex(this.partyAuraFrameAllCache, ownOnly: false);
+            this.partyAuraFrameAllCacheValid = true;
+        }
+
+        return this.partyAuraFrameAllCache;
+    }
+
+    private void RebuildPartyAuraFrameIndex(Dictionary<uint, PartyAuraAggregate> aggregateAuras, bool ownOnly)
+    {
+        aggregateAuras.Clear();
+
+        var memberAuras = new Dictionary<uint, PartyMemberAuraState>();
         for (var i = 0; i < PartyList.Length; i++)
         {
             var member = PartyList[i];
             if (member is null)
                 continue;
 
-            (float Remaining, ushort Param)? memberBest = null;
-            var memberFromSelf = false;
+            memberAuras.Clear();
             foreach (var status in member.Statuses)
             {
-                if (status.StatusId != statusId)
-                    continue;
-
                 var fromSelf = this.IsStatusFromSelf(status.SourceId);
-                if (ownOnly && !fromSelf)
-                    continue;
-
-                memberFromSelf |= fromSelf;
-                var remaining = Math.Max(0f, status.RemainingTime);
-                if (memberBest is null || remaining > memberBest.Value.Remaining)
-                    memberBest = (remaining, status.Param);
+                var sample = new PartyAuraStatusSample(status.StatusId, status.RemainingTime, status.Param, fromSelf);
+                PartyAuraAggregator.AddMemberStatus(memberAuras, sample, ownOnly);
             }
 
-            if (memberBest is null)
-                continue;
-
-            count++;
-            if (memberFromSelf)
-                ownCount++;
-
-            anyFromSelf |= memberFromSelf;
-            if (best is null || memberBest.Value.Remaining > best.Value.Remaining)
-                best = memberBest;
+            PartyAuraAggregator.MergeMemberAuras(memberAuras, aggregateAuras);
         }
-
-        return best is null
-            ? null
-            : (best.Value.Remaining, best.Value.Param, count, ownCount, anyFromSelf);
     }
 
     private (float Remaining, ushort Param, int Count, int OwnCount, bool FromSelf)? FindStatus(IBattleChara chara, uint statusId, bool preferOwnStatus)

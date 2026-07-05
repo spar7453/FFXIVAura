@@ -37,13 +37,12 @@ public sealed unsafe partial class Plugin
 
     private bool ShouldDisplayAbility(AbilityDefinition ability, IconWindowConfig iconWindow)
     {
-        var state = this.GetCooldown(ability);
         return iconWindow.DisplayCondition switch
         {
             IconDisplayCondition.InCombat => this.IsInCombat(),
             IconDisplayCondition.OutOfCombat => !this.IsInCombat(),
-            IconDisplayCondition.CoolingOnly => state.ShouldShowInCoolingOnly,
-            IconDisplayCondition.ReadyOnly => state.IsReady,
+            IconDisplayCondition.CoolingOnly => this.GetCooldown(ability).ShouldShowInCoolingOnly,
+            IconDisplayCondition.ReadyOnly => this.GetCooldown(ability).IsReady,
             _ => true,
         };
     }

@@ -33,9 +33,7 @@ public sealed unsafe partial class Plugin
         if (iconWindow.Role == IconWindowRole.SkillCooldowns)
         {
             var layoutAbilities = this.GetVisibleAbilities(job, level, iconWindow).ToList();
-            var displayAbilities = iconWindow.DisplayCondition == IconDisplayCondition.Always
-                ? layoutAbilities
-                : layoutAbilities.Where(ability => this.ShouldDisplayAbility(ability, iconWindow)).ToList();
+            var displayAbilities = this.GetDisplayAbilitiesFromLayout(layoutAbilities, iconWindow);
             return new OverlayFrameItemSets(
                 new OverlayItemSet(displayAbilities, Array.Empty<AuraState>()),
                 new OverlayItemSet(layoutAbilities, Array.Empty<AuraState>()));
@@ -49,6 +47,19 @@ public sealed unsafe partial class Plugin
         return new OverlayFrameItemSets(
             new OverlayItemSet(Array.Empty<AbilityDefinition>(), displayAuras),
             new OverlayItemSet(Array.Empty<AbilityDefinition>(), layoutAuras));
+    }
+
+    private IReadOnlyList<AbilityDefinition> GetDisplayAbilitiesFromLayout(
+        IReadOnlyList<AbilityDefinition> layoutAbilities,
+        IconWindowConfig iconWindow)
+    {
+        return iconWindow.DisplayCondition switch
+        {
+            IconDisplayCondition.Always => layoutAbilities,
+            IconDisplayCondition.InCombat => this.IsInCombat() ? layoutAbilities : Array.Empty<AbilityDefinition>(),
+            IconDisplayCondition.OutOfCombat => !this.IsInCombat() ? layoutAbilities : Array.Empty<AbilityDefinition>(),
+            _ => layoutAbilities.Where(ability => this.ShouldDisplayAbility(ability, iconWindow)).ToList(),
+        };
     }
 
     private IEnumerable<AbilityDefinition> GetOverlayAbilities(

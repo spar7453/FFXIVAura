@@ -43,6 +43,8 @@ var tests = new List<(string Name, Action Run)>
     ("KeybindTextFormatter strips unknown glyphs", KeybindTextFormatterStripsUnknownGlyphs),
     ("OverlayControlGeometry splits narrow controls", OverlayControlGeometrySplitsNarrowControls),
     ("OverlayControlGeometry clamps floating windows", OverlayControlGeometryClampsFloatingWindows),
+    ("PartyAuraAggregator counts party members once", PartyAuraAggregatorCountsPartyMembersOnce),
+    ("PartyAuraAggregator builds own-only aggregates", PartyAuraAggregatorBuildsOwnOnlyAggregates),
 };
 
 var failed = 0;
@@ -645,6 +647,41 @@ static void OverlayControlGeometryClampsFloatingWindows()
         Vector2.Zero,
         8);
     AssertVector(new Vector2(8, 8), fallback);
+}
+
+static void PartyAuraAggregatorCountsPartyMembersOnce()
+{
+    var member = new Dictionary<uint, PartyMemberAuraState>();
+    var aggregate = new Dictionary<uint, PartyAuraAggregate>();
+
+    PartyAuraAggregator.AddMemberStatus(member, new PartyAuraStatusSample(42, 10, 100, false), ownOnly: false);
+    PartyAuraAggregator.AddMemberStatus(member, new PartyAuraStatusSample(42, 5, 200, true), ownOnly: false);
+    PartyAuraAggregator.MergeMemberAuras(member, aggregate);
+
+    AssertEqual(1, aggregate[42].Count);
+    AssertEqual(1, aggregate[42].OwnCount);
+    AssertNear(10, aggregate[42].Remaining);
+    AssertEqual((ushort)100, aggregate[42].Param);
+    AssertTrue(aggregate[42].FromSelf, "member should still count as own when a shorter own status exists");
+}
+
+static void PartyAuraAggregatorBuildsOwnOnlyAggregates()
+{
+    var memberOne = new Dictionary<uint, PartyMemberAuraState>();
+    var memberTwo = new Dictionary<uint, PartyMemberAuraState>();
+    var aggregate = new Dictionary<uint, PartyAuraAggregate>();
+
+    PartyAuraAggregator.AddMemberStatus(memberOne, new PartyAuraStatusSample(42, 30, 100, false), ownOnly: true);
+    PartyAuraAggregator.AddMemberStatus(memberOne, new PartyAuraStatusSample(42, 20, 200, true), ownOnly: true);
+    PartyAuraAggregator.AddMemberStatus(memberTwo, new PartyAuraStatusSample(42, 40, 300, true), ownOnly: true);
+    PartyAuraAggregator.MergeMemberAuras(memberOne, aggregate);
+    PartyAuraAggregator.MergeMemberAuras(memberTwo, aggregate);
+
+    AssertEqual(2, aggregate[42].Count);
+    AssertEqual(2, aggregate[42].OwnCount);
+    AssertNear(40, aggregate[42].Remaining);
+    AssertEqual((ushort)300, aggregate[42].Param);
+    AssertTrue(aggregate[42].FromSelf, "own-only aggregate should be marked from self");
 }
 
 static List<AbilityDefinition> LoadAbilityData()

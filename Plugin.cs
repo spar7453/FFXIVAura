@@ -52,6 +52,8 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private readonly Dictionary<string, Dictionary<uint, DateTime>> auraFirstSeenByScope = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<AbilityDefinition>> gameActionCandidatesCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, CooldownState> cooldownFrameCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<uint, PartyAuraAggregate> partyAuraFrameAllCache = new();
+    private readonly Dictionary<uint, PartyAuraAggregate> partyAuraFrameOwnCache = new();
     private readonly Dictionary<(uint BaseActionId, uint DisplayActionId), string> keybindTextCache = new();
     private readonly Dictionary<string, HashSet<uint>> visibleAurasByScope = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<uint, IDalamudTextureWrap> grayscaleIconCache = new();
@@ -67,6 +69,8 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private bool configSavePending;
     private bool configWasVisible;
     private bool keybindCacheDirty = true;
+    private bool partyAuraFrameAllCacheValid;
+    private bool partyAuraFrameOwnCacheValid;
     private int pendingStatusId;
     private Vector2 draggedOverlayMouseStart;
     private Vector2 draggedOverlayPositionStart;
@@ -252,6 +256,8 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private void BeginFrameCache()
     {
         this.cooldownFrameCache.Clear();
+        this.partyAuraFrameAllCacheValid = false;
+        this.partyAuraFrameOwnCacheValid = false;
         this.ProcessGrayscaleIconQueue();
     }
 
