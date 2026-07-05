@@ -77,20 +77,13 @@ internal static class IconWindowIdentity
             .Where(number => number > 0)
             .ToHashSet();
 
-        var start = Math.Max(1, windowCounter + 1);
-        for (var number = start; number < 10000; number++)
+        for (var number = 1; number < 10000; number++)
         {
             if (!used.Contains(number))
                 return number;
         }
 
-        for (var number = 1; number < start; number++)
-        {
-            if (!used.Contains(number))
-                return number;
-        }
-
-        return Math.Max(start, used.Count + 1);
+        return Math.Max(1, Math.Max(windowCounter + 1, used.Count + 1));
     }
 
     public static bool IsBrokenName(string name)

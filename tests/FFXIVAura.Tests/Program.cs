@@ -23,6 +23,7 @@ var tests = new List<(string Name, Action Run)>
     ("abilities.json role actions map to a job", AbilitiesJsonRoleActionsMapToAJob),
     ("IconWindowIdentity creates stable unique ids", IconWindowIdentityCreatesStableUniqueIds),
     ("IconWindowIdentity gets the next available number", IconWindowIdentityGetsNextAvailableNumber),
+    ("IconWindowIdentity reuses deleted window numbers", IconWindowIdentityReusesDeletedWindowNumbers),
     ("IconWindowIdentity wraps available window numbers", IconWindowIdentityWrapsAvailableWindowNumbers),
     ("IconWindowIdentity trims window ids", IconWindowIdentityTrimsWindowIds),
     ("IconWindowIdentity remaps aura position groups", IconWindowIdentityRemapsAuraPositionGroups),
@@ -368,6 +369,12 @@ static void IconWindowIdentityGetsNextAvailableNumber()
 {
     var number = IconWindowIdentity.GetNextAvailableNumber(["win1", "win2", "win4"], 2);
     AssertEqual(3, number);
+}
+
+static void IconWindowIdentityReusesDeletedWindowNumbers()
+{
+    var number = IconWindowIdentity.GetNextAvailableNumber(["win1"], 2);
+    AssertEqual(2, number);
 }
 
 static void IconWindowIdentityWrapsAvailableWindowNumbers()
