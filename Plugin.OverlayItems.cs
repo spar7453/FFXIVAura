@@ -8,14 +8,6 @@ public sealed unsafe partial class Plugin
         Display,
     }
 
-    private readonly record struct OverlayItemSet(
-        IReadOnlyList<AbilityDefinition> Abilities,
-        IReadOnlyList<AuraState> Auras);
-
-    private readonly record struct OverlayFrameItemSets(
-        OverlayItemSet Display,
-        OverlayItemSet Layout);
-
     private OverlayItemSet GetOverlayItems(IconWindowConfig iconWindow, string job, uint level, OverlayItemVisibility visibility)
     {
         if (iconWindow.Role == IconWindowRole.SkillCooldowns)
@@ -24,17 +16,22 @@ public sealed unsafe partial class Plugin
                 Array.Empty<AuraState>());
 
         return new OverlayItemSet(
-            Array.Empty<AbilityDefinition>(),
-            this.GetOverlayAuras(iconWindow, visibility).ToList());
+                Array.Empty<AbilityDefinition>(),
+                this.GetOverlayAuras(iconWindow, visibility).ToList());
     }
 
-    private OverlayFrameItemSets GetOverlayFrameItems(IconWindowConfig iconWindow, string job, uint level)
+    private OverlayFrameModel BuildOverlayFrameModel(IconWindowConfig iconWindow, string job, uint level)
     {
+        var areaSize = new Vector2(iconWindow.Width, iconWindow.Height);
         if (iconWindow.Role == IconWindowRole.SkillCooldowns)
         {
             var layoutAbilities = this.GetVisibleAbilities(job, level, iconWindow).ToList();
             var displayAbilities = this.GetDisplayAbilitiesFromLayout(layoutAbilities, iconWindow);
-            return new OverlayFrameItemSets(
+            return new OverlayFrameModel(
+                iconWindow,
+                job,
+                level,
+                areaSize,
                 new OverlayItemSet(displayAbilities, Array.Empty<AuraState>()),
                 new OverlayItemSet(layoutAbilities, Array.Empty<AuraState>()));
         }
@@ -44,7 +41,11 @@ public sealed unsafe partial class Plugin
             .Where(aura => this.ShouldDisplayAura(aura, iconWindow))
             .Where(aura => aura.Present || ShouldShowMissingAura(iconWindow))
             .ToList();
-        return new OverlayFrameItemSets(
+        return new OverlayFrameModel(
+            iconWindow,
+            job,
+            level,
+            areaSize,
             new OverlayItemSet(Array.Empty<AbilityDefinition>(), displayAuras),
             new OverlayItemSet(Array.Empty<AbilityDefinition>(), layoutAuras));
     }

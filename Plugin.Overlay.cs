@@ -15,19 +15,17 @@ public sealed unsafe partial class Plugin
 
     private void DrawIconWindow(IconWindowConfig iconWindow, string job, uint level)
     {
-        var frameItems = this.GetOverlayFrameItems(iconWindow, job, level);
-        var displayItems = frameItems.Display;
-        var layoutItems = frameItems.Layout;
-        var visible = displayItems.Abilities;
-        var auras = displayItems.Auras;
-        var areaSize = new Vector2(iconWindow.Width, iconWindow.Height);
-        if (this.EnsureOverlayPositionsForItems(iconWindow, job, level, layoutItems, areaSize))
+        var frame = this.BuildOverlayFrameModel(iconWindow, job, level);
+        if (this.EnsureOverlayPositionsForItems(iconWindow, job, level, frame.Layout, frame.AreaSize))
             this.QueueConfigSave();
 
-        if (visible.Count == 0 && auras.Count == 0 && this.config.LockOverlay)
+        if (!frame.HasDisplayItems && this.config.LockOverlay)
             return;
 
-        var windowSize = new Vector2(iconWindow.Width, iconWindow.Height);
+        var visible = frame.DisplayAbilities;
+        var auras = frame.DisplayAuras;
+        var areaSize = frame.AreaSize;
+        var windowSize = frame.AreaSize;
         var clampedPosition = ClampOverlayWindowPosition(iconWindow.Position, windowSize);
         var positionWasClamped = Vector2.DistanceSquared(iconWindow.Position, clampedPosition) > 0.25f;
         if (positionWasClamped)
@@ -102,7 +100,7 @@ public sealed unsafe partial class Plugin
         }
 
         if (!this.config.LockOverlay)
-            this.HandleOverlayResize(iconWindow, job, layoutItems.Abilities, layoutItems.Auras, areaOrigin, areaSize);
+            this.HandleOverlayResize(iconWindow, job, frame.LayoutAbilities, frame.LayoutAuras, areaOrigin, areaSize);
 
         ImGui.End();
         ImGui.PopStyleVar();

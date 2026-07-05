@@ -9,6 +9,7 @@ var tests = new List<(string Name, Action Run)>
     ("OverlayLayout compacts aura rows from top", OverlayLayoutCompactsAuraRowsFromTop),
     ("OverlayLayout clamps invalid positions", OverlayLayoutClampsInvalidPositions),
     ("OverlayLayout finds a free slot", OverlayLayoutFindsFreeSlot),
+    ("OverlayFrameModel exposes display and layout items", OverlayFrameModelExposesDisplayAndLayoutItems),
     ("CooldownMath converts aggregate charge cooldown", CooldownMathConvertsAggregateChargeCooldown),
     ("CooldownMath reports no cooldown at max charges", CooldownMathReportsNoCooldownAtMaxCharges),
     ("ConfigValueNormalizer repairs invalid scalar and positions", ConfigValueNormalizerRepairsInvalidValues),
@@ -111,6 +112,21 @@ static void OverlayLayoutFindsFreeSlot()
     var occupied = new List<Vector2> { new(10, 10) };
     var position = OverlayLayout.FindFreeAutoPosition(IconAlignment.Center, 0, 4, occupied, new Vector2(100, 100), 40, 0);
     AssertVector(new Vector2(50, 10), position);
+}
+
+static void OverlayFrameModelExposesDisplayAndLayoutItems()
+{
+    var window = new IconWindowConfig { Id = "win1", Width = 300, Height = 120 };
+    var displayAbility = new AbilityDefinition { Id = "display", ActionId = 1 };
+    var layoutAbility = new AbilityDefinition { Id = "layout", ActionId = 2 };
+    var display = new OverlayItemSet([displayAbility], Array.Empty<AuraState>());
+    var layout = new OverlayItemSet([displayAbility, layoutAbility], Array.Empty<AuraState>());
+    var frame = new OverlayFrameModel(window, "DRG", 100, new Vector2(300, 120), display, layout);
+
+    AssertTrue(frame.HasDisplayItems, "display items should mark the frame visible");
+    AssertEqual(1, frame.DisplayAbilities.Count);
+    AssertEqual(2, frame.LayoutAbilities.Count);
+    AssertVector(new Vector2(300, 120), frame.AreaSize);
 }
 
 static void CooldownMathConvertsAggregateChargeCooldown()
