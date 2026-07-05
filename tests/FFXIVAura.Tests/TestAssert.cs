@@ -16,6 +16,13 @@ internal static class TestAssert
             throw new InvalidOperationException($"expected {expected}, got {actual}");
     }
 
+    public static void Sequence<T>(IReadOnlyList<T> expected, IReadOnlyList<T> actual)
+    {
+        Equal(expected.Count, actual.Count);
+        for (var index = 0; index < expected.Count; index++)
+            Equal(expected[index], actual[index]);
+    }
+
     public static void Vector(Vector2 expected, Vector2 actual)
     {
         Near(expected.X, actual.X);

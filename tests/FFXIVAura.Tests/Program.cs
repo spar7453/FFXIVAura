@@ -5,19 +5,8 @@ using FFXIVAura.Tests;
 
 var tests = new List<(string Name, Action Run)>
 {
-    ("OverlayLayout centers a single row", OverlayLayoutCentersSingleRow),
-    ("OverlayLayout right-aligns a single row", OverlayLayoutRightAlignsSingleRow),
-    ("OverlayLayout compacts aura rows from top", OverlayLayoutCompactsAuraRowsFromTop),
-    ("OverlayLayout clamps invalid positions", OverlayLayoutClampsInvalidPositions),
-    ("OverlayLayout finds a free slot", OverlayLayoutFindsFreeSlot),
-    ("OverlayFrameModel exposes display and layout items", OverlayFrameModelExposesDisplayAndLayoutItems),
     ("CooldownMath converts aggregate charge cooldown", CooldownMathConvertsAggregateChargeCooldown),
     ("CooldownMath reports no cooldown at max charges", CooldownMathReportsNoCooldownAtMaxCharges),
-    ("ConfigValueNormalizer repairs invalid scalar and positions", ConfigValueNormalizerRepairsInvalidValues),
-    ("ConfigMapNormalizer normalizes string list maps", ConfigMapNormalizerNormalizesStringListMaps),
-    ("ConfigMapNormalizer normalizes vector maps", ConfigMapNormalizerNormalizesVectorMaps),
-    ("PluginConfigNormalizer migrates legacy root config", PluginConfigNormalizerMigratesLegacyRootConfig),
-    ("PluginConfigNormalizer repairs window ids and values", PluginConfigNormalizerRepairsWindowIdsAndValues),
     ("JobInfo allows caster Addle role action", JobInfoAllowsCasterAddleRoleAction),
     ("JobInfo matches role actions case-insensitively", JobInfoMatchesRoleActionsCaseInsensitively),
     ("JobInfo trims job ids and class ids", JobInfoTrimsJobIdsAndClassIds),
@@ -47,19 +36,12 @@ var tests = new List<(string Name, Action Run)>
     ("KeybindTextFormatter strips unknown glyphs", KeybindTextFormatterStripsUnknownGlyphs),
     ("AuraSearchIndex matches cached search text", AuraSearchIndexMatchesCachedSearchText),
     ("AuraSearchIndex filters internal names", AuraSearchIndexFiltersInternalNames),
-    ("NativeActionTooltipIdMatcher matches adjusted ids", NativeActionTooltipIdMatcherMatchesAdjustedIds),
-    ("NativeActionTooltipIdMatcher handles invalid ids", NativeActionTooltipIdMatcherHandlesInvalidIds),
-    ("NativeActionTooltipState controls only active requests", NativeActionTooltipStateControlsOnlyActiveRequests),
-    ("NativeActionTooltipState captures sound state once", NativeActionTooltipStateCapturesSoundStateOnce),
-    ("NativeActionTooltipController clamps tooltip position", NativeActionTooltipControllerClampsTooltipPosition),
-    ("NativeActionTooltipController suppresses sound selectively", NativeActionTooltipControllerSuppressesSoundSelectively),
-    ("OverlayTooltipResolver uses latest candidate", OverlayTooltipResolverUsesLatestCandidate),
-    ("OverlayControlGeometry splits narrow controls", OverlayControlGeometrySplitsNarrowControls),
-    ("OverlayControlGeometry clamps floating windows", OverlayControlGeometryClampsFloatingWindows),
-    ("PartyAuraAggregator counts party members once", PartyAuraAggregatorCountsPartyMembersOnce),
-    ("PartyAuraAggregator builds own-only aggregates", PartyAuraAggregatorBuildsOwnOnlyAggregates),
 };
 
+tests.AddRange(OverlayTests.Cases);
+tests.AddRange(ConfigTests.Cases);
+tests.AddRange(NativeTooltipTests.Cases);
+tests.AddRange(PartyAuraTests.Cases);
 tests.AddRange(PerformanceFrameStatsTests.Cases);
 tests.AddRange(AuraStatusFrameIndexTests.Cases);
 tests.AddRange(ActionKeybindIndexTests.Cases);
@@ -87,52 +69,6 @@ if (failed > 0)
 
 Console.WriteLine($"{tests.Count} tests passed.");
 return 0;
-
-static void OverlayLayoutCentersSingleRow()
-{
-    var position = OverlayLayout.GetAutoPosition(IconAlignment.Center, 0, 3, new Vector2(200, 100), 40, 5);
-    AssertVector(new Vector2(35, 30), position);
-}
-
-static void OverlayLayoutRightAlignsSingleRow()
-{
-    var position = OverlayLayout.GetAutoPosition(IconAlignment.Right, 0, 3, new Vector2(200, 100), 40, 5);
-    AssertVector(new Vector2(70, 30), position);
-}
-
-static void OverlayLayoutCompactsAuraRowsFromTop()
-{
-    var position = OverlayLayout.GetCompactPosition(IconAlignment.Center, 0, 3, new Vector2(200, 100), 40, 5);
-    AssertVector(new Vector2(35, 0), position);
-}
-
-static void OverlayLayoutClampsInvalidPositions()
-{
-    var position = OverlayLayout.ClampIconPosition(new Vector2(float.NaN, 999), new Vector2(100, 80), 42);
-    AssertVector(new Vector2(0, 38), position);
-}
-
-static void OverlayLayoutFindsFreeSlot()
-{
-    var occupied = new List<Vector2> { new(10, 10) };
-    var position = OverlayLayout.FindFreeAutoPosition(IconAlignment.Center, 0, 4, occupied, new Vector2(100, 100), 40, 0);
-    AssertVector(new Vector2(50, 10), position);
-}
-
-static void OverlayFrameModelExposesDisplayAndLayoutItems()
-{
-    var window = new IconWindowConfig { Id = "win1", Width = 300, Height = 120 };
-    var displayAbility = new AbilityDefinition { Id = "display", ActionId = 1 };
-    var layoutAbility = new AbilityDefinition { Id = "layout", ActionId = 2 };
-    var display = new OverlayItemSet([displayAbility], Array.Empty<AuraState>());
-    var layout = new OverlayItemSet([displayAbility, layoutAbility], Array.Empty<AuraState>());
-    var frame = new OverlayFrameModel(window, "DRG", 100, new Vector2(300, 120), display, layout);
-
-    AssertTrue(frame.HasDisplayItems, "display items should mark the frame visible");
-    AssertEqual(1, frame.DisplayAbilities.Count);
-    AssertEqual(2, frame.LayoutAbilities.Count);
-    AssertVector(new Vector2(300, 120), frame.AreaSize);
-}
 
 static void CooldownMathConvertsAggregateChargeCooldown()
 {
