@@ -3,6 +3,24 @@ namespace FFXIVAura;
 public sealed unsafe partial class Plugin : IDalamudPlugin
 {
     private static readonly string[] CommandNames = ["/fa"];
+    private static readonly AddonEvent[] ActionDetailTooltipEvents =
+    [
+        AddonEvent.PreSetup,
+        AddonEvent.PostSetup,
+        AddonEvent.PreOpen,
+        AddonEvent.PostOpen,
+        AddonEvent.PreShow,
+        AddonEvent.PostShow,
+        AddonEvent.PreRequestedUpdate,
+        AddonEvent.PostRequestedUpdate,
+        AddonEvent.PreRefresh,
+        AddonEvent.PostRefresh,
+        AddonEvent.PreUpdate,
+        AddonEvent.PostUpdate,
+        AddonEvent.PreDraw,
+        AddonEvent.PostDraw,
+    ];
+
     private const float DefaultOverlayPositionX = 520f;
     private const float DefaultOverlayPositionY = 280f;
     private const float DefaultOverlayWidth = 760f;
@@ -140,16 +158,16 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
         PluginInterface.UiBuilder.OpenConfigUi += this.OpenConfig;
         Condition.ConditionChange += this.OnConditionChange;
         ClientState.ZoneInit += this.OnZoneInit;
-        AddonLifecycle.RegisterListener(AddonEvent.PreShow, "ActionDetail", this.OnActionDetailPreShow);
-        AddonLifecycle.RegisterListener(AddonEvent.PreDraw, "ActionDetail", this.OnActionDetailPreDraw);
+        foreach (var eventType in ActionDetailTooltipEvents)
+            AddonLifecycle.RegisterListener(eventType, "ActionDetail", this.OnActionDetailTooltipLifecycle);
     }
 
     public void Dispose()
     {
         this.FlushConfigSave(force: true);
         this.HideNativeActionTooltip();
-        AddonLifecycle.UnregisterListener(AddonEvent.PreShow, "ActionDetail", this.OnActionDetailPreShow);
-        AddonLifecycle.UnregisterListener(AddonEvent.PreDraw, "ActionDetail", this.OnActionDetailPreDraw);
+        foreach (var eventType in ActionDetailTooltipEvents)
+            AddonLifecycle.UnregisterListener(eventType, "ActionDetail", this.OnActionDetailTooltipLifecycle);
         PluginInterface.UiBuilder.Draw -= this.Draw;
         PluginInterface.UiBuilder.OpenMainUi -= this.OpenConfig;
         PluginInterface.UiBuilder.OpenConfigUi -= this.OpenConfig;

@@ -17,14 +17,12 @@ public sealed unsafe partial class Plugin
         if (agent is null)
             return;
 
-        this.nativeActionTooltipPositionUntil = DateTime.UtcNow.AddMilliseconds(120);
-        SuppressNativeTooltipSound("ActionDetail");
-        MoveNativeTooltipToMouse("ActionDetail", requireVisible: false);
-        agent->HandleActionHover(DetailKind.Action, actionId, flag: 0, isLovmActionDetail: false, a5: 0, a6: 0);
         this.overlayTooltipRequestedThisFrame = true;
         this.nativeActionTooltipVisible = true;
-        SuppressNativeTooltipSound("ActionDetail");
-        MoveNativeTooltipToMouse("ActionDetail", requireVisible: false);
+        this.nativeActionTooltipPositionUntil = DateTime.UtcNow.AddMilliseconds(500);
+        this.ControlNativeActionTooltip("ActionDetail");
+        agent->HandleActionHover(DetailKind.Action, actionId, flag: 0, isLovmActionDetail: false, a5: 0, a6: 0);
+        this.ControlNativeActionTooltip("ActionDetail");
     }
 
     private void ShowAuraTooltip(AuraState aura)
@@ -69,35 +67,18 @@ public sealed unsafe partial class Plugin
         this.RestoreNativeTooltipSound();
     }
 
-    private void OnActionDetailPreShow(AddonEvent type, AddonArgs args)
+    private void OnActionDetailTooltipLifecycle(AddonEvent type, AddonArgs args)
     {
         if (!this.ShouldControlNativeActionTooltip())
             return;
 
         try
         {
-            this.SuppressNativeTooltipSound((AtkUnitBase*)args.Addon.Address);
+            this.ControlNativeActionTooltip((AtkUnitBase*)args.Addon.Address);
         }
         catch (Exception ex)
         {
-            Log.Debug(ex, "Failed to suppress ActionDetail tooltip sound before show.");
-        }
-    }
-
-    private void OnActionDetailPreDraw(AddonEvent type, AddonArgs args)
-    {
-        if (!this.ShouldControlNativeActionTooltip())
-            return;
-
-        try
-        {
-            var addon = (AtkUnitBase*)args.Addon.Address;
-            this.SuppressNativeTooltipSound(addon);
-            MoveNativeTooltipToMouse(addon, requireVisible: false);
-        }
-        catch (Exception ex)
-        {
-            Log.Debug(ex, "Failed to position ActionDetail tooltip before draw.");
+            Log.Debug(ex, $"Failed to control ActionDetail tooltip during {type}.");
         }
     }
 
@@ -174,6 +155,28 @@ public sealed unsafe partial class Plugin
 
         var position = GetTooltipPositionAtMouse(GetAddonSize(addon));
         addon->SetPosition((short)Math.Round(position.X), (short)Math.Round(position.Y));
+    }
+
+    private void ControlNativeActionTooltip(string addonName)
+    {
+        try
+        {
+            var addon = (AtkUnitBase*)GameGui.GetAddonByName(addonName).Address;
+            this.ControlNativeActionTooltip(addon);
+        }
+        catch (Exception ex)
+        {
+            Log.Debug(ex, $"Failed to control {addonName} tooltip.");
+        }
+    }
+
+    private void ControlNativeActionTooltip(AtkUnitBase* addon)
+    {
+        if (addon is null)
+            return;
+
+        this.SuppressNativeTooltipSound(addon);
+        MoveNativeTooltipToMouse(addon, requireVisible: false);
     }
 
     private void SuppressNativeTooltipSound(string addonName)
