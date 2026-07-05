@@ -22,6 +22,7 @@ public sealed unsafe partial class Plugin
         {
             ImGui.PushID($"overlay-role-controls-{iconWindow.Id}");
             ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, framePadding);
+            PushOverlayComboStyle();
             ImGui.SetCursorPos(new Vector2(padding, padding));
             ImGui.SetNextItemWidth(comboWidth);
             if (ImGui.BeginCombo("##role", currentLabel))
@@ -45,6 +46,7 @@ public sealed unsafe partial class Plugin
                 ImGui.EndCombo();
             }
 
+            PopOverlayComboStyle();
             ImGui.PopStyleVar();
             ImGui.PopID();
         });
@@ -71,6 +73,7 @@ public sealed unsafe partial class Plugin
         {
             ImGui.PushID($"overlay-condition-control-{iconWindow.Id}");
             ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, framePadding);
+            PushOverlayComboStyle();
             ImGui.SetCursorPos(new Vector2(padding, padding));
             ImGui.SetNextItemWidth(comboWidth);
             if (ImGui.BeginCombo("##condition", currentLabel))
@@ -98,6 +101,7 @@ public sealed unsafe partial class Plugin
                 ImGui.EndCombo();
             }
 
+            PopOverlayComboStyle();
             ImGui.PopStyleVar();
             ImGui.PopID();
         });
@@ -116,7 +120,7 @@ public sealed unsafe partial class Plugin
             $"FFXIVAuraOverlayNameControl-{iconWindow.Id}",
             new Vector2(areaOrigin.X, windowY),
             new Vector2(windowWidth, windowHeight),
-            0.55f,
+            0f,
             () =>
         {
             ImGui.PushID($"overlay-name-control-{iconWindow.Id}");
@@ -191,6 +195,20 @@ public sealed unsafe partial class Plugin
 
     private static float GetOverlayNameControlWidth(Vector2 areaSize, float padding)
         => GetOverlayNameInputWidth(areaSize) + padding * 2f;
+
+    private static void PushOverlayComboStyle()
+    {
+        ImGui.PushStyleColor(ImGuiCol.FrameBg, new Vector4(0.03f, 0.05f, 0.06f, 0.9f));
+        ImGui.PushStyleColor(ImGuiCol.FrameBgHovered, new Vector4(0.06f, 0.12f, 0.14f, 0.96f));
+        ImGui.PushStyleColor(ImGuiCol.FrameBgActive, new Vector4(0.08f, 0.18f, 0.2f, 1f));
+        ImGui.PushStyleColor(ImGuiCol.PopupBg, new Vector4(0.02f, 0.03f, 0.04f, 0.98f));
+        ImGui.PushStyleColor(ImGuiCol.Header, new Vector4(0.1f, 0.32f, 0.38f, 0.86f));
+        ImGui.PushStyleColor(ImGuiCol.HeaderHovered, new Vector4(0.12f, 0.44f, 0.52f, 0.96f));
+        ImGui.PushStyleColor(ImGuiCol.HeaderActive, new Vector4(0.15f, 0.52f, 0.6f, 1f));
+    }
+
+    private static void PopOverlayComboStyle()
+        => ImGui.PopStyleColor(7);
 
     private static float GetOverlayAlignmentControlWidth(Vector2 framePadding, float padding)
     {
