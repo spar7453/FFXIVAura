@@ -48,6 +48,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private readonly List<AbilityDefinition> abilities = [];
     private readonly Dictionary<uint, (uint RowId, string Name)> actionCategoryCache = new();
     private readonly Dictionary<uint, byte> actionEquivalenceGroupCache = new();
+    private readonly Dictionary<uint, (string Name, uint IconId)> statusDefinitionCache = new();
     private readonly Dictionary<string, Dictionary<uint, DateTime>> auraFirstSeenByScope = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<AbilityDefinition>> gameActionCandidatesCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, CooldownState> cooldownFrameCache = new(StringComparer.OrdinalIgnoreCase);

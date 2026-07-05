@@ -164,6 +164,11 @@ public sealed unsafe partial class Plugin
 
     private (string Name, uint IconId) GetStatusDefinition(uint statusId)
     {
+        if (this.statusDefinitionCache.TryGetValue(statusId, out var cached))
+            return cached;
+
+        var definition = ($"Status {statusId}", 0u);
+        var shouldCache = false;
         try
         {
             var sheet = DataManager.GetExcelSheet<GameStatus>();
@@ -171,7 +176,8 @@ public sealed unsafe partial class Plugin
             {
                 var row = sheet.GetRow(statusId);
                 var name = row.Name.ExtractText();
-                return (string.IsNullOrWhiteSpace(name) ? $"Status {statusId}" : name, row.Icon);
+                definition = (string.IsNullOrWhiteSpace(name) ? $"Status {statusId}" : name, row.Icon);
+                shouldCache = true;
             }
         }
         catch (Exception ex)
@@ -179,6 +185,9 @@ public sealed unsafe partial class Plugin
             Log.Debug(ex, $"Failed to read status {statusId}.");
         }
 
-        return ($"Status {statusId}", 0);
+        if (shouldCache)
+            this.statusDefinitionCache[statusId] = definition;
+
+        return definition;
     }
 }

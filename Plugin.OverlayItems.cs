@@ -12,6 +12,10 @@ public sealed unsafe partial class Plugin
         IReadOnlyList<AbilityDefinition> Abilities,
         IReadOnlyList<AuraState> Auras);
 
+    private readonly record struct OverlayFrameItemSets(
+        OverlayItemSet Display,
+        OverlayItemSet Layout);
+
     private OverlayItemSet GetOverlayItems(IconWindowConfig iconWindow, string job, uint level, OverlayItemVisibility visibility)
     {
         if (iconWindow.Role == IconWindowRole.SkillCooldowns)
@@ -22,6 +26,29 @@ public sealed unsafe partial class Plugin
         return new OverlayItemSet(
             Array.Empty<AbilityDefinition>(),
             this.GetOverlayAuras(iconWindow, visibility).ToList());
+    }
+
+    private OverlayFrameItemSets GetOverlayFrameItems(IconWindowConfig iconWindow, string job, uint level)
+    {
+        if (iconWindow.Role == IconWindowRole.SkillCooldowns)
+        {
+            var layoutAbilities = this.GetVisibleAbilities(job, level, iconWindow).ToList();
+            var displayAbilities = iconWindow.DisplayCondition == IconDisplayCondition.Always
+                ? layoutAbilities
+                : layoutAbilities.Where(ability => this.ShouldDisplayAbility(ability, iconWindow)).ToList();
+            return new OverlayFrameItemSets(
+                new OverlayItemSet(displayAbilities, Array.Empty<AuraState>()),
+                new OverlayItemSet(layoutAbilities, Array.Empty<AuraState>()));
+        }
+
+        var layoutAuras = this.GetLayoutAuras(iconWindow).ToList();
+        var displayAuras = layoutAuras
+            .Where(aura => this.ShouldDisplayAura(aura, iconWindow))
+            .Where(aura => aura.Present || ShouldShowMissingAura(iconWindow))
+            .ToList();
+        return new OverlayFrameItemSets(
+            new OverlayItemSet(Array.Empty<AbilityDefinition>(), displayAuras),
+            new OverlayItemSet(Array.Empty<AbilityDefinition>(), layoutAuras));
     }
 
     private IEnumerable<AbilityDefinition> GetOverlayAbilities(
@@ -40,6 +67,11 @@ public sealed unsafe partial class Plugin
         if (visibility == OverlayItemVisibility.Display)
             return this.GetDisplayAuras(iconWindow);
 
+        return this.GetLayoutAuras(iconWindow);
+    }
+
+    private IEnumerable<AuraState> GetLayoutAuras(IconWindowConfig iconWindow)
+    {
         return iconWindow.TrackedStatusIds
             .Distinct()
             .Select(statusId => this.GetAuraState(iconWindow, statusId));

@@ -15,8 +15,9 @@ public sealed unsafe partial class Plugin
 
     private void DrawIconWindow(IconWindowConfig iconWindow, string job, uint level)
     {
-        var displayItems = this.GetOverlayItems(iconWindow, job, level, OverlayItemVisibility.Display);
-        var layoutItems = this.GetOverlayItems(iconWindow, job, level, OverlayItemVisibility.Layout);
+        var frameItems = this.GetOverlayFrameItems(iconWindow, job, level);
+        var displayItems = frameItems.Display;
+        var layoutItems = frameItems.Layout;
         var visible = displayItems.Abilities;
         var auras = displayItems.Auras;
         var areaSize = new Vector2(iconWindow.Width, iconWindow.Height);
