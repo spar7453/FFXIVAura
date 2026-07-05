@@ -180,11 +180,18 @@ public sealed unsafe partial class Plugin
     private void HandleOverlayIconInteraction(IconWindowConfig iconWindow, string job, uint level, AbilityDefinition ability, Vector2 localPos, Vector2 iconPos, Vector2 areaSize, float iconSize)
     {
         if (this.config.LockOverlay)
+        {
+            if (IsMouseInRect(iconPos, iconPos + new Vector2(iconSize, iconSize)))
+                this.ShowAbilityTooltip(ability);
+
             return;
+        }
 
         var dragId = RuntimeScopeKeys.AbilityDrag(iconWindow.Id, job, ability.Id);
         ImGui.SetCursorScreenPos(iconPos);
         ImGui.InvisibleButton($"##overlay-drag-{ability.Id}", new Vector2(iconSize, iconSize));
+        if (ImGui.IsItemHovered() && !ImGui.IsItemActive())
+            this.ShowAbilityTooltip(ability);
 
         if (ImGui.IsItemHovered() && ImGui.IsMouseClicked(ImGuiMouseButton.Right))
         {
@@ -216,6 +223,21 @@ public sealed unsafe partial class Plugin
             var max = ImGui.GetItemRectMax();
             ImGui.GetWindowDrawList().AddRect(min, max, ImGui.GetColorU32(new Vector4(0.45f, 0.72f, 1f, 0.95f)), 3f, ImDrawFlags.None, 2f);
         }
+    }
+
+    private void ShowAbilityTooltip(AbilityDefinition ability)
+    {
+        var state = this.GetCooldown(ability);
+        ShowNativeActionTooltip(state.DisplayActionId > 0 ? state.DisplayActionId : ability.ActionId);
+    }
+
+    private static bool IsMouseInRect(Vector2 min, Vector2 max)
+    {
+        var mouse = ImGui.GetMousePos();
+        return mouse.X >= min.X
+               && mouse.X <= max.X
+               && mouse.Y >= min.Y
+               && mouse.Y <= max.Y;
     }
 
     private void HandleAuraIconInteraction(IconWindowConfig iconWindow, AuraState aura, Vector2 localPos, Vector2 iconPos, Vector2 areaSize, float iconSize)
