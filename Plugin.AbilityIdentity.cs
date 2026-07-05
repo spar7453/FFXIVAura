@@ -94,29 +94,26 @@ public sealed unsafe partial class Plugin
         if (actionId == 0)
             return null;
 
-        var sheet = DataManager.GetExcelSheet<GameAction>();
-        if (sheet is null)
-            return null;
-
         try
         {
-            var row = sheet.GetRow(actionId);
-            if (row.RowId == 0)
+            var row = this.GetActionRow(actionId);
+            if (row is null)
                 return null;
 
-            var name = row.Name.ExtractText();
+            var action = row.Value;
+            var name = action.Name.ExtractText();
             return new AbilityDefinition
             {
                 Id = trackedId,
                 Name = string.IsNullOrWhiteSpace(name) ? trackedId : name,
-                ActionId = row.RowId,
-                ActionIds = [row.RowId],
-                ActionCategoryId = row.ActionCategory.RowId,
-                Job = row.IsRoleAction ? "ROLE" : job,
-                Level = (byte)Math.Min(row.ClassJobLevel, byte.MaxValue),
-                Cooldown = row.Recast100ms / 10f,
-                Charges = Math.Max(row.MaxCharges, (byte)1),
-                IconId = row.Icon,
+                ActionId = action.RowId,
+                ActionIds = [action.RowId],
+                ActionCategoryId = action.ActionCategory.RowId,
+                Job = action.IsRoleAction ? "ROLE" : job,
+                Level = (byte)Math.Min(action.ClassJobLevel, byte.MaxValue),
+                Cooldown = action.Recast100ms / 10f,
+                Charges = Math.Max(action.MaxCharges, (byte)1),
+                IconId = action.Icon,
             };
         }
         catch (Exception ex)
@@ -140,21 +137,18 @@ public sealed unsafe partial class Plugin
         if (this.actionEquivalenceGroupCache.TryGetValue(actionId, out var cached))
             return cached;
 
-        byte group = 0;
-        var sheet = DataManager.GetExcelSheet<GameAction>();
-        if (sheet is null)
-            return 0;
-
         try
         {
-            group = sheet.GetRow(actionId).EquivalenceGroup;
+            var row = this.GetActionRow(actionId);
+            var group = row?.EquivalenceGroup ?? 0;
+            this.actionEquivalenceGroupCache[actionId] = group;
+            return group;
         }
         catch (Exception ex)
         {
             Log.Debug(ex, $"Failed to read action equivalence group for {actionId}.");
+            this.actionEquivalenceGroupCache[actionId] = 0;
+            return 0;
         }
-
-        this.actionEquivalenceGroupCache[actionId] = group;
-        return group;
     }
 }

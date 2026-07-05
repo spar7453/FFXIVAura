@@ -33,6 +33,7 @@ public sealed unsafe partial class Plugin
         if (this.keybindCacheDirty || now >= this.keybindCacheRefreshAfter)
         {
             this.keybindTextCache.Clear();
+            this.hotbarVisibilityCache.Clear();
             this.keybindCacheDirty = false;
             this.keybindCacheRefreshAfter = now.AddSeconds(2);
         }
@@ -58,7 +59,7 @@ public sealed unsafe partial class Plugin
             {
                 for (uint hotbarId = 0; hotbarId < 18; hotbarId++)
                 {
-                    var visible = IsHotbarVisible(hotbarId);
+                    var visible = this.IsHotbarVisible(hotbarId);
                     if (visibleOnly != visible)
                         continue;
 
@@ -99,12 +100,16 @@ public sealed unsafe partial class Plugin
         return string.Empty;
     }
 
-    private static bool IsHotbarVisible(uint hotbarId)
+    private bool IsHotbarVisible(uint hotbarId)
     {
-        if (hotbarId < NormalHotbarAddonNames.Length)
-            return IsAddonVisible(NormalHotbarAddonNames[hotbarId]);
+        if (this.hotbarVisibilityCache.TryGetValue(hotbarId, out var visible))
+            return visible;
 
-        return CrossHotbarAddonNames.Any(IsAddonVisible);
+        visible = hotbarId < NormalHotbarAddonNames.Length
+            ? IsAddonVisible(NormalHotbarAddonNames[hotbarId])
+            : CrossHotbarAddonNames.Any(IsAddonVisible);
+        this.hotbarVisibilityCache[hotbarId] = visible;
+        return visible;
     }
 
     private static bool IsAddonVisible(string addonName)

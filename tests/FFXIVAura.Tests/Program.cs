@@ -43,6 +43,15 @@ var tests = new List<(string Name, Action Run)>
     ("KeybindTextFormatter formats modifiers", KeybindTextFormatterFormatsModifiers),
     ("KeybindTextFormatter maps game glyphs", KeybindTextFormatterMapsGameGlyphs),
     ("KeybindTextFormatter strips unknown glyphs", KeybindTextFormatterStripsUnknownGlyphs),
+    ("AuraSearchIndex matches cached search text", AuraSearchIndexMatchesCachedSearchText),
+    ("AuraSearchIndex filters internal names", AuraSearchIndexFiltersInternalNames),
+    ("NativeActionTooltipIdMatcher matches adjusted ids", NativeActionTooltipIdMatcherMatchesAdjustedIds),
+    ("NativeActionTooltipIdMatcher handles invalid ids", NativeActionTooltipIdMatcherHandlesInvalidIds),
+    ("NativeActionTooltipState controls only active requests", NativeActionTooltipStateControlsOnlyActiveRequests),
+    ("NativeActionTooltipState captures sound state once", NativeActionTooltipStateCapturesSoundStateOnce),
+    ("NativeActionTooltipController clamps tooltip position", NativeActionTooltipControllerClampsTooltipPosition),
+    ("NativeActionTooltipController suppresses sound selectively", NativeActionTooltipControllerSuppressesSoundSelectively),
+    ("OverlayTooltipResolver uses latest candidate", OverlayTooltipResolverUsesLatestCandidate),
     ("OverlayControlGeometry splits narrow controls", OverlayControlGeometrySplitsNarrowControls),
     ("OverlayControlGeometry clamps floating windows", OverlayControlGeometryClampsFloatingWindows),
     ("PartyAuraAggregator counts party members once", PartyAuraAggregatorCountsPartyMembersOnce),
@@ -625,6 +634,139 @@ static void KeybindTextFormatterStripsUnknownGlyphs()
     var text = KeybindTextFormatter.Format("Shift+?", out var unknown);
     AssertEqual("s", text);
     AssertTrue(unknown, "unknown glyph should be reported");
+}
+
+static void AuraSearchIndexMatchesCachedSearchText()
+{
+    var entries = new[]
+    {
+        new AuraSearchIndexEntry(10, "피의 갈증", 100, "피의 갈증", "10"),
+        new AuraSearchIndexEntry(20, "원초의 혈기", 200, "Raw Intuition", "7531"),
+    };
+
+    var byActionName = AuraSearchIndex.Search(entries, "intuition").ToList();
+    AssertEqual(1, byActionName.Count);
+    AssertEqual(20u, byActionName[0].StatusId);
+
+    var byId = AuraSearchIndex.Search(entries, "53").ToList();
+    AssertEqual(1, byId.Count);
+    AssertEqual(20u, byId[0].StatusId);
+}
+
+static void AuraSearchIndexFiltersInternalNames()
+{
+    AssertTrue(AuraSearchIndex.IsSearchableStatusName("피의 갈증"), "normal Korean status names should be searchable");
+    AssertTrue(!AuraSearchIndex.IsSearchableStatusName("rsv_test"), "reserved status names should be hidden");
+    AssertTrue(!AuraSearchIndex.IsSearchableStatusName("_hidden"), "internal status names should be hidden");
+    AssertTrue(!AuraSearchIndex.IsSearchableStatusName("テスト"), "Japanese-only status names should be hidden");
+}
+
+static void NativeActionTooltipIdMatcherMatchesAdjustedIds()
+{
+    var adjustedIds = new Dictionary<uint, uint>
+    {
+        [10] = 100,
+        [20] = 200,
+        [30] = 300,
+        [40] = 300,
+    };
+
+    uint Adjust(uint id) => adjustedIds.GetValueOrDefault(id);
+
+    AssertTrue(NativeActionTooltipIdMatcher.Matches(10, 10, Adjust), "direct action id should match");
+    AssertTrue(NativeActionTooltipIdMatcher.Matches(10, 100, Adjust), "adjusted requested id should match tooltip id");
+    AssertTrue(NativeActionTooltipIdMatcher.Matches(200, 20, Adjust), "adjusted tooltip id should match requested id");
+    AssertTrue(NativeActionTooltipIdMatcher.Matches(30, 40, Adjust), "both ids adjusted to same action should match");
+    AssertTrue(NativeActionTooltipIdMatcher.MatchesAny(30, 0, 40, Adjust), "original id should be considered");
+}
+
+static void NativeActionTooltipIdMatcherHandlesInvalidIds()
+{
+    uint ThrowingAdjust(uint _) => throw new InvalidOperationException("boom");
+
+    AssertTrue(!NativeActionTooltipIdMatcher.Matches(0, 10, ThrowingAdjust), "zero requested id should not match");
+    AssertTrue(!NativeActionTooltipIdMatcher.Matches(10, 0, ThrowingAdjust), "zero tooltip id should not match");
+    AssertTrue(!NativeActionTooltipIdMatcher.Matches(10, 20, ThrowingAdjust), "adjust resolver failures should not match");
+}
+
+static void NativeActionTooltipStateControlsOnlyActiveRequests()
+{
+    var now = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+    var state = new NativeActionTooltipState();
+
+    AssertTrue(!state.ShouldControl(now, matchesRequestedAction: true), "inactive state should not control tooltips");
+
+    state.BeginHover(42, now, TimeSpan.FromMilliseconds(500));
+    AssertEqual(42u, state.ActionId);
+    AssertTrue(state.Visible, "tooltip should become visible when hover begins");
+    AssertTrue(state.CanControlWithoutActionMatch(now), "visible tooltip should keep lifecycle control active");
+    AssertTrue(state.ShouldControl(now, matchesRequestedAction: false), "hover in progress should control the native tooltip");
+    AssertTrue(state.ShouldHideNativeTooltip(matchesRequestedAction: false), "hover in progress should allow native hide");
+
+    state.EndHover();
+    AssertTrue(state.ShouldControl(now.AddMilliseconds(100), matchesRequestedAction: true), "matching tooltip should stay controlled");
+    AssertTrue(!state.ShouldControl(now.AddMilliseconds(100), matchesRequestedAction: false), "non-matching tooltip should not stay controlled");
+    AssertTrue(!state.ShouldHideNativeTooltip(matchesRequestedAction: false), "non-matching tooltip should not be hidden");
+
+    state.ClearTooltipRequest();
+    AssertEqual(0u, state.ActionId);
+    AssertTrue(!state.Visible, "clear should reset visibility");
+    AssertTrue(!state.CanControlWithoutActionMatch(now.AddSeconds(1)), "cleared expired tooltip should skip lifecycle work");
+}
+
+static void NativeActionTooltipStateCapturesSoundStateOnce()
+{
+    var state = new NativeActionTooltipState();
+
+    state.CaptureSoundState(12, disableShowHideSoundEffects: false);
+    state.CaptureSoundState(99, disableShowHideSoundEffects: true);
+
+    AssertTrue(state.TryGetCapturedSoundState(out var showSoundEffectId, out var disableShowHideSoundEffects), "sound state should be captured");
+    AssertEqual((short)12, showSoundEffectId);
+    AssertTrue(!disableShowHideSoundEffects, "first captured sound state should be preserved");
+
+    state.ClearSoundState();
+    AssertTrue(!state.TryGetCapturedSoundState(out _, out _), "cleared sound state should not restore");
+}
+
+static void NativeActionTooltipControllerClampsTooltipPosition()
+{
+    var position = NativeActionTooltipController.GetPositionAtMouse(
+        new Vector2(490, 290),
+        new Vector2(500, 300),
+        new Vector2(80, 40));
+
+    AssertVector(new Vector2(420, 260), position);
+
+    var unclamped = NativeActionTooltipController.GetPositionAtMouse(
+        new Vector2(10, 20),
+        Vector2.Zero,
+        new Vector2(80, 40));
+
+    AssertVector(new Vector2(28, 38), unclamped);
+}
+
+static void NativeActionTooltipControllerSuppressesSoundSelectively()
+{
+    AssertTrue(NativeActionTooltipController.ShouldSuppressSound(isShowEvent: true, isVisibleLifecycleEvent: false, addonVisible: false), "show events should suppress before visibility is set");
+    AssertTrue(NativeActionTooltipController.ShouldSuppressSound(isShowEvent: false, isVisibleLifecycleEvent: true, addonVisible: true), "visible update/draw events should suppress");
+    AssertTrue(!NativeActionTooltipController.ShouldSuppressSound(isShowEvent: false, isVisibleLifecycleEvent: true, addonVisible: false), "invisible update/draw events should not capture sound state");
+    AssertTrue(!NativeActionTooltipController.ShouldSuppressSound(isShowEvent: false, isVisibleLifecycleEvent: false, addonVisible: true), "setup events should not capture sound state");
+}
+
+static void OverlayTooltipResolverUsesLatestCandidate()
+{
+    var resolver = new OverlayTooltipResolver();
+    var ability = new AbilityDefinition { Id = "first", ActionId = 1 };
+    var aura = new AuraState(42, "second", 100, 12, 0, 1, 1, true, true);
+
+    resolver.Register(OverlayTooltipCandidate.ForAbility(ability));
+    resolver.Register(OverlayTooltipCandidate.ForAura(aura));
+
+    AssertTrue(resolver.TryConsume(out var candidate), "resolver should consume a candidate");
+    AssertEqual(OverlayTooltipCandidateKind.Aura, candidate.Kind);
+    AssertEqual(42u, candidate.Aura.StatusId);
+    AssertTrue(!resolver.TryConsume(out _), "resolver should clear after consume");
 }
 
 static void OverlayControlGeometrySplitsNarrowControls()

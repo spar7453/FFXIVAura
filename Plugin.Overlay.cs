@@ -182,7 +182,7 @@ public sealed unsafe partial class Plugin
         if (this.config.LockOverlay)
         {
             if (IsMouseInRect(iconPos, iconPos + new Vector2(iconSize, iconSize)))
-                this.ShowAbilityTooltip(ability);
+                this.RegisterAbilityTooltipCandidate(ability);
 
             return;
         }
@@ -249,7 +249,7 @@ public sealed unsafe partial class Plugin
         if (this.config.LockOverlay || UsesCompactAuraLayout(iconWindow))
         {
             if (IsMouseInRect(iconPos, iconMax))
-                this.ShowAuraTooltip(aura);
+                this.RegisterAuraTooltipCandidate(aura);
 
             return;
         }
@@ -283,6 +283,32 @@ public sealed unsafe partial class Plugin
             var min = ImGui.GetItemRectMin();
             var max = ImGui.GetItemRectMax();
             ImGui.GetWindowDrawList().AddRect(min, max, ImGui.GetColorU32(new Vector4(0.45f, 0.72f, 1f, 0.95f)), 3f, ImDrawFlags.None, 2f);
+        }
+    }
+
+    private void RegisterAbilityTooltipCandidate(AbilityDefinition ability)
+    {
+        this.overlayTooltipResolver.Register(OverlayTooltipCandidate.ForAbility(ability));
+    }
+
+    private void RegisterAuraTooltipCandidate(AuraState aura)
+    {
+        this.overlayTooltipResolver.Register(OverlayTooltipCandidate.ForAura(aura));
+    }
+
+    private void ShowDeferredOverlayTooltip()
+    {
+        if (!this.overlayTooltipResolver.TryConsume(out var candidate))
+            return;
+
+        switch (candidate.Kind)
+        {
+            case OverlayTooltipCandidateKind.Ability when candidate.Ability is not null:
+                this.ShowAbilityTooltip(candidate.Ability);
+                break;
+            case OverlayTooltipCandidateKind.Aura:
+                this.ShowAuraTooltip(candidate.Aura);
+                break;
         }
     }
 

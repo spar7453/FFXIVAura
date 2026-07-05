@@ -272,11 +272,11 @@ public sealed unsafe partial class Plugin
         var category = (RowId: 0u, Name: string.Empty);
         try
         {
-            var sheet = DataManager.GetExcelSheet<GameAction>();
-            if (sheet is not null)
+            var row = this.GetActionRow(actionId);
+            if (row is not null)
             {
-                var row = sheet.GetRow(actionId);
-                category = (row.ActionCategory.RowId, row.ActionCategory.Value.Name.ExtractText());
+                var action = row.Value;
+                category = (action.ActionCategory.RowId, action.ActionCategory.Value.Name.ExtractText());
             }
         }
         catch (Exception ex)

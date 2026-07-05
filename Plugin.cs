@@ -67,20 +67,25 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private readonly List<AbilityDefinition> abilities = [];
     private readonly Dictionary<uint, (uint RowId, string Name)> actionCategoryCache = new();
     private readonly Dictionary<uint, byte> actionEquivalenceGroupCache = new();
+    private readonly Dictionary<uint, GameAction> actionRowCache = new();
     private readonly Dictionary<uint, (string Name, uint IconId)> statusDefinitionCache = new();
     private readonly Dictionary<uint, string> statusTooltipTextCache = new();
     private readonly Dictionary<string, Dictionary<uint, DateTime>> auraFirstSeenByScope = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<AbilityDefinition>> gameActionCandidatesCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly List<AuraSearchIndexEntry> actionGrantedStatusSearchIndex = [];
+    private readonly List<AuraSearchIndexEntry> allStatusSearchIndex = [];
     private readonly Dictionary<string, CooldownState> cooldownFrameCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<uint, PartyAuraAggregate> partyAuraFrameAllCache = new();
     private readonly Dictionary<uint, PartyAuraAggregate> partyAuraFrameOwnCache = new();
     private readonly Dictionary<(uint BaseActionId, uint DisplayActionId), string> keybindTextCache = new();
+    private readonly Dictionary<uint, bool> hotbarVisibilityCache = new();
     private readonly Dictionary<string, HashSet<uint>> visibleAurasByScope = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<uint, IDalamudTextureWrap> grayscaleIconCache = new();
     private readonly Dictionary<string, string> visibleAbilityKeys = new(StringComparer.OrdinalIgnoreCase);
     private readonly Queue<uint> grayscaleIconQueue = new();
     private readonly HashSet<uint> grayscaleIconPending = new();
     private readonly HashSet<uint> grayscaleIconFailed = new();
+    private readonly HashSet<uint> missingActionRows = new();
     private readonly object grayscaleIconLock = new();
     private string? draggedTrackedId;
     private string? draggedOverlayId;
@@ -88,27 +93,26 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private bool auraSearchWindowVisible;
     private bool configSavePending;
     private bool configWasVisible;
+    private bool actionGrantedStatusSearchIndexBuilt;
+    private bool allStatusSearchIndexBuilt;
     private bool keybindCacheDirty = true;
     private bool partyAuraFrameAllCacheValid;
     private bool partyAuraFrameOwnCacheValid;
     private bool overlayTooltipRequestedThisFrame;
-    private bool nativeActionTooltipVisible;
-    private bool nativeActionTooltipSoundStateCaptured;
-    private bool nativeActionTooltipOriginalDisableShowHideSoundEffects;
     private int pendingStatusId;
-    private short nativeActionTooltipOriginalShowSoundEffectId;
     private Vector2 draggedOverlayMouseStart;
     private Vector2 draggedOverlayPositionStart;
     private DateTime configSaveAfter = DateTime.MinValue;
     private DateTime keybindCacheRefreshAfter = DateTime.MinValue;
-    private DateTime nativeActionTooltipPositionUntil = DateTime.MinValue;
     private PluginConfig config;
     private bool configVisible;
     private bool zoneLoadActive;
     private DateTime zoneLoadHiddenUntil = DateTime.MinValue;
+    private readonly NativeActionTooltipController nativeActionTooltipController = new();
+    private readonly OverlayTooltipResolver overlayTooltipResolver = new();
     private readonly IFontHandle cooldownFont;
     private readonly IFontHandle chargeFont;
-    private readonly IFontHandle keybindFont;
+    private readonly IFontHandle auraCountFont;
 
     public Plugin()
     {
@@ -139,7 +143,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
         {
             Bold = true,
         });
-        this.keybindFont = PluginInterface.UiBuilder.FontAtlas.NewGameFontHandle(new GameFontStyle(GameFontFamily.Meidinger, 12f)
+        this.auraCountFont = PluginInterface.UiBuilder.FontAtlas.NewGameFontHandle(new GameFontStyle(GameFontFamily.Meidinger, 12f)
         {
             Bold = true,
         });
@@ -188,7 +192,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
 
         this.cooldownFont.Dispose();
         this.chargeFont.Dispose();
-        this.keybindFont.Dispose();
+        this.auraCountFont.Dispose();
     }
 
     private void LoadAbilities()
@@ -283,6 +287,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
             }
 
             this.DrawOverlay();
+            this.ShowDeferredOverlayTooltip();
             this.FlushConfigSave(force: false);
         }
         finally
@@ -294,6 +299,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private void BeginFrameCache()
     {
         this.overlayTooltipRequestedThisFrame = false;
+        this.overlayTooltipResolver.Clear();
         this.cooldownFrameCache.Clear();
         this.partyAuraFrameAllCacheValid = false;
         this.partyAuraFrameOwnCacheValid = false;

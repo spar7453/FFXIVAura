@@ -128,6 +128,15 @@ public sealed unsafe partial class Plugin
 
     private GameAction? GetActionRow(uint actionId)
     {
+        if (actionId == 0)
+            return null;
+
+        if (this.actionRowCache.TryGetValue(actionId, out var cached))
+            return cached;
+
+        if (this.missingActionRows.Contains(actionId))
+            return null;
+
         var sheet = DataManager.GetExcelSheet<GameAction>();
         if (sheet is null)
             return null;
@@ -135,11 +144,19 @@ public sealed unsafe partial class Plugin
         try
         {
             var row = sheet.GetRow(actionId);
-            return row.RowId == 0 ? null : row;
+            if (row.RowId == 0)
+            {
+                this.missingActionRows.Add(actionId);
+                return null;
+            }
+
+            this.actionRowCache[actionId] = row;
+            return row;
         }
         catch (Exception ex)
         {
             Log.Debug(ex, $"Failed to read action row for {actionId}.");
+            this.missingActionRows.Add(actionId);
             return null;
         }
     }

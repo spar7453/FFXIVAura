@@ -36,7 +36,7 @@ public sealed unsafe partial class Plugin
     private void DrawAuraCountText(ImDrawListPtr draw, Vector2 min, Vector2 max, int count)
     {
         var text = count.ToString();
-        using (this.keybindFont.Push())
+        using (this.auraCountFont.Push())
         {
             var size = ImGui.CalcTextSize(text);
             var pos = new Vector2(max.X - size.X - 2f, min.Y + 1f);

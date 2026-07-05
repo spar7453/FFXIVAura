@@ -41,9 +41,28 @@ public sealed unsafe partial class Plugin
 
     private IEnumerable<(uint StatusId, string Name, uint IconId)> SearchActionGrantedStatuses(string query)
     {
+        foreach (var result in AuraSearchIndex.Search(this.GetActionGrantedStatusSearchIndex(), query))
+            yield return (result.StatusId, result.Name, result.IconId);
+    }
+
+    private IEnumerable<(uint StatusId, string Name, uint IconId)> SearchAllStatuses(string query)
+    {
+        foreach (var result in AuraSearchIndex.Search(this.GetAllStatusSearchIndex(), query))
+            yield return (result.StatusId, result.Name, result.IconId);
+    }
+
+    private IReadOnlyList<AuraSearchIndexEntry> GetActionGrantedStatusSearchIndex()
+    {
+        if (this.actionGrantedStatusSearchIndexBuilt)
+            return this.actionGrantedStatusSearchIndex;
+
+        this.actionGrantedStatusSearchIndex.Clear();
         var sheet = DataManager.GetExcelSheet<GameAction>();
         if (sheet is null)
-            yield break;
+        {
+            this.actionGrantedStatusSearchIndexBuilt = true;
+            return this.actionGrantedStatusSearchIndex;
+        }
 
         foreach (var action in sheet)
         {
@@ -54,27 +73,35 @@ public sealed unsafe partial class Plugin
             if (string.IsNullOrWhiteSpace(actionName))
                 continue;
 
-            if (!actionName.Contains(query, StringComparison.CurrentCultureIgnoreCase)
-                && !action.RowId.ToString().Contains(query, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
             var statusId = action.StatusGainSelf.RowId;
             var definition = this.GetStatusDefinition(statusId);
             if (!this.IsSearchableStatusName(definition.Name))
                 continue;
 
-            yield return (statusId, definition.Name, definition.IconId);
+            this.actionGrantedStatusSearchIndex.Add(new AuraSearchIndexEntry(
+                statusId,
+                definition.Name,
+                definition.IconId,
+                actionName,
+                action.RowId.ToString()));
         }
+
+        this.actionGrantedStatusSearchIndexBuilt = true;
+        return this.actionGrantedStatusSearchIndex;
     }
 
-    private IEnumerable<(uint StatusId, string Name, uint IconId)> SearchAllStatuses(string query)
+    private IReadOnlyList<AuraSearchIndexEntry> GetAllStatusSearchIndex()
     {
-        var hasIdQuery = uint.TryParse(query, out var idQuery);
+        if (this.allStatusSearchIndexBuilt)
+            return this.allStatusSearchIndex;
+
+        this.allStatusSearchIndex.Clear();
         var sheet = DataManager.GetExcelSheet<GameStatus>();
         if (sheet is null)
-            yield break;
+        {
+            this.allStatusSearchIndexBuilt = true;
+            return this.allStatusSearchIndex;
+        }
 
         foreach (var status in sheet)
         {
@@ -85,11 +112,17 @@ public sealed unsafe partial class Plugin
             if (!this.IsSearchableStatusName(name))
                 continue;
 
-            if (!((hasIdQuery && status.RowId == idQuery) || this.MatchesStatusSearch(status.RowId, name, query)))
-                continue;
-
-            yield return (status.RowId, name, status.Icon);
+            this.statusDefinitionCache.TryAdd(status.RowId, (name, status.Icon));
+            this.allStatusSearchIndex.Add(new AuraSearchIndexEntry(
+                status.RowId,
+                name,
+                status.Icon,
+                name,
+                status.RowId.ToString()));
         }
+
+        this.allStatusSearchIndexBuilt = true;
+        return this.allStatusSearchIndex;
     }
 
     private IEnumerable<(uint StatusId, string Name, uint IconId)> SearchRecentStatuses(string query, IconWindowConfig iconWindow)
@@ -239,22 +272,6 @@ public sealed unsafe partial class Plugin
 
     private bool IsSearchableStatusName(string name)
     {
-        if (string.IsNullOrWhiteSpace(name))
-            return false;
-
-        var trimmed = name.Trim();
-        return !trimmed.StartsWith("_", StringComparison.Ordinal)
-               && !trimmed.StartsWith("rsv_", StringComparison.OrdinalIgnoreCase)
-               && !trimmed.Contains("_rsv", StringComparison.OrdinalIgnoreCase)
-               && !trimmed.Contains('\uFF1D')
-               && !trimmed.Contains('=')
-               && !trimmed.Contains('\u25CB')
-               && !trimmed.Contains('\u25CF')
-               && !ContainsJapaneseKana(trimmed);
-    }
-
-    private static bool ContainsJapaneseKana(string text)
-    {
-        return text.Any(ch => (ch >= '\u3040' && ch <= '\u30ff') || (ch >= '\u31f0' && ch <= '\u31ff'));
+        return AuraSearchIndex.IsSearchableStatusName(name);
     }
 }

@@ -6,8 +6,6 @@ namespace FFXIVAura;
 
 public sealed unsafe partial class Plugin
 {
-    private static readonly Vector2 TooltipMouseOffset = new(18f, 18f);
-
     private void ShowNativeActionTooltip(uint actionId)
     {
         if (actionId == 0)
@@ -18,11 +16,18 @@ public sealed unsafe partial class Plugin
             return;
 
         this.overlayTooltipRequestedThisFrame = true;
-        this.nativeActionTooltipVisible = true;
-        this.nativeActionTooltipPositionUntil = DateTime.UtcNow.AddMilliseconds(500);
-        this.ControlNativeActionTooltip("ActionDetail");
-        agent->HandleActionHover(DetailKind.Action, actionId, flag: 0, isLovmActionDetail: false, a5: 0, a6: 0);
-        this.ControlNativeActionTooltip("ActionDetail");
+        this.nativeActionTooltipController.BeginHover(actionId, DateTime.UtcNow);
+        this.ControlNativeActionTooltip(NativeActionTooltipController.AddonName, suppressSound: false);
+        try
+        {
+            agent->HandleActionHover(DetailKind.Action, actionId, flag: 0, isLovmActionDetail: false, a5: 0, a6: 0);
+        }
+        finally
+        {
+            this.nativeActionTooltipController.EndHover();
+        }
+
+        this.ControlNativeActionTooltip(NativeActionTooltipController.AddonName, suppressSound: true);
     }
 
     private void ShowAuraTooltip(AuraState aura)
@@ -44,16 +49,28 @@ public sealed unsafe partial class Plugin
 
     private void HideNativeActionTooltip()
     {
-        this.nativeActionTooltipPositionUntil = DateTime.MinValue;
-        if (!this.nativeActionTooltipVisible)
+        this.nativeActionTooltipController.ExpirePositioning();
+        if (!this.nativeActionTooltipController.HasVisibleRequest)
         {
+            this.nativeActionTooltipController.ClearTooltipRequest();
+            this.RestoreNativeTooltipSound();
+            return;
+        }
+
+        var (actionId, originalId) = this.GetNativeActionTooltipIds();
+        if (!this.nativeActionTooltipController.ShouldHideNativeTooltip(actionId, originalId, GetAdjustedActionId))
+        {
+            this.nativeActionTooltipController.ClearTooltipRequest();
             this.RestoreNativeTooltipSound();
             return;
         }
 
         try
         {
-            SuppressNativeTooltipSound("ActionDetail");
+            var addon = GetNativeTooltipAddon(NativeActionTooltipController.AddonName);
+            if (addon is not null)
+                this.nativeActionTooltipController.SuppressSound(addon);
+
             var agent = AgentActionDetail.Instance();
             if (agent is not null)
                 agent->Hide();
@@ -63,18 +80,24 @@ public sealed unsafe partial class Plugin
             Log.Debug(ex, "Failed to hide ActionDetail tooltip.");
         }
 
-        this.nativeActionTooltipVisible = false;
+        this.nativeActionTooltipController.ClearTooltipRequest();
         this.RestoreNativeTooltipSound();
     }
 
     private void OnActionDetailTooltipLifecycle(AddonEvent type, AddonArgs args)
     {
-        if (!this.ShouldControlNativeActionTooltip())
+        var now = DateTime.UtcNow;
+        if (!this.nativeActionTooltipController.CanControlWithoutActionMatch(now))
+            return;
+
+        var (actionId, originalId) = this.GetNativeActionTooltipIds();
+        if (!this.nativeActionTooltipController.ShouldControl(now, actionId, originalId, GetAdjustedActionId))
             return;
 
         try
         {
-            this.ControlNativeActionTooltip((AtkUnitBase*)args.Addon.Address);
+            var addon = (AtkUnitBase*)args.Addon.Address;
+            this.ControlNativeActionTooltip(addon, NativeActionTooltipController.ShouldSuppressSound(type, addon is not null && addon->IsVisible));
         }
         catch (Exception ex)
         {
@@ -82,9 +105,25 @@ public sealed unsafe partial class Plugin
         }
     }
 
-    private bool ShouldControlNativeActionTooltip()
+    private (uint ActionId, uint OriginalId) GetNativeActionTooltipIds()
     {
-        return this.nativeActionTooltipVisible || DateTime.UtcNow <= this.nativeActionTooltipPositionUntil;
+        try
+        {
+            var agent = AgentActionDetail.Instance();
+            if (agent is null)
+                return (0, 0);
+
+            return (agent->ActionId, agent->OriginalId);
+        }
+        catch
+        {
+            return (0, 0);
+        }
+    }
+
+    private static uint GetAdjustedActionId(uint actionId)
+    {
+        return ActionManager.Instance()->GetAdjustedActionId(actionId);
     }
 
     private string GetStatusTooltipText(uint statusId)
@@ -127,7 +166,7 @@ public sealed unsafe partial class Plugin
         if (string.IsNullOrWhiteSpace(text))
             return;
 
-        ImGui.SetNextWindowPos(GetTooltipPositionAtMouse(Vector2.Zero), ImGuiCond.Always);
+        ImGui.SetNextWindowPos(NativeActionTooltipController.GetPositionAtMouse(ImGui.GetMousePos(), ImGui.GetIO().DisplaySize, Vector2.Zero), ImGuiCond.Always);
         ImGui.BeginTooltip();
         ImGui.PushTextWrapPos(ImGui.GetFontSize() * 30f);
         ImGui.TextUnformatted(text);
@@ -135,124 +174,42 @@ public sealed unsafe partial class Plugin
         ImGui.EndTooltip();
     }
 
-    private static void MoveNativeTooltipToMouse(string addonName, bool requireVisible)
+    private void ControlNativeActionTooltip(string addonName, bool suppressSound)
+    {
+        var addon = GetNativeTooltipAddon(addonName);
+        if (addon is not null)
+            this.ControlNativeActionTooltip(addon, suppressSound);
+    }
+
+    private void ControlNativeActionTooltip(AtkUnitBase* addon, bool suppressSound)
+    {
+        this.nativeActionTooltipController.Control(addon, suppressSound, ImGui.GetMousePos(), ImGui.GetIO().DisplaySize);
+    }
+
+    private static AtkUnitBase* GetNativeTooltipAddon(string addonName)
     {
         try
         {
-            var addon = (AtkUnitBase*)GameGui.GetAddonByName(addonName).Address;
-            MoveNativeTooltipToMouse(addon, requireVisible);
+            return (AtkUnitBase*)GameGui.GetAddonByName(addonName).Address;
         }
-        catch (Exception ex)
+        catch
         {
-            Log.Debug(ex, $"Failed to position {addonName} tooltip.");
+            return null;
         }
-    }
-
-    private static void MoveNativeTooltipToMouse(AtkUnitBase* addon, bool requireVisible)
-    {
-        if (addon is null || (requireVisible && !addon->IsVisible))
-            return;
-
-        var position = GetTooltipPositionAtMouse(GetAddonSize(addon));
-        addon->SetPosition((short)Math.Round(position.X), (short)Math.Round(position.Y));
-    }
-
-    private void ControlNativeActionTooltip(string addonName)
-    {
-        try
-        {
-            var addon = (AtkUnitBase*)GameGui.GetAddonByName(addonName).Address;
-            this.ControlNativeActionTooltip(addon);
-        }
-        catch (Exception ex)
-        {
-            Log.Debug(ex, $"Failed to control {addonName} tooltip.");
-        }
-    }
-
-    private void ControlNativeActionTooltip(AtkUnitBase* addon)
-    {
-        if (addon is null)
-            return;
-
-        this.SuppressNativeTooltipSound(addon);
-        MoveNativeTooltipToMouse(addon, requireVisible: false);
-    }
-
-    private void SuppressNativeTooltipSound(string addonName)
-    {
-        try
-        {
-            var addon = (AtkUnitBase*)GameGui.GetAddonByName(addonName).Address;
-            SuppressNativeTooltipSound(addon);
-        }
-        catch (Exception ex)
-        {
-            Log.Debug(ex, $"Failed to suppress {addonName} tooltip sound.");
-        }
-    }
-
-    private void SuppressNativeTooltipSound(AtkUnitBase* addon)
-    {
-        if (addon is null)
-            return;
-
-        if (!this.nativeActionTooltipSoundStateCaptured)
-        {
-            this.nativeActionTooltipOriginalShowSoundEffectId = addon->ShowSoundEffectId;
-            this.nativeActionTooltipOriginalDisableShowHideSoundEffects = addon->DisableShowHideSoundEffects;
-            this.nativeActionTooltipSoundStateCaptured = true;
-        }
-
-        addon->ShowSoundEffectId = 0;
-        addon->DisableShowHideSoundEffects = true;
     }
 
     private void RestoreNativeTooltipSound()
     {
-        if (!this.nativeActionTooltipSoundStateCaptured)
+        if (!this.nativeActionTooltipController.HasCapturedSound)
             return;
 
         try
         {
-            var addon = (AtkUnitBase*)GameGui.GetAddonByName("ActionDetail").Address;
-            if (addon is not null)
-            {
-                addon->ShowSoundEffectId = this.nativeActionTooltipOriginalShowSoundEffectId;
-                addon->DisableShowHideSoundEffects = this.nativeActionTooltipOriginalDisableShowHideSoundEffects;
-            }
+            this.nativeActionTooltipController.RestoreSound(GetNativeTooltipAddon(NativeActionTooltipController.AddonName));
         }
         catch (Exception ex)
         {
             Log.Debug(ex, "Failed to restore ActionDetail tooltip sound.");
-        }
-
-        this.nativeActionTooltipSoundStateCaptured = false;
-    }
-
-    private static Vector2 GetTooltipPositionAtMouse(Vector2 tooltipSize)
-    {
-        var position = ImGui.GetMousePos() + TooltipMouseOffset;
-        var displaySize = ImGui.GetIO().DisplaySize;
-        if (displaySize.X <= 0f || displaySize.Y <= 0f || tooltipSize.X <= 0f || tooltipSize.Y <= 0f)
-            return position;
-
-        return new Vector2(
-            Math.Clamp(position.X, 0f, Math.Max(0f, displaySize.X - tooltipSize.X)),
-            Math.Clamp(position.Y, 0f, Math.Max(0f, displaySize.Y - tooltipSize.Y)));
-    }
-
-    private static Vector2 GetAddonSize(AtkUnitBase* addon)
-    {
-        try
-        {
-            return new Vector2(
-                Math.Max(0f, addon->GetScaledWidth(true)),
-                Math.Max(0f, addon->GetScaledHeight(true)));
-        }
-        catch
-        {
-            return Vector2.Zero;
         }
     }
 }
