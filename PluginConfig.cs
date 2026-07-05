@@ -8,6 +8,7 @@ public class PluginConfigData
     public bool Enabled { get; set; } = true;
     public bool LockOverlay { get; set; }
     public bool HideDuringZoneLoad { get; set; } = true;
+    public bool ShowTooltips { get; set; } = true;
     public float IconSize { get; set; } = 42f;
     public float Gap { get; set; } = 5f;
     public float FontScale { get; set; } = 1f;

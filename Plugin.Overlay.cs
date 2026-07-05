@@ -227,6 +227,9 @@ public sealed unsafe partial class Plugin
 
     private void ShowAbilityTooltip(AbilityDefinition ability)
     {
+        if (!this.config.ShowTooltips)
+            return;
+
         var state = this.GetCooldown(ability);
         ShowNativeActionTooltip(state.DisplayActionId > 0 ? state.DisplayActionId : ability.ActionId);
     }
@@ -242,13 +245,21 @@ public sealed unsafe partial class Plugin
 
     private void HandleAuraIconInteraction(IconWindowConfig iconWindow, AuraState aura, Vector2 localPos, Vector2 iconPos, Vector2 areaSize, float iconSize)
     {
+        var iconMax = iconPos + new Vector2(iconSize, iconSize);
         if (this.config.LockOverlay || UsesCompactAuraLayout(iconWindow))
+        {
+            if (IsMouseInRect(iconPos, iconMax))
+                this.ShowAuraTooltip(aura);
+
             return;
+        }
 
         var id = OverlayPositionKeys.Aura(aura.StatusId);
         var dragId = RuntimeScopeKeys.AuraDrag(iconWindow.Id, aura.StatusId);
         ImGui.SetCursorScreenPos(iconPos);
         ImGui.InvisibleButton($"##aura-drag-{iconWindow.Id}-{id}", new Vector2(iconSize, iconSize));
+        if (ImGui.IsItemHovered() && !ImGui.IsItemActive())
+            this.ShowAuraTooltip(aura);
 
         if (ImGui.IsItemActive() && ImGui.IsMouseDragging(ImGuiMouseButton.Left, 2f))
         {

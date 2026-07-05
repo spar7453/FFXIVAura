@@ -49,6 +49,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private readonly Dictionary<uint, (uint RowId, string Name)> actionCategoryCache = new();
     private readonly Dictionary<uint, byte> actionEquivalenceGroupCache = new();
     private readonly Dictionary<uint, (string Name, uint IconId)> statusDefinitionCache = new();
+    private readonly Dictionary<uint, string> statusTooltipTextCache = new();
     private readonly Dictionary<string, Dictionary<uint, DateTime>> auraFirstSeenByScope = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<AbilityDefinition>> gameActionCandidatesCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, CooldownState> cooldownFrameCache = new(StringComparer.OrdinalIgnoreCase);
@@ -71,6 +72,8 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private bool keybindCacheDirty = true;
     private bool partyAuraFrameAllCacheValid;
     private bool partyAuraFrameOwnCacheValid;
+    private bool overlayTooltipRequestedThisFrame;
+    private bool nativeActionTooltipVisible;
     private int pendingStatusId;
     private Vector2 draggedOverlayMouseStart;
     private Vector2 draggedOverlayPositionStart;
@@ -137,6 +140,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     public void Dispose()
     {
         this.FlushConfigSave(force: true);
+        this.HideNativeActionTooltip();
         PluginInterface.UiBuilder.Draw -= this.Draw;
         PluginInterface.UiBuilder.OpenMainUi -= this.OpenConfig;
         PluginInterface.UiBuilder.OpenConfigUi -= this.OpenConfig;
@@ -225,36 +229,44 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private void Draw()
     {
         this.BeginFrameCache();
-        var wasConfigVisible = this.configWasVisible;
-        if (this.configVisible && !wasConfigVisible)
-            this.InvalidateKeybindCache();
-
-        if (!this.configVisible && wasConfigVisible)
-            this.CloseAuraSearchWindow();
-
-        this.configWasVisible = this.configVisible;
-
-        if (this.configVisible)
-            this.DrawConfig();
-
-        if (!this.config.Enabled || !ClientState.IsLoggedIn || !PlayerState.IsLoaded)
+        try
         {
-            this.FlushConfigSave(force: false);
-            return;
-        }
+            var wasConfigVisible = this.configWasVisible;
+            if (this.configVisible && !wasConfigVisible)
+                this.InvalidateKeybindCache();
 
-        if (this.config.HideDuringZoneLoad && this.IsLoading())
+            if (!this.configVisible && wasConfigVisible)
+                this.CloseAuraSearchWindow();
+
+            this.configWasVisible = this.configVisible;
+
+            if (this.configVisible)
+                this.DrawConfig();
+
+            if (!this.config.Enabled || !ClientState.IsLoggedIn || !PlayerState.IsLoaded)
+            {
+                this.FlushConfigSave(force: false);
+                return;
+            }
+
+            if (this.config.HideDuringZoneLoad && this.IsLoading())
+            {
+                this.FlushConfigSave(force: false);
+                return;
+            }
+
+            this.DrawOverlay();
+            this.FlushConfigSave(force: false);
+        }
+        finally
         {
-            this.FlushConfigSave(force: false);
-            return;
+            this.FinishOverlayTooltipFrame();
         }
-
-        this.DrawOverlay();
-        this.FlushConfigSave(force: false);
     }
 
     private void BeginFrameCache()
     {
+        this.overlayTooltipRequestedThisFrame = false;
         this.cooldownFrameCache.Clear();
         this.partyAuraFrameAllCacheValid = false;
         this.partyAuraFrameOwnCacheValid = false;

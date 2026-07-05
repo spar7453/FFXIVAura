@@ -74,10 +74,12 @@ public sealed unsafe partial class Plugin
         var enabled = this.config.Enabled;
         var lockOverlay = this.config.LockOverlay;
         var hideDuringZoneLoad = this.config.HideDuringZoneLoad;
+        var showTooltips = this.config.ShowTooltips;
 
         changed |= ImGui.Checkbox("사용", ref enabled);
         changed |= ImGui.Checkbox("오버레이 이동 잠금", ref lockOverlay);
         changed |= ImGui.Checkbox("지역 이동 중 숨김", ref hideDuringZoneLoad);
+        changed |= ImGui.Checkbox("툴팁 표시", ref showTooltips);
 
         if (!changed)
             return false;
@@ -85,6 +87,7 @@ public sealed unsafe partial class Plugin
         this.config.Enabled = enabled;
         this.config.LockOverlay = lockOverlay;
         this.config.HideDuringZoneLoad = hideDuringZoneLoad;
+        this.config.ShowTooltips = showTooltips;
         return true;
     }
 
