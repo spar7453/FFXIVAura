@@ -42,6 +42,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private const float MinOrderEditorHeight = 90f;
     private const float MaxOrderEditorHeight = 520f;
     private const float OverlayWindowMargin = 4f;
+    private static readonly TimeSpan LoginSkillAutoAlignSuppressionDuration = TimeSpan.FromSeconds(3);
 
     [PluginService] private static IDalamudPluginInterface PluginInterface { get; set; } = null!;
     [PluginService] private static ICommandManager CommandManager { get; set; } = null!;
@@ -115,6 +116,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private readonly NativeActionTooltipController nativeActionTooltipController = new();
     private readonly OverlayTooltipResolver overlayTooltipResolver = new();
     private readonly PerformanceFrameStats performanceStats = new();
+    private readonly LoginStabilizationState loginStabilizationState = new(LoginSkillAutoAlignSuppressionDuration);
     private readonly IFontHandle cooldownFont;
     private readonly IFontHandle chargeFont;
     private readonly IFontHandle auraCountFont;
@@ -280,7 +282,12 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
             if (this.configVisible)
                 this.DrawConfig();
 
-            if (!this.config.Enabled || !ClientState.IsLoggedIn || !PlayerState.IsLoaded)
+            var loggedInAndLoaded = ClientState.IsLoggedIn && PlayerState.IsLoaded;
+            var loginStarted = this.loginStabilizationState.Update(loggedInAndLoaded, DateTime.UtcNow);
+            if (!loggedInAndLoaded || loginStarted)
+                this.visibleAbilityKeys.Clear();
+
+            if (!this.config.Enabled || !loggedInAndLoaded)
             {
                 this.FlushConfigSave(force: false);
                 return;

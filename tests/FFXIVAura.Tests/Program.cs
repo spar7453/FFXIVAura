@@ -45,6 +45,7 @@ tests.AddRange(PartyAuraTests.Cases);
 tests.AddRange(PerformanceFrameStatsTests.Cases);
 tests.AddRange(AuraStatusFrameIndexTests.Cases);
 tests.AddRange(ActionKeybindIndexTests.Cases);
+tests.AddRange(LoginStabilizationStateTests.Cases);
 
 var failed = 0;
 foreach (var (name, run) in tests)

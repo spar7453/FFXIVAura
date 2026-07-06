@@ -8,6 +8,7 @@ public sealed unsafe partial class Plugin
         var visibleKey = $"{level}:{string.Join("|", visible.Select(ability => ability.Id))}";
         var hasTrackedSkills = iconWindow.TrackedByJob.TryGetValue(job, out var tracked) && tracked.Count > 0;
         var hasSavedPositions = iconWindow.IconPositionsByJob.TryGetValue(job, out var positions) && positions.Count > 0;
+        var suppressAutoAlign = this.loginStabilizationState.ShouldSuppressSkillAutoAlign(DateTime.UtcNow);
         var shouldRealignLevelFilteredSkills = positions is not null
                                                && hasSavedPositions
                                                && visible.Count > 0
@@ -25,6 +26,9 @@ public sealed unsafe partial class Plugin
 
             return false;
         }
+
+        if (suppressAutoAlign)
+            return hasSavedPositions && this.AddMissingOverlayIconPositions(iconWindow, job, visible, areaSize);
 
         this.visibleAbilityKeys[key] = visibleKey;
         if (shouldRealignLevelFilteredSkills)
