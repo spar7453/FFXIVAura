@@ -523,7 +523,8 @@ public sealed unsafe partial class Plugin
                 JobInfo.IconId(classJobId)));
         }
 
-        return members;
+        var localEntityId = ObjectTable.LocalPlayer?.EntityId ?? 0;
+        return PartyCooldownMemberOrdering.Sort(members, localEntityId);
     }
 
     private void RebuildPartyCooldownActiveStatusIndex(IReadOnlyList<PartyCooldownMemberSnapshot> members)
@@ -539,7 +540,10 @@ public sealed unsafe partial class Plugin
             if (member is null)
                 continue;
 
-            foreach (var status in member.Statuses)
+            if (!this.TryReadStatusSnapshots(member.Statuses, "partyCooldownPartyMember", member.EntityId))
+                continue;
+
+            foreach (var status in this.statusSnapshotBuffer)
                 this.AddPartyCooldownStatusSample(member.EntityId, status.SourceId, status.StatusId, status.RemainingTime, memberEntityIds);
         }
 
@@ -561,7 +565,10 @@ public sealed unsafe partial class Plugin
         if (character.EntityId == 0)
             return;
 
-        foreach (var status in character.StatusList)
+        if (!this.TryReadStatusSnapshots(character.StatusList, "partyCooldownCharacter", character.EntityId))
+            return;
+
+        foreach (var status in this.statusSnapshotBuffer)
             this.AddPartyCooldownStatusSample(character.EntityId, status.SourceId, status.StatusId, status.RemainingTime, partyEntityIds);
     }
 

@@ -11,6 +11,7 @@ internal static class JobInfoTests
         ("JobInfo matches role actions case-insensitively", MatchesRoleActionsCaseInsensitively),
         ("JobInfo trims job ids and class ids", TrimsJobIdsAndClassIds),
         ("JobInfo maps job icons from class job ids", MapsJobIconsFromClassJobIds),
+        ("JobInfo orders party roles", OrdersPartyRoles),
     ];
 
     private static void AllowsCasterAddleRoleAction()
@@ -50,5 +51,14 @@ internal static class JobInfoTests
         Equal(62141u, JobInfo.IconId("VPR"));
         Equal(0u, JobInfo.IconId("GLD"));
         Equal(0u, JobInfo.IconId("JOB"));
+    }
+
+    private static void OrdersPartyRoles()
+    {
+        Equal(1, JobInfo.PartyRoleSortOrder(" pld "));
+        Equal(2, JobInfo.PartyRoleSortOrder("SCH"));
+        Equal(3, JobInfo.PartyRoleSortOrder("mch"));
+        Equal(3, JobInfo.PartyRoleSortOrder("PCT"));
+        Equal(4, JobInfo.PartyRoleSortOrder("JOB"));
     }
 }

@@ -109,7 +109,10 @@ public sealed unsafe partial class Plugin
             if (chara is null)
                 return;
 
-            foreach (var status in chara.StatusList)
+            if (!this.TryReadStatusSnapshots(chara.StatusList, "characterAura", chara.EntityId))
+                return;
+
+            foreach (var status in this.statusSnapshotBuffer)
             {
                 AuraStatusFrameIndex.AddStatus(
                     auraIndex,
@@ -173,7 +176,10 @@ public sealed unsafe partial class Plugin
                     continue;
 
                 memberAuras.Clear();
-                foreach (var status in member.Statuses)
+                if (!this.TryReadStatusSnapshots(member.Statuses, "partyAura", member.EntityId))
+                    continue;
+
+                foreach (var status in this.statusSnapshotBuffer)
                 {
                     var fromSelf = this.IsStatusFromSelf(status.SourceId);
                     var sample = new PartyAuraStatusSample(status.StatusId, status.RemainingTime, status.Param, fromSelf);

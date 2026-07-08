@@ -12,7 +12,7 @@ internal static class PartyCooldownBoardLayoutTests
         ("PartyCooldownBoardLayout aligns partial wrapped rows", PartyCooldownBoardLayoutAlignsPartialWrappedRows),
         ("PartyCooldownBoardLayout computes required board height", PartyCooldownBoardLayoutComputesRequiredBoardHeight),
         ("PartyCooldownBoardLayout expands short boards without shrinking", PartyCooldownBoardLayoutExpandsShortBoardsWithoutShrinking),
-        ("PartyCooldownBoardLayout hides empty synergy rows only", PartyCooldownBoardLayoutHidesEmptySynergyRowsOnly),
+        ("PartyCooldownBoardLayout hides empty optional party rows", PartyCooldownBoardLayoutHidesEmptyOptionalPartyRows),
     ];
 
     private static void PartyCooldownBoardLayoutWrapsNineIconsIntoTwoLines()
@@ -49,10 +49,10 @@ internal static class PartyCooldownBoardLayoutTests
         Near(60, PartyCooldownBoardLayout.GetExpandedBoardHeight(40, [9, 2], 20, 3, 4, 5, 40, 60));
     }
 
-    private static void PartyCooldownBoardLayoutHidesEmptySynergyRowsOnly()
+    private static void PartyCooldownBoardLayoutHidesEmptyOptionalPartyRows()
     {
         True(PartyCooldownBoardLayout.HideEmptyRows(PartyCooldownCategory.Synergy), "synergy board should skip jobs without visible synergy icons");
+        True(PartyCooldownBoardLayout.HideEmptyRows(PartyCooldownCategory.Healing), "healing board should skip jobs without visible healing icons");
         True(!PartyCooldownBoardLayout.HideEmptyRows(PartyCooldownCategory.Defensive), "defensive board should keep party-member rows");
-        True(!PartyCooldownBoardLayout.HideEmptyRows(PartyCooldownCategory.Healing), "healing board should keep party-member rows");
     }
 }

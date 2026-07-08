@@ -10,4 +10,10 @@
     <ProjectReference Include="..\..\FFXIVAura.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Reference Include="Dalamud" HintPath="$(APPDATA)\XIVLauncherKR\addon\Hooks\15.0.2.2\Dalamud.dll" />
+    <Reference Include="Lumina" HintPath="$(APPDATA)\XIVLauncherKR\addon\Hooks\15.0.2.2\Lumina.dll" />
+    <Reference Include="Lumina.Excel" HintPath="$(APPDATA)\XIVLauncherKR\addon\Hooks\15.0.2.2\Lumina.Excel.dll" />
+  </ItemGroup>
+
 </Project>

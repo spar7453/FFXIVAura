@@ -7,6 +7,7 @@ global using Dalamud.Game.ClientState;
 global using Dalamud.Game.ClientState.Conditions;
 global using Dalamud.Game.ClientState.Objects.Enums;
 global using Dalamud.Game.ClientState.Objects.Types;
+global using Dalamud.Game.ClientState.Statuses;
 global using Dalamud.Game.Command;
 global using Dalamud.Interface.GameFonts;
 global using Dalamud.Interface.ManagedFontAtlas;

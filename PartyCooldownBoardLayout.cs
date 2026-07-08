@@ -5,7 +5,7 @@ internal static class PartyCooldownBoardLayout
     public const int MaxIconsPerWrappedLine = 5;
 
     public static bool HideEmptyRows(PartyCooldownCategory category)
-        => category == PartyCooldownCategory.Synergy;
+        => category is PartyCooldownCategory.Healing or PartyCooldownCategory.Synergy;
 
     public static int GetIconLineCapacity(float availableWidth, float iconSize, float gap)
     {

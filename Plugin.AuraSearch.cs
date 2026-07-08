@@ -277,20 +277,24 @@ public sealed unsafe partial class Plugin
             : DateTime.MinValue;
     }
 
-    private IEnumerable<uint> GetCurrentStatusIds(IconWindowConfig iconWindow)
+    private IReadOnlyList<uint> GetCurrentStatusIds(IconWindowConfig iconWindow)
         => this.GetCurrentStatusIds(iconWindow.Role, iconWindow.Role == IconWindowRole.PartyBuffs && iconWindow.PartyAurasOwnOnly);
 
-    private IEnumerable<uint> GetCurrentStatusIds(IconWindowRole role, bool ownOnly)
+    private IReadOnlyList<uint> GetCurrentStatusIds(IconWindowRole role, bool ownOnly)
     {
+        var statusIds = new List<uint>();
         switch (role)
         {
             case IconWindowRole.TargetDebuffs:
                 if (TargetManager.Target is IBattleChara target)
                 {
-                    foreach (var status in target.StatusList)
+                    if (!this.TryReadStatusSnapshots(target.StatusList, "searchTarget", target.EntityId))
+                        break;
+
+                    foreach (var status in this.statusSnapshotBuffer)
                     {
                         if (status.StatusId > 0)
-                            yield return status.StatusId;
+                            statusIds.Add(status.StatusId);
                     }
                 }
 
@@ -303,10 +307,13 @@ public sealed unsafe partial class Plugin
                     if (member is null)
                         continue;
 
-                    foreach (var status in member.Statuses)
+                    if (!this.TryReadStatusSnapshots(member.Statuses, "searchParty", member.EntityId))
+                        continue;
+
+                    foreach (var status in this.statusSnapshotBuffer)
                     {
                         if (status.StatusId > 0 && (!ownOnly || this.IsStatusFromSelf(status.SourceId)))
-                            yield return status.StatusId;
+                            statusIds.Add(status.StatusId);
                     }
                 }
 
@@ -315,15 +322,20 @@ public sealed unsafe partial class Plugin
             default:
                 if (ObjectTable.LocalPlayer is IBattleChara player)
                 {
-                    foreach (var status in player.StatusList)
+                    if (!this.TryReadStatusSnapshots(player.StatusList, "searchPlayer", player.EntityId))
+                        break;
+
+                    foreach (var status in this.statusSnapshotBuffer)
                     {
                         if (status.StatusId > 0)
-                            yield return status.StatusId;
+                            statusIds.Add(status.StatusId);
                     }
                 }
 
                 break;
         }
+
+        return statusIds;
     }
 
     private bool MatchesStatusSearch(uint statusId, string name, string query)

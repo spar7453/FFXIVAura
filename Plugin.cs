@@ -102,6 +102,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private readonly Dictionary<uint, CharacterAuraAggregate> targetAuraFrameCache = new();
     private readonly Dictionary<uint, PartyAuraAggregate> partyAuraFrameAllCache = new();
     private readonly Dictionary<uint, PartyAuraAggregate> partyAuraFrameOwnCache = new();
+    private readonly List<StatusSnapshot> statusSnapshotBuffer = [];
     private readonly ActionKeybindIndex actionKeybindIndex = new();
     private readonly Dictionary<uint, bool> hotbarVisibilityCache = new();
     private readonly Dictionary<string, HashSet<uint>> visibleAurasByScope = new(StringComparer.OrdinalIgnoreCase);

@@ -98,6 +98,19 @@ public static class JobInfo
         return ids;
     }
 
+    public static int PartyRoleSortOrder(string code)
+    {
+        var jobCode = code?.Trim() ?? string.Empty;
+        if (Tanks.Contains(jobCode))
+            return 1;
+        if (Healers.Contains(jobCode))
+            return 2;
+        if (Melee.Contains(jobCode) || Ranged.Contains(jobCode) || Casters.Contains(jobCode))
+            return 3;
+
+        return 4;
+    }
+
     public static bool CanUseRoleAction(string job, AbilityDefinition ability)
     {
         if (!string.Equals(ability.Job?.Trim(), "ROLE", StringComparison.OrdinalIgnoreCase))
