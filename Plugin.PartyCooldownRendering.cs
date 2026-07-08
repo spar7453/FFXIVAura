@@ -15,6 +15,9 @@ public sealed unsafe partial class Plugin
         if (itemCount == 0 && this.config.LockOverlay)
             return;
 
+        if (this.EnsurePartyCooldownBoardHeight(iconWindow, rows))
+            this.QueueConfigSave();
+
         var areaSize = new Vector2(iconWindow.Width, iconWindow.Height);
         var windowSize = areaSize;
         var clampedPosition = ClampOverlayWindowPosition(iconWindow.Position, windowSize);
@@ -77,6 +80,37 @@ public sealed unsafe partial class Plugin
             this.DrawOverlayNameControl(iconWindow, areaOrigin, areaSize, controlLayout);
             this.DrawOverlayAlignmentControls(iconWindow, job, level, areaOrigin, areaSize, controlLayout);
         }
+    }
+
+    private bool EnsurePartyCooldownBoardHeight(
+        IconWindowConfig iconWindow,
+        IReadOnlyList<PartyCooldownMemberRow> rows)
+    {
+        var iconSize = iconWindow.IconSize;
+        var gap = Math.Max(2f, iconWindow.Gap);
+        var padding = Math.Max(4f, gap);
+        var labelGap = Math.Max(4f, gap);
+        var jobIconSize = Math.Clamp(iconSize * 0.72f, 20f, 32f);
+        var nameWidth = Math.Clamp(iconSize * 1.05f, 34f, 54f);
+        var labelWidth = jobIconSize + labelGap + nameWidth + labelGap;
+        var iconAreaWidth = Math.Max(0f, iconWindow.Width - padding * 2f - labelWidth);
+        var iconsPerLine = PartyCooldownBoardLayout.GetIconLineCapacity(iconAreaWidth, iconSize, gap);
+        var nextHeight = PartyCooldownBoardLayout.GetExpandedBoardHeight(
+            iconWindow.Height,
+            rows.Select(row => row.Items.Count),
+            iconSize,
+            gap,
+            padding,
+            iconsPerLine,
+            MinOverlayHeight,
+            MaxOverlayHeight);
+
+        if (nextHeight <= iconWindow.Height + 0.5f)
+            return false;
+
+        iconWindow.Height = nextHeight;
+        this.SetBugDiagnosticEvent($"partyCooldownHeightExpanded:{iconWindow.Id}:{nextHeight:0}");
+        return true;
     }
 
     private void DrawPartyCooldownRows(

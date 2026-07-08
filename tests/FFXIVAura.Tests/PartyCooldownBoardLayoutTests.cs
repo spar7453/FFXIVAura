@@ -11,6 +11,7 @@ internal static class PartyCooldownBoardLayoutTests
         ("PartyCooldownBoardLayout falls back when the board is narrow", PartyCooldownBoardLayoutFallsBackWhenTheBoardIsNarrow),
         ("PartyCooldownBoardLayout aligns partial wrapped rows", PartyCooldownBoardLayoutAlignsPartialWrappedRows),
         ("PartyCooldownBoardLayout computes required board height", PartyCooldownBoardLayoutComputesRequiredBoardHeight),
+        ("PartyCooldownBoardLayout expands short boards without shrinking", PartyCooldownBoardLayoutExpandsShortBoardsWithoutShrinking),
         ("PartyCooldownBoardLayout hides empty synergy rows only", PartyCooldownBoardLayoutHidesEmptySynergyRowsOnly),
     ];
 
@@ -39,6 +40,13 @@ internal static class PartyCooldownBoardLayoutTests
     private static void PartyCooldownBoardLayoutComputesRequiredBoardHeight()
     {
         Near(74, PartyCooldownBoardLayout.GetBoardContentHeight([9, 2], 20, 3, 4, 5));
+    }
+
+    private static void PartyCooldownBoardLayoutExpandsShortBoardsWithoutShrinking()
+    {
+        Near(74, PartyCooldownBoardLayout.GetExpandedBoardHeight(40, [9, 2], 20, 3, 4, 5, 40, 900));
+        Near(120, PartyCooldownBoardLayout.GetExpandedBoardHeight(120, [9, 2], 20, 3, 4, 5, 40, 900));
+        Near(60, PartyCooldownBoardLayout.GetExpandedBoardHeight(40, [9, 2], 20, 3, 4, 5, 40, 60));
     }
 
     private static void PartyCooldownBoardLayoutHidesEmptySynergyRowsOnly()

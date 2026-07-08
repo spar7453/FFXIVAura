@@ -496,7 +496,8 @@ public sealed unsafe partial class Plugin
             if (member is null || member.EntityId == 0)
                 continue;
 
-            var job = JobInfo.Code(member.ClassJob.RowId);
+            var classJobId = member.ClassJob.RowId;
+            var job = JobInfo.Code(classJobId);
             members.Add(new PartyCooldownMemberSnapshot(
                 PartyCooldownMemberKey(member.ContentId, member.EntityId, member.Name.ToString(), job),
                 member.EntityId,
@@ -504,12 +505,13 @@ public sealed unsafe partial class Plugin
                 member.Name.ToString(),
                 ShortPartyMemberName(member.Name.ToString()),
                 job,
-                JobInfo.IconId(job)));
+                JobInfo.IconId(classJobId)));
         }
 
         if (members.Count == 0 && ObjectTable.LocalPlayer is IBattleChara player)
         {
-            var job = JobInfo.Code(PlayerState.ClassJob.RowId);
+            var classJobId = PlayerState.ClassJob.RowId;
+            var job = JobInfo.Code(classJobId);
             var name = player.Name.ToString();
             members.Add(new PartyCooldownMemberSnapshot(
                 PartyCooldownMemberKey(0, player.EntityId, name, job),
@@ -518,7 +520,7 @@ public sealed unsafe partial class Plugin
                 name,
                 ShortPartyMemberName(name),
                 job,
-                JobInfo.IconId(job)));
+                JobInfo.IconId(classJobId)));
         }
 
         return members;

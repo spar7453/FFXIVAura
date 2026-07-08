@@ -77,6 +77,20 @@ internal static class PartyCooldownBoardLayout
         return rowCount == 0 ? 0f : height;
     }
 
+    public static float GetExpandedBoardHeight(
+        float currentHeight,
+        IEnumerable<int> rowItemCounts,
+        float iconSize,
+        float gap,
+        float padding,
+        int iconsPerLine,
+        float minHeight,
+        float maxHeight)
+    {
+        var requiredHeight = GetBoardContentHeight(rowItemCounts, iconSize, gap, padding, iconsPerLine);
+        return Math.Clamp(Math.Max(currentHeight, requiredHeight), minHeight, maxHeight);
+    }
+
     private static int SanitizeIconsPerLine(int iconsPerLine)
         => Math.Clamp(iconsPerLine, 1, MaxIconsPerWrappedLine);
 }

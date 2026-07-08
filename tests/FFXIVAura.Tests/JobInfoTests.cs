@@ -10,6 +10,7 @@ internal static class JobInfoTests
         ("JobInfo allows caster Addle role action", AllowsCasterAddleRoleAction),
         ("JobInfo matches role actions case-insensitively", MatchesRoleActionsCaseInsensitively),
         ("JobInfo trims job ids and class ids", TrimsJobIdsAndClassIds),
+        ("JobInfo maps job icons from class job ids", MapsJobIconsFromClassJobIds),
     ];
 
     private static void AllowsCasterAddleRoleAction()
@@ -38,5 +39,16 @@ internal static class JobInfoTests
         var drgIds = JobInfo.ApplicableClassJobIds(" drg ");
         True(drgIds.Contains(22u), "job id should be included");
         True(drgIds.Contains(4u), "base class id should be included");
+    }
+
+    private static void MapsJobIconsFromClassJobIds()
+    {
+        Equal(62119u, JobInfo.IconId("PLD"));
+        Equal(62119u, JobInfo.IconId(19));
+        Equal(62132u, JobInfo.IconId("DRK"));
+        Equal(62132u, JobInfo.IconId(32));
+        Equal(62141u, JobInfo.IconId("VPR"));
+        Equal(0u, JobInfo.IconId("GLD"));
+        Equal(0u, JobInfo.IconId("JOB"));
     }
 }

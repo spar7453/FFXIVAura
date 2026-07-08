@@ -28,7 +28,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private const float MinOverlayWidth = 120f;
     private const float MaxOverlayWidth = 1200f;
     private const float MinOverlayHeight = 40f;
-    private const float MaxOverlayHeight = 400f;
+    private const float MaxOverlayHeight = 900f;
     private const int AbilityCandidateCacheLimit = 512;
     private const int PartyCooldownLogObservationLimit = 64;
     private const int MinPerformanceProfileRecordIntervalSeconds = 1;
