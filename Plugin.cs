@@ -145,6 +145,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private DateTime zoneLoadHiddenUntil = DateTime.MinValue;
     private readonly NativeActionTooltipController nativeActionTooltipController = new();
     private readonly OverlayTooltipResolver overlayTooltipResolver = new();
+    private readonly TooltipDiagnostics tooltipDiagnostics = new();
     private readonly PerformanceFrameStats performanceStats = new();
     private readonly PerformanceProfiler performanceProfiler = new();
     private readonly LoginStabilizationState loginStabilizationState = new(LoginSkillAutoAlignSuppressionDuration);

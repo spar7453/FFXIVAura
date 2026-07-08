@@ -241,22 +241,33 @@ public sealed unsafe partial class Plugin
         if (this.config.LockOverlay)
         {
             if (IsMouseInRect(iconPos, iconMax))
+            {
+                this.RecordTooltipHover(TooltipDiagnosticKind.PartyCooldown, item.Definition.Id, item.Definition.ActionId, iconPos, iconMax, imguiHovered: false);
                 this.ShowPartyCooldownTooltip(item);
+            }
 
             return;
         }
 
         ImGui.SetCursorScreenPos(iconPos);
         ImGui.InvisibleButton($"##party-cooldown-{item.Definition.Id}-{item.Definition.ActionId}", new Vector2(iconSize, iconSize));
-        if (ImGui.IsItemHovered() && !ImGui.IsItemActive())
+        var hovered = ImGui.IsItemHovered() && !ImGui.IsItemActive();
+        if (hovered)
+        {
+            this.RecordTooltipHover(TooltipDiagnosticKind.PartyCooldown, item.Definition.Id, item.Definition.ActionId, iconPos, iconMax, imguiHovered: true);
             this.ShowPartyCooldownTooltip(item);
+        }
     }
 
     private void ShowPartyCooldownTooltip(PartyCooldownDisplayItem item)
     {
         if (!this.config.ShowTooltips)
+        {
+            this.tooltipDiagnostics.RecordDisabledSkip(TooltipDiagnosticKind.PartyCooldown, item.Definition.Id, item.Definition.ActionId);
             return;
+        }
 
+        this.tooltipDiagnostics.RecordTooltipRequest(TooltipDiagnosticKind.PartyCooldown, item.Definition.Id, item.Definition.ActionId);
         this.SetBugDiagnosticEvent($"tooltipPartyCooldown:{item.Definition.Id}:{item.Definition.ActionId}");
         this.ShowNativeActionTooltip(item.Definition.ActionId);
     }

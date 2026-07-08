@@ -25,6 +25,7 @@ tests.AddRange(PartyCooldownLogMatcherTests.Cases);
 tests.AddRange(PartyCooldownOwnerResolverTests.Cases);
 tests.AddRange(ConfigTests.Cases);
 tests.AddRange(NativeTooltipTests.Cases);
+tests.AddRange(TooltipDiagnosticsTests.Cases);
 tests.AddRange(PartyAuraTests.Cases);
 tests.AddRange(PerformanceFrameStatsTests.Cases);
 tests.AddRange(PerformanceProfilerTests.Cases);

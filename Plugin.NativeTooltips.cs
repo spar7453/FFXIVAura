@@ -8,12 +8,19 @@ public sealed unsafe partial class Plugin
 {
     private void ShowNativeActionTooltip(uint actionId)
     {
+        this.tooltipDiagnostics.RecordNativeActionRequest(actionId);
         if (actionId == 0)
+        {
+            this.tooltipDiagnostics.RecordZeroActionSkip();
             return;
+        }
 
         var agent = AgentActionDetail.Instance();
         if (agent is null)
+        {
+            this.tooltipDiagnostics.RecordAgentMissingSkip();
             return;
+        }
 
         this.overlayTooltipRequestedThisFrame = true;
         this.SetBugDiagnosticEvent($"tooltipActionNative:{actionId}");
@@ -34,9 +41,13 @@ public sealed unsafe partial class Plugin
     private void ShowAuraTooltip(AuraState aura)
     {
         if (!this.config.ShowTooltips)
+        {
+            this.tooltipDiagnostics.RecordDisabledSkip(TooltipDiagnosticKind.Aura, aura.StatusId.ToString(), 0);
             return;
+        }
 
         this.overlayTooltipRequestedThisFrame = true;
+        this.tooltipDiagnostics.RecordTooltipRequest(TooltipDiagnosticKind.Aura, aura.StatusId.ToString(), 0);
         this.SetBugDiagnosticEvent($"tooltipAura:{aura.StatusId}");
         this.HideNativeActionTooltip();
         var text = this.GetStatusTooltipText(aura.StatusId);
@@ -183,11 +194,23 @@ public sealed unsafe partial class Plugin
     {
         var addon = GetNativeTooltipAddon(addonName);
         if (addon is not null)
+        {
             this.ControlNativeActionTooltip(addon, suppressSound);
+            return;
+        }
+
+        this.tooltipDiagnostics.RecordAddonMissingSkip();
     }
 
     private void ControlNativeActionTooltip(AtkUnitBase* addon, bool suppressSound)
     {
+        if (addon is null)
+        {
+            this.tooltipDiagnostics.RecordAddonMissingSkip();
+            return;
+        }
+
+        this.tooltipDiagnostics.RecordNativeControl();
         this.performanceStats.CountNativeTooltipControl();
         var profileStart = this.performanceProfiler.BeginSection(PerformanceProfileSection.TooltipControl);
         try

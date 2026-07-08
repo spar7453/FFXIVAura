@@ -12,6 +12,7 @@ public sealed unsafe partial class Plugin
         if (!this.config.RecordPerformanceProfile)
         {
             this.performanceProfileNextRecordAtUtc = DateTime.MinValue;
+            this.tooltipDiagnostics.ResetIntervalCounters();
             return;
         }
 
@@ -65,6 +66,7 @@ public sealed unsafe partial class Plugin
 
     private void AppendPerformanceProfileRows(DateTime timestampUtc)
     {
+        var tooltipDiagnosticSnapshot = this.tooltipDiagnostics.CreateSnapshot();
         var path = this.GetPerformanceProfileFilePath();
         this.RotatePerformanceProfileFileIfNeeded(path);
         this.RotatePerformanceProfileFileIfHeaderChanged(path);
@@ -82,9 +84,10 @@ public sealed unsafe partial class Plugin
         foreach (var snapshot in this.performanceProfiler.GetWindowSnapshots())
             this.AppendPerformanceProfileWindowRow(builder, timestampUtc, snapshot);
 
-        this.AppendPerformanceProfileDiagnosticRows(builder, timestampUtc);
+        this.AppendPerformanceProfileDiagnosticRows(builder, timestampUtc, tooltipDiagnosticSnapshot);
 
         File.AppendAllText(path, builder.ToString(), PerformanceProfileFileEncoding);
+        this.tooltipDiagnostics.ResetIntervalCounters();
     }
 
     private void RotatePerformanceProfileFileIfNeeded(string path)
@@ -205,7 +208,10 @@ public sealed unsafe partial class Plugin
             this.performanceStats.GrayscaleIconProcessCount));
     }
 
-    private void AppendPerformanceProfileDiagnosticRows(StringBuilder builder, DateTime timestampUtc)
+    private void AppendPerformanceProfileDiagnosticRows(
+        StringBuilder builder,
+        DateTime timestampUtc,
+        TooltipDiagnosticSnapshot tooltipDiagnostics)
     {
         var playerLoaded = PlayerState.IsLoaded;
         var job = playerLoaded ? JobInfo.Code(PlayerState.ClassJob.RowId) : string.Empty;
@@ -349,7 +355,26 @@ public sealed unsafe partial class Plugin
         this.AppendPerformanceProfileDiagnosticRow(builder, timestampUtc, "tooltip", "Tooltip", FormatDiagnosticPairs(
             ("showTooltips", this.config.ShowTooltips),
             ("requestedThisFrame", this.overlayTooltipRequestedThisFrame),
-            ("nativeControlsThisFrame", this.performanceStats.NativeTooltipControlCount)));
+            ("nativeControlsThisFrame", this.performanceStats.NativeTooltipControlCount),
+            ("hoverHits", tooltipDiagnostics.HoverHits),
+            ("abilityRequests", tooltipDiagnostics.AbilityRequests),
+            ("auraRequests", tooltipDiagnostics.AuraRequests),
+            ("partyCooldownRequests", tooltipDiagnostics.PartyCooldownRequests),
+            ("nativeActionRequests", tooltipDiagnostics.NativeActionRequests),
+            ("disabledSkips", tooltipDiagnostics.DisabledSkips),
+            ("zeroActionSkips", tooltipDiagnostics.ZeroActionSkips),
+            ("agentMissingSkips", tooltipDiagnostics.AgentMissingSkips),
+            ("addonMissingSkips", tooltipDiagnostics.AddonMissingSkips),
+            ("nativeControls", tooltipDiagnostics.NativeControls),
+            ("lastKind", tooltipDiagnostics.LastKind),
+            ("lastId", tooltipDiagnostics.LastId),
+            ("lastActionId", tooltipDiagnostics.LastActionId),
+            ("lastSkip", tooltipDiagnostics.LastSkipReason),
+            ("lastTimeLocal", tooltipDiagnostics.LastEventUtc == DateTime.MinValue ? string.Empty : tooltipDiagnostics.LastEventUtc.ToLocalTime()),
+            ("lastMouse", tooltipDiagnostics.HasLastGeometry ? FormatDiagnosticVector(tooltipDiagnostics.LastMouse) : string.Empty),
+            ("lastRect", tooltipDiagnostics.HasLastGeometry ? FormatDiagnosticRect(tooltipDiagnostics.LastRectMin, tooltipDiagnostics.LastRectMax) : string.Empty),
+            ("lastContainsMouse", tooltipDiagnostics.HasLastGeometry && tooltipDiagnostics.LastContainsMouse),
+            ("lastImGuiHovered", tooltipDiagnostics.HasLastGeometry && tooltipDiagnostics.LastImGuiHovered)));
 
         this.AppendPerformanceProfileDiagnosticRow(builder, timestampUtc, "lastEvent", "Last Event", FormatDiagnosticPairs(
             ("timeLocal", this.lastBugDiagnosticEventAtUtc == DateTime.MinValue ? string.Empty : this.lastBugDiagnosticEventAtUtc.ToLocalTime()),
@@ -479,6 +504,12 @@ public sealed unsafe partial class Plugin
 
     private static string FormatDiagnosticNumber(double value)
         => value.ToString("0.###", CultureInfo.InvariantCulture);
+
+    private static string FormatDiagnosticVector(Vector2 value)
+        => $"{FormatDiagnosticNumber(value.X)}:{FormatDiagnosticNumber(value.Y)}";
+
+    private static string FormatDiagnosticRect(Vector2 min, Vector2 max)
+        => $"{FormatDiagnosticVector(min)}-{FormatDiagnosticVector(max)}";
 
     private static string SanitizeDiagnosticValue(string value)
         => value.Replace(';', ',')

@@ -216,10 +216,14 @@ public sealed unsafe partial class Plugin
 
     private void HandleOverlayIconInteraction(IconWindowConfig iconWindow, string job, uint level, AbilityDefinition ability, Vector2 localPos, Vector2 iconPos, Vector2 areaSize, float iconSize)
     {
+        var iconMax = iconPos + new Vector2(iconSize, iconSize);
         if (this.config.LockOverlay)
         {
-            if (IsMouseInRect(iconPos, iconPos + new Vector2(iconSize, iconSize)))
+            if (IsMouseInRect(iconPos, iconMax))
+            {
+                this.RecordTooltipHover(TooltipDiagnosticKind.Ability, ability.Id, ability.ActionId, iconPos, iconMax, imguiHovered: false);
                 this.RegisterAbilityTooltipCandidate(ability);
+            }
 
             return;
         }
@@ -227,8 +231,12 @@ public sealed unsafe partial class Plugin
         var dragId = RuntimeScopeKeys.AbilityDrag(iconWindow.Id, job, ability.Id);
         ImGui.SetCursorScreenPos(iconPos);
         ImGui.InvisibleButton($"##overlay-drag-{ability.Id}", new Vector2(iconSize, iconSize));
-        if (ImGui.IsItemHovered() && !ImGui.IsItemActive())
+        var hovered = ImGui.IsItemHovered() && !ImGui.IsItemActive();
+        if (hovered)
+        {
+            this.RecordTooltipHover(TooltipDiagnosticKind.Ability, ability.Id, ability.ActionId, iconPos, iconMax, imguiHovered: true);
             this.ShowAbilityTooltip(ability);
+        }
 
         if (ImGui.IsItemHovered() && ImGui.IsMouseClicked(ImGuiMouseButton.Right) && ImGui.GetIO().KeyCtrl)
         {
@@ -265,11 +273,16 @@ public sealed unsafe partial class Plugin
     private void ShowAbilityTooltip(AbilityDefinition ability)
     {
         if (!this.config.ShowTooltips)
+        {
+            this.tooltipDiagnostics.RecordDisabledSkip(TooltipDiagnosticKind.Ability, ability.Id, ability.ActionId);
             return;
+        }
 
         var state = this.GetCooldown(ability);
+        var actionId = state.DisplayActionId > 0 ? state.DisplayActionId : ability.ActionId;
+        this.tooltipDiagnostics.RecordTooltipRequest(TooltipDiagnosticKind.Ability, ability.Id, actionId);
         this.SetBugDiagnosticEvent($"tooltipAction:{ability.Id}:{state.DisplayActionId}");
-        ShowNativeActionTooltip(state.DisplayActionId > 0 ? state.DisplayActionId : ability.ActionId);
+        ShowNativeActionTooltip(actionId);
     }
 
     private static bool IsMouseInRect(Vector2 min, Vector2 max)
@@ -287,7 +300,10 @@ public sealed unsafe partial class Plugin
         if (this.config.LockOverlay || UsesCompactAuraLayout(iconWindow))
         {
             if (IsMouseInRect(iconPos, iconMax))
+            {
+                this.RecordTooltipHover(TooltipDiagnosticKind.Aura, aura.StatusId.ToString(), 0, iconPos, iconMax, imguiHovered: false);
                 this.RegisterAuraTooltipCandidate(aura);
+            }
 
             return;
         }
@@ -296,8 +312,12 @@ public sealed unsafe partial class Plugin
         var dragId = RuntimeScopeKeys.AuraDrag(iconWindow.Id, aura.StatusId);
         ImGui.SetCursorScreenPos(iconPos);
         ImGui.InvisibleButton($"##aura-drag-{iconWindow.Id}-{id}", new Vector2(iconSize, iconSize));
-        if (ImGui.IsItemHovered() && !ImGui.IsItemActive())
+        var hovered = ImGui.IsItemHovered() && !ImGui.IsItemActive();
+        if (hovered)
+        {
+            this.RecordTooltipHover(TooltipDiagnosticKind.Aura, aura.StatusId.ToString(), 0, iconPos, iconMax, imguiHovered: true);
             this.ShowAuraTooltip(aura);
+        }
 
         if (ImGui.IsItemActive() && ImGui.IsMouseDragging(ImGuiMouseButton.Left, 2f))
         {
@@ -332,6 +352,25 @@ public sealed unsafe partial class Plugin
     private void RegisterAuraTooltipCandidate(AuraState aura)
     {
         this.overlayTooltipResolver.Register(OverlayTooltipCandidate.ForAura(aura));
+    }
+
+    private void RecordTooltipHover(
+        TooltipDiagnosticKind kind,
+        string id,
+        uint actionId,
+        Vector2 iconPos,
+        Vector2 iconMax,
+        bool imguiHovered)
+    {
+        this.tooltipDiagnostics.RecordHover(
+            kind,
+            id,
+            actionId,
+            ImGui.GetMousePos(),
+            iconPos,
+            iconMax,
+            IsMouseInRect(iconPos, iconMax),
+            imguiHovered);
     }
 
     private void ShowDeferredOverlayTooltip()
