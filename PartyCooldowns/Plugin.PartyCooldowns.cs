@@ -178,13 +178,15 @@ public sealed unsafe partial class Plugin
             displayMembers,
             PartyCooldownRoster.CreateDiagnostics(
                 roster.Source,
+                roster.ReadMode,
                 roster.PartyListLength,
                 members,
                 displayMembers,
                 ObjectTable.LocalPlayer?.EntityId ?? 0,
                 roster.AlliancePartyCount,
                 roster.AllianceMemberCount,
-                roster.HasAllianceSource),
+                roster.HasAllianceSource,
+                roster.UsedFlatAllianceFallback),
             DateTime.UtcNow);
         return this.partyCooldownFrameSnapshot;
     }

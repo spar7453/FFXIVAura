@@ -10,10 +10,12 @@ public sealed unsafe partial class Plugin
     private readonly record struct PartyCooldownRosterReadResult(
         IReadOnlyList<PartyCooldownMemberSnapshot> Members,
         PartyCooldownRosterSource Source,
+        PartyCooldownRosterReadMode ReadMode,
         int PartyListLength,
         int AlliancePartyCount,
         int AllianceMemberCount,
-        bool HasAllianceSource);
+        bool HasAllianceSource,
+        bool UsedFlatAllianceFallback);
 
     private IReadOnlyList<PartyCooldownMemberSnapshot> GetPartyCooldownMembers()
         => this.GetPartyCooldownRoster().Members;
@@ -27,22 +29,32 @@ public sealed unsafe partial class Plugin
         var members = new List<PartyCooldownMemberSnapshot>(capacity);
         var seenKeys = new HashSet<string>(StringComparer.Ordinal);
 
-        var allianceMemberCount = 0;
+        var partySlotMemberCount = 0;
+        var groupedAllianceMemberCount = 0;
+        var flatAllianceMemberCount = 0;
+        var usedFlatAllianceFallback = false;
+        var readMode = PartyCooldownRosterReadMode.Unknown;
         if (hasAllianceSource)
         {
-            allianceMemberCount = this.AddPartyCooldownAllianceGroupMembers(members, seenKeys);
-            if (allianceMemberCount == 0)
+            groupedAllianceMemberCount = this.AddPartyCooldownAllianceGroupMembers(members, seenKeys);
+            if (groupedAllianceMemberCount == 0)
             {
-                this.AddPartyCooldownPartySlotMembers(
+                partySlotMemberCount = this.AddPartyCooldownPartySlotMembers(
                     members,
                     seenKeys,
                     PartyCooldownAllianceGroups.OwnPartyLabel(isAlliance: true, partyId));
-                allianceMemberCount = this.AddPartyCooldownFlatAllianceMembers(members, seenKeys, partyId);
+                usedFlatAllianceFallback = true;
+                flatAllianceMemberCount = this.AddPartyCooldownFlatAllianceMembers(members, seenKeys, partyId);
+            }
+            else if (groupedAllianceMemberCount < AllianceGroupCount * AllianceGroupMemberSlotCount)
+            {
+                usedFlatAllianceFallback = true;
+                flatAllianceMemberCount = this.AddPartyCooldownFlatAllianceMembers(members, seenKeys, partyId);
             }
         }
         else
         {
-            this.AddPartyCooldownPartySlotMembers(members, seenKeys, string.Empty);
+            partySlotMemberCount = this.AddPartyCooldownPartySlotMembers(members, seenKeys, string.Empty);
         }
 
         if (members.Count == 0 && ObjectTable.LocalPlayer is IBattleChara player)
@@ -59,23 +71,67 @@ public sealed unsafe partial class Plugin
                 job,
                 JobInfo.IconId(classJobId),
                 string.Empty));
+            readMode = PartyCooldownRosterReadMode.SoloFallback;
         }
 
         var orderedMembers = PartyCooldownMemberOrdering.PreserveInGameOrder(members);
-        var hasUsableAllianceSource = hasAllianceSource && allianceMemberCount > 0;
+        var allianceMemberCount = CountPartyCooldownAllianceMembers(orderedMembers);
+        var hasUsableAllianceSource = hasAllianceSource && (groupedAllianceMemberCount > 0 || flatAllianceMemberCount > 0);
         var source = hasUsableAllianceSource
             ? PartyCooldownRosterSource.Alliance
             : partyListLength > 0
                 ? PartyCooldownRosterSource.PartyList
                 : PartyCooldownRosterSource.SoloFallback;
 
+        if (readMode == PartyCooldownRosterReadMode.Unknown)
+        {
+            if (groupedAllianceMemberCount > 0)
+            {
+                readMode = usedFlatAllianceFallback
+                    ? PartyCooldownRosterReadMode.GroupedAllianceWithFlatFallback
+                    : PartyCooldownRosterReadMode.GroupedAlliance;
+            }
+            else if (flatAllianceMemberCount > 0)
+            {
+                readMode = PartyCooldownRosterReadMode.FlatAllianceFallback;
+            }
+            else if (partySlotMemberCount > 0)
+            {
+                readMode = PartyCooldownRosterReadMode.PartySlots;
+            }
+            else
+            {
+                readMode = PartyCooldownRosterReadMode.Unknown;
+            }
+        }
+
         return new PartyCooldownRosterReadResult(
             orderedMembers,
             source,
+            readMode,
             partyListLength,
-            hasUsableAllianceSource ? 3 : 0,
-            hasUsableAllianceSource ? members.Count : 0,
-            hasUsableAllianceSource);
+            hasAllianceSource ? AllianceGroupCount : 0,
+            hasAllianceSource ? allianceMemberCount : 0,
+            hasAllianceSource,
+            usedFlatAllianceFallback);
+    }
+
+    private static int CountPartyCooldownAllianceMembers(IReadOnlyList<PartyCooldownMemberSnapshot> members)
+    {
+        var count = 0;
+        foreach (var member in members)
+        {
+            for (var group = 0; group < AllianceGroupCount; group++)
+            {
+                if (!string.Equals(member.AllianceGroup, PartyCooldownAllianceGroups.GroupLabel(group), StringComparison.Ordinal))
+                    continue;
+
+                count++;
+                break;
+            }
+        }
+
+        return count;
     }
 
     private int AddPartyCooldownPartySlotMembers(
@@ -240,10 +296,12 @@ public sealed unsafe partial class Plugin
         if (PartyList.IsAlliance)
         {
             var added = this.AddPartyCooldownStatusSamplesFromAllianceGroupMembers(partyEntityIds);
-            if (added > 0)
+            if (added >= AllianceGroupCount * AllianceGroupMemberSlotCount)
                 return;
 
-            this.AddPartyCooldownStatusSamplesFromPartySlots(partyEntityIds);
+            if (added == 0)
+                this.AddPartyCooldownStatusSamplesFromPartySlots(partyEntityIds);
+
             this.AddPartyCooldownStatusSamplesFromFlatAllianceMembers(partyEntityIds);
             return;
         }

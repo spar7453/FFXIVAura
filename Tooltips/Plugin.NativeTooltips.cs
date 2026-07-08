@@ -23,7 +23,7 @@ public sealed unsafe partial class Plugin
         }
 
         this.tooltipDiagnostics.RecordNativeAgentIds(agent->ActionId, agent->OriginalId);
-        this.overlayTooltipRequestedThisFrame = true;
+        this.MarkOverlayTooltipRequested();
         this.SetBugDiagnosticEvent($"tooltipActionNative:{actionId}");
         this.nativeActionTooltipController.BeginHover(actionId, DateTime.UtcNow);
         this.ControlNativeActionTooltip(NativeActionTooltipController.AddonName, suppressSound: false);
@@ -48,7 +48,7 @@ public sealed unsafe partial class Plugin
             return;
         }
 
-        this.overlayTooltipRequestedThisFrame = true;
+        this.MarkOverlayTooltipRequested();
         this.tooltipDiagnostics.RecordTooltipRequest(TooltipDiagnosticKind.Aura, aura.StatusId.ToString(), 0);
         this.SetBugDiagnosticEvent($"tooltipAura:{aura.StatusId}");
         this.HideNativeActionTooltip();
@@ -58,8 +58,22 @@ public sealed unsafe partial class Plugin
 
     private void FinishOverlayTooltipFrame()
     {
-        if (!this.overlayTooltipRequestedThisFrame)
-            this.HideNativeActionTooltip();
+        if (this.overlayTooltipRequestedThisFrame)
+            return;
+
+        if (this.overlayTooltipGraceFramesRemaining > 0)
+        {
+            this.overlayTooltipGraceFramesRemaining--;
+            return;
+        }
+
+        this.HideNativeActionTooltip();
+    }
+
+    private void MarkOverlayTooltipRequested()
+    {
+        this.overlayTooltipRequestedThisFrame = true;
+        this.overlayTooltipGraceFramesRemaining = OverlayTooltipGraceFrameCount;
     }
 
     private void HideNativeActionTooltip()

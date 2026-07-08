@@ -44,6 +44,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private const float DefaultFontScale = 1f;
     private const float MinFontScale = 0.75f;
     private const float MaxFontScale = 1.5f;
+    private const int OverlayTooltipGraceFrameCount = 1;
     private const float DefaultOrderEditorHeight = 180f;
     private const float MinOrderEditorHeight = 90f;
     private const float MaxOrderEditorHeight = 520f;
@@ -130,6 +131,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private PartyCooldownFrameSnapshot? partyCooldownFrameSnapshot;
     private HashSet<string>? partyCooldownLiveRuntimeKeysFrameCache;
     private bool overlayTooltipRequestedThisFrame;
+    private int overlayTooltipGraceFramesRemaining;
     private int pendingStatusId;
     private Vector2 draggedOverlayMouseStart;
     private Vector2 draggedOverlayPositionStart;

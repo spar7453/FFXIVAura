@@ -98,15 +98,7 @@ public sealed unsafe partial class Plugin
         IReadOnlyList<PartyCooldownMemberRow> rows)
     {
         var metrics = GetPartyCooldownBoardRenderMetrics(iconWindow, rows);
-        var nextHeight = PartyCooldownBoardLayout.GetExpandedBoardHeight(
-            iconWindow.Height,
-            GetPartyCooldownRowItemCounts(rows),
-            metrics.IconSize,
-            metrics.Gap,
-            metrics.Padding,
-            metrics.IconsPerLine,
-            MinOverlayHeight,
-            MaxOverlayHeight);
+        var nextHeight = GetPartyCooldownExpandedBoardHeight(iconWindow.Height, rows, metrics);
 
         if (nextHeight <= iconWindow.Height + 0.5f)
             return false;
@@ -233,13 +225,33 @@ public sealed unsafe partial class Plugin
             drawnIconCount);
     }
 
-    private static IReadOnlyList<int> GetPartyCooldownRowItemCounts(IReadOnlyList<PartyCooldownMemberRow> rows)
+    private static float GetPartyCooldownExpandedBoardHeight(
+        float currentHeight,
+        IReadOnlyList<PartyCooldownMemberRow> rows,
+        PartyCooldownBoardRenderMetrics metrics)
     {
-        var counts = new int[rows.Count];
-        for (var i = 0; i < rows.Count; i++)
-            counts[i] = rows[i].Items.Count;
+        var requiredHeight = GetPartyCooldownBoardContentHeight(rows, metrics);
+        return Math.Clamp(Math.Max(currentHeight, requiredHeight), MinOverlayHeight, MaxOverlayHeight);
+    }
 
-        return counts;
+    private static float GetPartyCooldownBoardContentHeight(
+        IReadOnlyList<PartyCooldownMemberRow> rows,
+        PartyCooldownBoardRenderMetrics metrics)
+    {
+        var height = metrics.Padding * 2f;
+        for (var i = 0; i < rows.Count; i++)
+        {
+            if (i > 0)
+                height += metrics.Gap;
+
+            height += PartyCooldownBoardLayout.GetRowContentHeight(
+                rows[i].Items.Count,
+                metrics.IconSize,
+                metrics.Gap,
+                metrics.IconsPerLine);
+        }
+
+        return rows.Count == 0 ? 0f : height;
     }
 
     private void DrawPartyCooldownJobBadge(ImDrawListPtr draw, PartyCooldownMemberSnapshot member, Vector2 pos, float size)
