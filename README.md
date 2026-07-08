@@ -45,7 +45,7 @@ The goal is simple: show only the skills, buffs, debuffs, charges, cooldowns, an
 - Aura search and tracking for recently seen buffs/debuffs.
 - Aura search by status name, status ID, action name, or action ID, with result tags for active, recently seen, action-granted skill names, status-list, and same-name status IDs.
 - Party aura options for own-only filtering and party member count display.
-- Party cooldown boards show each party member in party-list order with job icon, short name, ready skills, active borders, and estimated cooldown timers after active effects end.
+- Party cooldown boards show each party member in party-list order with job icon, short name, ready skills, active borders, and estimated cooldown timers after active effects end. Alliance boards add an A/B/C group label when alliance roster data is available.
 - Party defensive, healing cooldown, and damage synergy boards are separated so healer cooldowns do not crowd the defensive board.
 - Party cooldown presets show all configured job skills by default, and each window can exclude unneeded preset entries from settings.
 - Party cooldown replacement groups hide lower-level actions after the current effective level unlocks their upgraded action.
@@ -96,7 +96,7 @@ Open the settings window with `/fa`.
 - Aura search results show where a status came from, including active, recent, action-granted skill names, full status list, and same-name ID hints. Action-granted statuses keep their skill source tag even when found by status name or status ID.
 - Buff/debuff windows set to the Active display condition continuously compact the currently active auras so expired or newly appeared statuses do not leave empty slots.
 - Party defensive, party healing cooldown, and party damage synergy windows use built-in job data instead of manual tracking lists. Skills above the current effective level are hidden for synced content.
-- Party cooldown boards read the current party roster and, when Dalamud reports an alliance, the additional alliance member roster as well.
+- Party cooldown boards read the current party roster and, when Dalamud reports an alliance, the additional alliance member roster as well. Alliance rows include A/B/C labels derived from the local party ID and alliance member slots.
 - In party cooldown windows, uncheck preset entries in the settings list to exclude skills you do not want that window to track.
 
 The most common per-window controls are available directly on the unlocked overlay:
@@ -151,6 +151,7 @@ When this file changes, verify:
 6. Upgraded actions are grouped with `replacementGroup` only when backed by verified replacement data.
 7. In game, the active border appears on the user who cast the skill.
 8. In alliance content, roster count and source diagnostics in `performance-profile.csv` match the actual 24-player roster.
+9. Alliance row labels match the in-game A/B/C party grouping.
 
 Typical update workflow:
 

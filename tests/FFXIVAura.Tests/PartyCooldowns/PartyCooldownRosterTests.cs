@@ -55,5 +55,5 @@ internal static class PartyCooldownRosterTests
     }
 
     private static PartyCooldownMemberSnapshot Member(uint entityId, string job)
-        => new($"key-{entityId}", entityId, 0, $"member-{entityId}", $"m{entityId}", job, 0);
+        => new($"key-{entityId}", entityId, 0, $"member-{entityId}", $"m{entityId}", job, 0, string.Empty);
 }

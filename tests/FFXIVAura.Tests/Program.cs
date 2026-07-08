@@ -17,6 +17,7 @@ tests.AddRange(AuraSearchDisplayResultTests.Cases);
 tests.AddRange(OverlayTests.Cases);
 tests.AddRange(SkillPositionLayoutTests.Cases);
 tests.AddRange(PartyCooldownBoardLayoutTests.Cases);
+tests.AddRange(PartyCooldownAllianceGroupsTests.Cases);
 tests.AddRange(PartyCooldownMemberOrderingTests.Cases);
 tests.AddRange(PartyCooldownRosterTests.Cases);
 tests.AddRange(PartyCooldownDefinitionSelectorTests.Cases);

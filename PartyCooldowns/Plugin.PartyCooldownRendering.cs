@@ -92,7 +92,8 @@ public sealed unsafe partial class Plugin
         var labelGap = Math.Max(4f, gap);
         var jobIconSize = Math.Clamp(iconSize * 0.72f, 20f, 32f);
         var nameWidth = Math.Clamp(iconSize * 1.05f, 34f, 54f);
-        var labelWidth = jobIconSize + labelGap + nameWidth + labelGap;
+        var allianceGroupWidth = GetPartyCooldownAllianceGroupWidth(rows, labelGap);
+        var labelWidth = allianceGroupWidth + jobIconSize + labelGap + nameWidth + labelGap;
         var iconAreaWidth = Math.Max(0f, iconWindow.Width - padding * 2f - labelWidth);
         var iconsPerLine = PartyCooldownBoardLayout.GetIconLineCapacity(iconAreaWidth, iconSize, gap);
         var nextHeight = PartyCooldownBoardLayout.GetExpandedBoardHeight(
@@ -126,7 +127,8 @@ public sealed unsafe partial class Plugin
         var jobIconSize = Math.Clamp(iconSize * 0.72f, 20f, 32f);
         var nameWidth = Math.Clamp(iconSize * 1.05f, 34f, 54f);
         var labelGap = Math.Max(4f, gap);
-        var labelWidth = jobIconSize + labelGap + nameWidth + labelGap;
+        var allianceGroupWidth = GetPartyCooldownAllianceGroupWidth(rows, labelGap);
+        var labelWidth = allianceGroupWidth + jobIconSize + labelGap + nameWidth + labelGap;
         var rowStartX = areaOrigin.X + padding;
         var iconAreaStartX = rowStartX + labelWidth;
         var iconAreaWidth = Math.Max(0f, areaSize.X - padding * 2f - labelWidth);
@@ -143,6 +145,22 @@ public sealed unsafe partial class Plugin
                 break;
 
             var cursor = new Vector2(rowStartX, rowY + Math.Max(0f, (contentHeight - jobIconSize) * 0.5f));
+            if (allianceGroupWidth > 0f)
+            {
+                var groupTextSize = ImGui.CalcTextSize(row.Member.AllianceGroup);
+                var groupTextPos = new Vector2(
+                    cursor.X + Math.Max(0f, allianceGroupWidth - labelGap - groupTextSize.X) * 0.5f,
+                    rowY + Math.Max(0f, (contentHeight - ImGui.GetTextLineHeight()) * 0.5f));
+                this.DrawOutlinedText(
+                    draw,
+                    groupTextPos,
+                    row.Member.AllianceGroup,
+                    new Vector4(0.72f, 0.95f, 1f, 0.98f),
+                    new Vector4(0f, 0f, 0f, 0.9f),
+                    1f);
+                cursor.X += allianceGroupWidth;
+            }
+
             this.DrawPartyCooldownJobBadge(draw, row.Member, cursor, jobIconSize);
 
             cursor.X += jobIconSize + labelGap;
@@ -183,6 +201,13 @@ public sealed unsafe partial class Plugin
 
         draw.PopClipRect();
     }
+
+    private static float GetPartyCooldownAllianceGroupWidth(
+        IReadOnlyList<PartyCooldownMemberRow> rows,
+        float labelGap)
+        => rows.Any(row => !string.IsNullOrWhiteSpace(row.Member.AllianceGroup))
+            ? Math.Max(16f, ImGui.CalcTextSize("C").X + labelGap)
+            : 0f;
 
     private void DrawPartyCooldownJobBadge(ImDrawListPtr draw, PartyCooldownMemberSnapshot member, Vector2 pos, float size)
     {

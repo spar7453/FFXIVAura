@@ -312,6 +312,8 @@ public sealed unsafe partial class Plugin
         var partyCooldownRoster = this.partyCooldownFrameSnapshot?.RosterDiagnostics ?? default;
         this.AppendPerformanceProfileDiagnosticRow(builder, timestampUtc, "partyCooldown", "Party Cooldown", FormatDiagnosticPairs(
             ("partyListLength", PartyList.Length),
+            ("partyId", PartyList.PartyId),
+            ("localAllianceGroup", PartyCooldownAllianceGroups.OwnPartyLabel(PartyList.IsAlliance, (int)PartyList.PartyId)),
             ("rosterSource", partyCooldownRoster.Source),
             ("definitions", this.partyCooldownDefinitions.Count),
             ("runtimeStates", this.partyCooldownRuntimeStates.Count),

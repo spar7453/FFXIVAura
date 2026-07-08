@@ -42,7 +42,8 @@ internal readonly record struct PartyCooldownMemberSnapshot(
     string Name,
     string ShortName,
     string Job,
-    uint JobIconId);
+    uint JobIconId,
+    string AllianceGroup);
 
 internal readonly record struct PartyCooldownObservedAction(
     uint ActionId,

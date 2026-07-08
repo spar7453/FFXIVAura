@@ -46,6 +46,7 @@ Use this checklist before pushing a build that changes overlay positioning, auto
 
 - Create one Party Defensives window, one Party Healing Cooldowns window, and one Party Damage Synergies window.
 - Join a party and confirm rows follow the in-game party list order.
+- Join 24-player alliance content and confirm rows follow the in-game alliance list order with A/B/C labels on the correct parties.
 - Confirm each row shows a job icon, the first two characters of the party member name, and the expected ready cooldown icons.
 - In settings, uncheck one preset entry and confirm it disappears from the matching party cooldown window only.
 - Click the reset button for that window's exclusions and confirm the preset entry appears again.

@@ -19,13 +19,15 @@ public sealed unsafe partial class Plugin
     {
         var partyListLength = Math.Max(0, PartyList.Length);
         var hasAllianceSource = PartyList.IsAlliance;
+        var partyId = (int)PartyList.PartyId;
+        var ownAllianceGroup = PartyCooldownAllianceGroups.OwnPartyLabel(hasAllianceSource, partyId);
         var capacity = Math.Max(partyListLength + (hasAllianceSource ? AllianceMemberSlotCount : 0), 1);
         var members = new List<PartyCooldownMemberSnapshot>(capacity);
         var seenKeys = new HashSet<string>(StringComparer.Ordinal);
 
-        this.AddPartyCooldownPartyListMembers(members, seenKeys);
+        this.AddPartyCooldownPartyListMembers(members, seenKeys, ownAllianceGroup);
         var allianceMemberCount = hasAllianceSource
-            ? this.AddPartyCooldownAllianceMembers(members, seenKeys)
+            ? this.AddPartyCooldownAllianceMembers(members, seenKeys, partyId)
             : 0;
 
         if (members.Count == 0 && ObjectTable.LocalPlayer is IBattleChara player)
@@ -40,7 +42,8 @@ public sealed unsafe partial class Plugin
                 name,
                 ShortPartyMemberName(name),
                 job,
-                JobInfo.IconId(classJobId)));
+                JobInfo.IconId(classJobId),
+                string.Empty));
         }
 
         var orderedMembers = PartyCooldownMemberOrdering.PreserveInGameOrder(members);
@@ -62,13 +65,14 @@ public sealed unsafe partial class Plugin
 
     private int AddPartyCooldownPartyListMembers(
         List<PartyCooldownMemberSnapshot> members,
-        HashSet<string> seenKeys)
+        HashSet<string> seenKeys,
+        string allianceGroup)
     {
         var added = 0;
         for (var i = 0; i < PartyList.Length; i++)
         {
             var member = PartyList[i];
-            if (member is not null && this.TryAddPartyCooldownMemberSnapshot(members, seenKeys, member))
+            if (member is not null && this.TryAddPartyCooldownMemberSnapshot(members, seenKeys, member, allianceGroup))
                 added++;
         }
 
@@ -77,14 +81,22 @@ public sealed unsafe partial class Plugin
 
     private int AddPartyCooldownAllianceMembers(
         List<PartyCooldownMemberSnapshot> members,
-        HashSet<string> seenKeys)
+        HashSet<string> seenKeys,
+        int localPartyId)
     {
         var added = 0;
         for (var i = 0; i < AllianceMemberSlotCount; i++)
         {
             var member = this.TryCreateAllianceMemberReference(i);
-            if (member is not null && this.TryAddPartyCooldownMemberSnapshot(members, seenKeys, member))
+            if (member is not null
+                && this.TryAddPartyCooldownMemberSnapshot(
+                    members,
+                    seenKeys,
+                    member,
+                    PartyCooldownAllianceGroups.AllianceSlotLabel(i, localPartyId)))
+            {
                 added++;
+            }
         }
 
         return added;
@@ -93,7 +105,8 @@ public sealed unsafe partial class Plugin
     private bool TryAddPartyCooldownMemberSnapshot(
         List<PartyCooldownMemberSnapshot> members,
         HashSet<string> seenKeys,
-        IPartyMember member)
+        IPartyMember member,
+        string allianceGroup)
     {
         if (member.EntityId == 0)
             return false;
@@ -114,7 +127,8 @@ public sealed unsafe partial class Plugin
                 name,
                 ShortPartyMemberName(name),
                 job,
-                JobInfo.IconId(classJobId)));
+                JobInfo.IconId(classJobId),
+                allianceGroup));
             return true;
         }
         catch (Exception ex)
