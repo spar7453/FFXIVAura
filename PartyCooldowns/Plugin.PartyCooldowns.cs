@@ -514,16 +514,6 @@ public sealed unsafe partial class Plugin
 
         this.AddPartyCooldownStatusSamplesFromPartyList(memberEntityIds);
 
-        if (PartyList.IsAlliance)
-        {
-            for (var i = 0; i < AllianceMemberSlotCount; i++)
-            {
-                var member = this.TryCreateAllianceMemberReference(i);
-                if (member is not null)
-                    this.AddPartyCooldownStatusSamplesFromPartyMember(member, memberEntityIds, "partyCooldownAllianceMember");
-            }
-        }
-
         if (ObjectTable.LocalPlayer is IBattleChara player && (PartyList.Length == 0 || memberEntityIds.Contains(player.EntityId)))
             this.AddPartyCooldownStatusSamplesFromCharacter(player, memberEntityIds);
 

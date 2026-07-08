@@ -2,7 +2,10 @@ namespace FFXIVAura;
 
 public sealed unsafe partial class Plugin
 {
-    private const int AllianceMemberSlotCount = 16;
+    private const int PartyMemberSlotCount = 8;
+    private const int AllianceGroupCount = 3;
+    private const int AllianceGroupMemberSlotCount = 8;
+    private const int FlatAllianceMemberSlotCount = 20;
 
     private readonly record struct PartyCooldownRosterReadResult(
         IReadOnlyList<PartyCooldownMemberSnapshot> Members,
@@ -20,15 +23,27 @@ public sealed unsafe partial class Plugin
         var partyListLength = Math.Max(0, PartyList.Length);
         var hasAllianceSource = PartyList.IsAlliance;
         var partyId = (int)PartyList.PartyId;
-        var ownAllianceGroup = PartyCooldownAllianceGroups.OwnPartyLabel(hasAllianceSource, partyId);
-        var capacity = Math.Max(partyListLength + (hasAllianceSource ? AllianceMemberSlotCount : 0), 1);
+        var capacity = Math.Max(hasAllianceSource ? AllianceGroupCount * AllianceGroupMemberSlotCount : partyListLength, 1);
         var members = new List<PartyCooldownMemberSnapshot>(capacity);
         var seenKeys = new HashSet<string>(StringComparer.Ordinal);
 
-        this.AddPartyCooldownPartyListMembers(members, seenKeys, ownAllianceGroup);
-        var allianceMemberCount = hasAllianceSource
-            ? this.AddPartyCooldownAllianceMembers(members, seenKeys, partyId)
-            : 0;
+        var allianceMemberCount = 0;
+        if (hasAllianceSource)
+        {
+            allianceMemberCount = this.AddPartyCooldownAllianceGroupMembers(members, seenKeys);
+            if (allianceMemberCount == 0)
+            {
+                this.AddPartyCooldownPartySlotMembers(
+                    members,
+                    seenKeys,
+                    PartyCooldownAllianceGroups.OwnPartyLabel(isAlliance: true, partyId));
+                allianceMemberCount = this.AddPartyCooldownFlatAllianceMembers(members, seenKeys, partyId);
+            }
+        }
+        else
+        {
+            this.AddPartyCooldownPartySlotMembers(members, seenKeys, string.Empty);
+        }
 
         if (members.Count == 0 && ObjectTable.LocalPlayer is IBattleChara player)
         {
@@ -63,15 +78,16 @@ public sealed unsafe partial class Plugin
             hasUsableAllianceSource);
     }
 
-    private int AddPartyCooldownPartyListMembers(
+    private int AddPartyCooldownPartySlotMembers(
         List<PartyCooldownMemberSnapshot> members,
         HashSet<string> seenKeys,
         string allianceGroup)
     {
         var added = 0;
-        for (var i = 0; i < PartyList.Length; i++)
+        var partySlotCount = Math.Clamp(PartyList.Length, 0, PartyMemberSlotCount);
+        for (var i = 0; i < partySlotCount; i++)
         {
-            var member = PartyList[i];
+            var member = this.TryCreatePartyMemberReference(i);
             if (member is not null && this.TryAddPartyCooldownMemberSnapshot(members, seenKeys, member, allianceGroup))
                 added++;
         }
@@ -79,15 +95,34 @@ public sealed unsafe partial class Plugin
         return added;
     }
 
-    private int AddPartyCooldownAllianceMembers(
+    private int AddPartyCooldownAllianceGroupMembers(
+        List<PartyCooldownMemberSnapshot> members,
+        HashSet<string> seenKeys)
+    {
+        var added = 0;
+        for (var group = 0; group < AllianceGroupCount; group++)
+        {
+            var label = PartyCooldownAllianceGroups.GroupLabel(group);
+            for (var index = 0; index < AllianceGroupMemberSlotCount; index++)
+            {
+                var member = this.TryCreateAllianceGroupMemberReference(group, index);
+                if (member is not null && this.TryAddPartyCooldownMemberSnapshot(members, seenKeys, member, label))
+                    added++;
+            }
+        }
+
+        return added;
+    }
+
+    private int AddPartyCooldownFlatAllianceMembers(
         List<PartyCooldownMemberSnapshot> members,
         HashSet<string> seenKeys,
         int localPartyId)
     {
         var added = 0;
-        for (var i = 0; i < AllianceMemberSlotCount; i++)
+        for (var i = 0; i < FlatAllianceMemberSlotCount; i++)
         {
-            var member = this.TryCreateAllianceMemberReference(i);
+            var member = this.TryCreateFlatAllianceMemberReference(i);
             if (member is not null
                 && this.TryAddPartyCooldownMemberSnapshot(
                     members,
@@ -138,7 +173,45 @@ public sealed unsafe partial class Plugin
         }
     }
 
-    private IPartyMember? TryCreateAllianceMemberReference(int index)
+    private IPartyMember? TryCreatePartyMemberReference(int index)
+    {
+        try
+        {
+            var address = PartyList.GetPartyMemberAddress(index);
+            if (address == IntPtr.Zero)
+                return null;
+
+            return PartyList.CreatePartyMemberReference(address);
+        }
+        catch (Exception ex)
+        {
+            this.SetBugDiagnosticEvent($"partyCooldownPartyMemberReadFailed:{index}:{ex.GetType().Name}");
+            return null;
+        }
+    }
+
+    private IPartyMember? TryCreateAllianceGroupMemberReference(int group, int index)
+    {
+        try
+        {
+            var groupManager = FFXIVClientStructs.FFXIV.Client.Game.Group.GroupManager.Instance();
+            if (groupManager is null)
+                return null;
+
+            var member = groupManager->MainGroup.GetAllianceMemberByGroupAndIndex(group, index);
+            if (member is null)
+                return null;
+
+            return PartyList.CreateAllianceMemberReference((IntPtr)member);
+        }
+        catch (Exception ex)
+        {
+            this.SetBugDiagnosticEvent($"partyCooldownAllianceGroupMemberReadFailed:{group}:{index}:{ex.GetType().Name}");
+            return null;
+        }
+    }
+
+    private IPartyMember? TryCreateFlatAllianceMemberReference(int index)
     {
         try
         {
@@ -150,7 +223,7 @@ public sealed unsafe partial class Plugin
         }
         catch (Exception ex)
         {
-            this.SetBugDiagnosticEvent($"partyCooldownAllianceMemberReadFailed:{index}:{ex.GetType().Name}");
+            this.SetBugDiagnosticEvent($"partyCooldownFlatAllianceMemberReadFailed:{index}:{ex.GetType().Name}");
             return null;
         }
     }
@@ -164,26 +237,86 @@ public sealed unsafe partial class Plugin
 
     private void AddPartyCooldownStatusSamplesFromPartyList(HashSet<uint> partyEntityIds)
     {
-        for (var i = 0; i < PartyList.Length; i++)
+        if (PartyList.IsAlliance)
         {
-            var member = PartyList[i];
-            if (member is not null)
-                this.AddPartyCooldownStatusSamplesFromPartyMember(member, partyEntityIds, "partyCooldownPartyMember");
+            var added = this.AddPartyCooldownStatusSamplesFromAllianceGroupMembers(partyEntityIds);
+            if (added > 0)
+                return;
+
+            this.AddPartyCooldownStatusSamplesFromPartySlots(partyEntityIds);
+            this.AddPartyCooldownStatusSamplesFromFlatAllianceMembers(partyEntityIds);
+            return;
         }
+
+        this.AddPartyCooldownStatusSamplesFromPartySlots(partyEntityIds);
     }
 
-    private void AddPartyCooldownStatusSamplesFromPartyMember(
+    private int AddPartyCooldownStatusSamplesFromPartySlots(HashSet<uint> partyEntityIds)
+    {
+        var added = 0;
+        var partySlotCount = Math.Clamp(PartyList.Length, 0, PartyMemberSlotCount);
+        for (var i = 0; i < partySlotCount; i++)
+        {
+            var member = this.TryCreatePartyMemberReference(i);
+            if (member is not null
+                && this.AddPartyCooldownStatusSamplesFromPartyMember(member, partyEntityIds, "partyCooldownPartyMember"))
+            {
+                added++;
+            }
+        }
+
+        return added;
+    }
+
+    private int AddPartyCooldownStatusSamplesFromAllianceGroupMembers(HashSet<uint> partyEntityIds)
+    {
+        var added = 0;
+        for (var group = 0; group < AllianceGroupCount; group++)
+        {
+            for (var index = 0; index < AllianceGroupMemberSlotCount; index++)
+            {
+                var member = this.TryCreateAllianceGroupMemberReference(group, index);
+                if (member is null)
+                    continue;
+
+                if (this.AddPartyCooldownStatusSamplesFromPartyMember(member, partyEntityIds, "partyCooldownAllianceGroupMember"))
+                    added++;
+            }
+        }
+
+        return added;
+    }
+
+    private int AddPartyCooldownStatusSamplesFromFlatAllianceMembers(HashSet<uint> partyEntityIds)
+    {
+        var added = 0;
+        for (var i = 0; i < FlatAllianceMemberSlotCount; i++)
+        {
+            var member = this.TryCreateFlatAllianceMemberReference(i);
+            if (member is null)
+                continue;
+
+            if (this.AddPartyCooldownStatusSamplesFromPartyMember(member, partyEntityIds, "partyCooldownFlatAllianceMember"))
+                added++;
+        }
+
+        return added;
+    }
+
+    private bool AddPartyCooldownStatusSamplesFromPartyMember(
         IPartyMember member,
         HashSet<uint> partyEntityIds,
         string scope)
     {
         if (member.EntityId == 0)
-            return;
+            return false;
 
         if (!this.TryReadStatusSnapshots(member.Statuses, scope, member.EntityId))
-            return;
+            return true;
 
         foreach (var status in this.statusSnapshotBuffer)
             this.AddPartyCooldownStatusSample(member.EntityId, status.SourceId, status.StatusId, status.RemainingTime, partyEntityIds);
+
+        return true;
     }
 }

@@ -8,6 +8,7 @@ internal static class PartyCooldownAllianceGroupsTests
     public static IReadOnlyList<(string Name, Action Run)> Cases { get; } =
     [
         ("PartyCooldownAllianceGroups hides labels outside alliance", HidesLabelsOutsideAlliance),
+        ("PartyCooldownAllianceGroups labels exact alliance groups", LabelsExactAllianceGroups),
         ("PartyCooldownAllianceGroups labels local party from party id", LabelsLocalPartyFromPartyId),
         ("PartyCooldownAllianceGroups labels alliance slots around local party", LabelsAllianceSlotsAroundLocalParty),
     ];
@@ -15,6 +16,14 @@ internal static class PartyCooldownAllianceGroupsTests
     private static void HidesLabelsOutsideAlliance()
     {
         Equal(string.Empty, PartyCooldownAllianceGroups.OwnPartyLabel(isAlliance: false, partyId: 0));
+    }
+
+    private static void LabelsExactAllianceGroups()
+    {
+        Equal("A", PartyCooldownAllianceGroups.GroupLabel(0));
+        Equal("B", PartyCooldownAllianceGroups.GroupLabel(1));
+        Equal("C", PartyCooldownAllianceGroups.GroupLabel(2));
+        Equal(string.Empty, PartyCooldownAllianceGroups.GroupLabel(3));
     }
 
     private static void LabelsLocalPartyFromPartyId()

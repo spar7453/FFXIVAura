@@ -7,6 +7,9 @@ internal static class PartyCooldownAllianceGroups
     public static string OwnPartyLabel(bool isAlliance, int partyId)
         => isAlliance ? LabelForPartyId(NormalizePartyId(partyId, fallback: 0)) : string.Empty;
 
+    public static string GroupLabel(int groupIndex)
+        => groupIndex >= 0 && groupIndex < Labels.Length ? LabelForPartyId(groupIndex) : string.Empty;
+
     public static string AllianceSlotLabel(int allianceSlotIndex, int localPartyId)
     {
         var local = NormalizePartyId(localPartyId, fallback: 0);

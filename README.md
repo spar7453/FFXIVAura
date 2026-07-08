@@ -96,7 +96,7 @@ Open the settings window with `/fa`.
 - Aura search results show where a status came from, including active, recent, action-granted skill names, full status list, and same-name ID hints. Action-granted statuses keep their skill source tag even when found by status name or status ID.
 - Buff/debuff windows set to the Active display condition continuously compact the currently active auras so expired or newly appeared statuses do not leave empty slots.
 - Party defensive, party healing cooldown, and party damage synergy windows use built-in job data instead of manual tracking lists. Skills above the current effective level are hidden for synced content.
-- Party cooldown boards read the current party roster and, when Dalamud reports an alliance, the additional alliance member roster as well. Alliance rows include A/B/C labels derived from the local party ID and alliance member slots.
+- Party cooldown boards read the current party roster and, when Dalamud reports an alliance, the grouped alliance roster as well. Alliance rows include A/B/C labels from the alliance group index, with a flat alliance-list fallback for compatibility.
 - In party cooldown windows, uncheck preset entries in the settings list to exclude skills you do not want that window to track.
 
 The most common per-window controls are available directly on the unlocked overlay:
