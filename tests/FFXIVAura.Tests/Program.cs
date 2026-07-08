@@ -5,6 +5,7 @@ var tests = new List<(string Name, Action Run)>();
 tests.AddRange(CooldownMathTests.Cases);
 tests.AddRange(JobInfoTests.Cases);
 tests.AddRange(AbilityDataTests.Cases);
+tests.AddRange(PluginDataFilesTests.Cases);
 tests.AddRange(IconWindowIdentityTests.Cases);
 tests.AddRange(IconWindowCloneTests.Cases);
 tests.AddRange(OverlayPositionKeysTests.Cases);

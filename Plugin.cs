@@ -239,8 +239,10 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     {
         try
         {
-            var path = Path.Combine(PluginInterface.AssemblyLocation.DirectoryName!, "Data", "abilities.json");
-            var json = File.ReadAllText(path);
+            var json = PluginDataFiles.ReadText(
+                PluginInterface.AssemblyLocation.DirectoryName!,
+                Path.Combine("Data", "abilities.json"),
+                PluginDataFiles.AbilitiesResourceName);
             var loaded = JsonSerializer.Deserialize<List<AbilityDefinition>>(json, new JsonSerializerOptions
             {
                 PropertyNameCaseInsensitive = true,

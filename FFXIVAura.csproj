@@ -6,9 +6,9 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <AssemblyName>FFXIVAura</AssemblyName>
     <RootNamespace>FFXIVAura</RootNamespace>
-    <Version>0.1.0.20</Version>
-    <AssemblyVersion>0.1.0.20</AssemblyVersion>
-    <FileVersion>0.1.0.20</FileVersion>
+    <Version>0.1.0.21</Version>
+    <AssemblyVersion>0.1.0.21</AssemblyVersion>
+    <FileVersion>0.1.0.21</FileVersion>
     <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
   </PropertyGroup>
 
@@ -32,5 +32,10 @@
   <ItemGroup>
     <None Include="Data\abilities.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Data\party_cooldowns.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Data\abilities.json" LogicalName="FFXIVAura.Data.abilities.json" />
+    <EmbeddedResource Include="Data\party_cooldowns.json" LogicalName="FFXIVAura.Data.party_cooldowns.json" />
   </ItemGroup>
 </Project>

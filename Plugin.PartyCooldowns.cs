@@ -6,8 +6,10 @@ public sealed unsafe partial class Plugin
     {
         try
         {
-            var path = Path.Combine(PluginInterface.AssemblyLocation.DirectoryName!, "Data", "party_cooldowns.json");
-            var json = File.ReadAllText(path);
+            var json = PluginDataFiles.ReadText(
+                PluginInterface.AssemblyLocation.DirectoryName!,
+                Path.Combine("Data", "party_cooldowns.json"),
+                PluginDataFiles.PartyCooldownsResourceName);
             var loaded = JsonSerializer.Deserialize<List<PartyCooldownDefinition>>(json, new JsonSerializerOptions
             {
                 PropertyNameCaseInsensitive = true,
