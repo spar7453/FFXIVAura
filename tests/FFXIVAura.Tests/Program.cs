@@ -18,6 +18,7 @@ tests.AddRange(OverlayTests.Cases);
 tests.AddRange(SkillPositionLayoutTests.Cases);
 tests.AddRange(PartyCooldownBoardLayoutTests.Cases);
 tests.AddRange(PartyCooldownMemberOrderingTests.Cases);
+tests.AddRange(PartyCooldownRosterTests.Cases);
 tests.AddRange(PartyCooldownDefinitionSelectorTests.Cases);
 tests.AddRange(PartyCooldownDefinitionIdentityTests.Cases);
 tests.AddRange(PartyCooldownStatusResolverTests.Cases);

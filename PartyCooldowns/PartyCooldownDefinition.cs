@@ -21,6 +21,7 @@ internal sealed class PartyCooldownDefinition
     public string Job { get; set; } = string.Empty;
     public uint ActionId { get; set; }
     public uint[] StatusIds { get; set; } = [];
+    public string ReplacementGroup { get; set; } = string.Empty;
     public byte Level { get; set; }
     public float Cooldown { get; set; }
     public float Duration { get; set; }
@@ -79,4 +80,6 @@ internal sealed record PartyCooldownMemberRow(
 
 internal sealed record PartyCooldownFrameSnapshot(
     IReadOnlyList<PartyCooldownMemberSnapshot> Members,
+    IReadOnlyList<PartyCooldownMemberSnapshot> DisplayMembers,
+    PartyCooldownRosterDiagnostics RosterDiagnostics,
     DateTime TimestampUtc);

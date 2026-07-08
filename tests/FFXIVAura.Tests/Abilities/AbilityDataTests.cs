@@ -13,6 +13,8 @@ internal static class AbilityDataTests
         ("abilities.json role actions map to a job", AbilitiesJsonRoleActionsMapToAJob),
         ("party_cooldowns.json has valid core fields", PartyCooldownsJsonHasValidCoreFields),
         ("party_cooldowns.json ids are unique", PartyCooldownsJsonIdsAreUnique),
+        ("party_cooldowns.json replacement groups are well formed", PartyCooldownsJsonReplacementGroupsAreWellFormed),
+        ("party_cooldowns.json replacement groups select effective actions", PartyCooldownsJsonReplacementGroupsSelectEffectiveActions),
         ("party_cooldowns.json durationless definitions are documented", PartyCooldownsJsonDurationlessDefinitionsAreDocumented),
         ("party_cooldowns.json references ability data", PartyCooldownsJsonReferencesAbilityData),
     ];
@@ -84,6 +86,7 @@ internal static class AbilityDataTests
             True(JobInfo.Id(definition.Job) > 0 || string.Equals(definition.Job, "ROLE", StringComparison.OrdinalIgnoreCase), $"{definition.Id} should use a known job");
             True(definition.ActionId > 0, $"{definition.Id} should have an action id");
             True(!float.IsNaN(definition.Duration) && !float.IsInfinity(definition.Duration) && definition.Duration >= 0f, $"{definition.Id} should have a valid duration");
+            Equal(definition.ReplacementGroup.Trim(), definition.ReplacementGroup);
             True(definition.StatusIds.All(statusId => statusId > 0), $"{definition.Id} should not include invalid status ids");
             Equal(definition.StatusIds.Distinct().Count(), definition.StatusIds.Length);
         }
@@ -111,6 +114,50 @@ internal static class AbilityDataTests
             .ToList();
 
         True(duplicateIds.Count == 0, $"duplicate party cooldown ids: {string.Join(", ", duplicateIds)}");
+    }
+
+    private static void PartyCooldownsJsonReplacementGroupsAreWellFormed()
+    {
+        var grouped = LoadPartyCooldownData()
+            .Where(definition => !string.IsNullOrWhiteSpace(definition.ReplacementGroup))
+            .GroupBy(definition => $"{definition.Job}:{definition.Category}:{definition.ReplacementGroup}", StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var singletons = grouped
+            .Where(group => group.Count() < 2)
+            .Select(group => group.Key)
+            .ToList();
+        var physisGroup = grouped.FirstOrDefault(group => string.Equals(group.Key, "SGE:Healing:sge-physis", StringComparison.OrdinalIgnoreCase));
+
+        True(singletons.Count == 0, $"replacement groups should contain at least two definitions: {string.Join(", ", singletons)}");
+        True(physisGroup is not null, "sge physis replacement group should be defined");
+        Sequence(["sge-physis", "sge-physis-ii"], physisGroup!.Select(definition => definition.Id).ToArray());
+    }
+
+    private static void PartyCooldownsJsonReplacementGroupsSelectEffectiveActions()
+    {
+        var levelsByActionId = LoadAbilityData()
+            .GroupBy(ability => ability.ActionId)
+            .ToDictionary(group => group.Key, group => group.First().Level);
+        var physisDefinitions = LoadPartyCooldownData()
+            .Where(definition => string.Equals(definition.ReplacementGroup, "sge-physis", StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        foreach (var definition in physisDefinitions)
+        {
+            if (levelsByActionId.TryGetValue(definition.ActionId, out var level))
+                definition.Level = level;
+        }
+
+        var lowLevelSelected = PartyCooldownDefinitionSelector
+            .SelectEffectiveForLevel(physisDefinitions, 50, DataReplacementKey)
+            .Select(definition => definition.Id)
+            .ToArray();
+        var highLevelSelected = PartyCooldownDefinitionSelector
+            .SelectEffectiveForLevel(physisDefinitions, 100, DataReplacementKey)
+            .Select(definition => definition.Id)
+            .ToArray();
+
+        Sequence(["sge-physis"], lowLevelSelected);
+        Sequence(["sge-physis-ii"], highLevelSelected);
     }
 
     private static void PartyCooldownsJsonDurationlessDefinitionsAreDocumented()
@@ -151,4 +198,9 @@ internal static class AbilityDataTests
 
     private static string[] KnownJobCodes()
         => ["PLD", "WAR", "DRK", "GNB", "WHM", "SCH", "AST", "SGE", "MNK", "DRG", "NIN", "SAM", "RPR", "VPR", "BRD", "MCH", "DNC", "BLM", "SMN", "RDM", "PCT"];
+
+    private static string DataReplacementKey(PartyCooldownDefinition definition)
+        => string.IsNullOrWhiteSpace(definition.ReplacementGroup)
+            ? string.Empty
+            : $"{definition.Job}:{definition.Category}:{definition.ReplacementGroup}";
 }

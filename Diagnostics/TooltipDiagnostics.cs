@@ -20,7 +20,11 @@ internal readonly record struct TooltipDiagnosticSnapshot(
     int NativeControls,
     string LastKind,
     string LastId,
+    string LastWindowId,
+    string LastIconId,
     uint LastActionId,
+    int LastDrawnIconCount,
+    bool LastHitboxExpanded,
     string LastSkipReason,
     DateTime LastEventUtc,
     bool HasLastGeometry,
@@ -28,7 +32,14 @@ internal readonly record struct TooltipDiagnosticSnapshot(
     Vector2 LastRectMin,
     Vector2 LastRectMax,
     bool LastContainsMouse,
-    bool LastImGuiHovered);
+    bool LastImGuiHovered,
+    uint LastAgentActionId,
+    uint LastAgentOriginalId,
+    bool HasLastNativeAddon,
+    bool LastAddonVisible,
+    Vector2 LastAddonSize,
+    Vector2 LastControlMouse,
+    Vector2 LastControlPosition);
 
 internal sealed class TooltipDiagnostics
 {
@@ -44,7 +55,11 @@ internal sealed class TooltipDiagnostics
     private int nativeControls;
     private string lastKind = string.Empty;
     private string lastId = string.Empty;
+    private string lastWindowId = string.Empty;
+    private string lastIconId = string.Empty;
     private uint lastActionId;
+    private int lastDrawnIconCount;
+    private bool lastHitboxExpanded;
     private string lastSkipReason = string.Empty;
     private DateTime lastEventUtc = DateTime.MinValue;
     private bool hasLastGeometry;
@@ -53,11 +68,21 @@ internal sealed class TooltipDiagnostics
     private Vector2 lastRectMax;
     private bool lastContainsMouse;
     private bool lastImGuiHovered;
+    private uint lastAgentActionId;
+    private uint lastAgentOriginalId;
+    private bool hasLastNativeAddon;
+    private bool lastAddonVisible;
+    private Vector2 lastAddonSize;
+    private Vector2 lastControlMouse;
+    private Vector2 lastControlPosition;
 
     public void RecordHover(
         TooltipDiagnosticKind kind,
+        string windowId,
         string id,
         uint actionId,
+        int drawnIconCount,
+        bool hitboxExpanded,
         Vector2 mouse,
         Vector2 rectMin,
         Vector2 rectMax,
@@ -66,6 +91,10 @@ internal sealed class TooltipDiagnostics
     {
         this.hoverHits++;
         this.RememberLast(kind, id, actionId);
+        this.lastWindowId = windowId.Trim();
+        this.lastIconId = id.Trim();
+        this.lastDrawnIconCount = Math.Max(0, drawnIconCount);
+        this.lastHitboxExpanded = hitboxExpanded;
         this.hasLastGeometry = true;
         this.lastMouse = mouse;
         this.lastRectMin = rectMin;
@@ -106,6 +135,13 @@ internal sealed class TooltipDiagnostics
         this.lastEventUtc = DateTime.UtcNow;
     }
 
+    public void RecordNativeAgentIds(uint actionId, uint originalId)
+    {
+        this.lastAgentActionId = actionId;
+        this.lastAgentOriginalId = originalId;
+        this.lastEventUtc = DateTime.UtcNow;
+    }
+
     public void RecordZeroActionSkip()
     {
         this.zeroActionSkips++;
@@ -124,9 +160,14 @@ internal sealed class TooltipDiagnostics
         this.RememberNativeSkip("addonMissing");
     }
 
-    public void RecordNativeControl()
+    public void RecordNativeControl(NativeActionTooltipControlResult control)
     {
         this.nativeControls++;
+        this.hasLastNativeAddon = true;
+        this.lastAddonVisible = control.AddonVisible;
+        this.lastAddonSize = control.AddonSize;
+        this.lastControlMouse = control.MousePosition;
+        this.lastControlPosition = control.Position;
         this.lastEventUtc = DateTime.UtcNow;
     }
 
@@ -144,7 +185,11 @@ internal sealed class TooltipDiagnostics
             this.nativeControls,
             this.lastKind,
             this.lastId,
+            this.lastWindowId,
+            this.lastIconId,
             this.lastActionId,
+            this.lastDrawnIconCount,
+            this.lastHitboxExpanded,
             this.lastSkipReason,
             this.lastEventUtc,
             this.hasLastGeometry,
@@ -152,7 +197,14 @@ internal sealed class TooltipDiagnostics
             this.lastRectMin,
             this.lastRectMax,
             this.lastContainsMouse,
-            this.lastImGuiHovered);
+            this.lastImGuiHovered,
+            this.lastAgentActionId,
+            this.lastAgentOriginalId,
+            this.hasLastNativeAddon,
+            this.lastAddonVisible,
+            this.lastAddonSize,
+            this.lastControlMouse,
+            this.lastControlPosition);
 
     public void ResetIntervalCounters()
     {

@@ -17,8 +17,11 @@ internal static class TooltipDiagnosticsTests
         var diagnostics = new TooltipDiagnostics();
         diagnostics.RecordHover(
             TooltipDiagnosticKind.Ability,
+            "win1",
             "jump",
             92,
+            drawnIconCount: 12,
+            hitboxExpanded: true,
             new Vector2(10, 11),
             new Vector2(1, 2),
             new Vector2(43, 44),
@@ -26,7 +29,12 @@ internal static class TooltipDiagnosticsTests
             imguiHovered: true);
         diagnostics.RecordTooltipRequest(TooltipDiagnosticKind.Ability, "jump", 92);
         diagnostics.RecordNativeActionRequest(92);
-        diagnostics.RecordNativeControl();
+        diagnostics.RecordNativeAgentIds(92, 91);
+        diagnostics.RecordNativeControl(new NativeActionTooltipControlResult(
+            AddonVisible: true,
+            AddonSize: new Vector2(120, 64),
+            MousePosition: new Vector2(20, 30),
+            Position: new Vector2(38, 48)));
         diagnostics.RecordAddonMissingSkip();
 
         var snapshot = diagnostics.CreateSnapshot();
@@ -38,7 +46,11 @@ internal static class TooltipDiagnosticsTests
         Equal(1, snapshot.AddonMissingSkips);
         Equal("Ability", snapshot.LastKind);
         Equal("jump", snapshot.LastId);
+        Equal("win1", snapshot.LastWindowId);
+        Equal("jump", snapshot.LastIconId);
         Equal(92u, snapshot.LastActionId);
+        Equal(12, snapshot.LastDrawnIconCount);
+        True(snapshot.LastHitboxExpanded, "hitbox expansion should be preserved");
         Equal("addonMissing", snapshot.LastSkipReason);
         True(snapshot.HasLastGeometry, "hover geometry should be captured");
         Vector(new Vector2(10, 11), snapshot.LastMouse);
@@ -46,6 +58,13 @@ internal static class TooltipDiagnosticsTests
         Vector(new Vector2(43, 44), snapshot.LastRectMax);
         True(snapshot.LastContainsMouse, "mouse should be marked inside the rect");
         True(snapshot.LastImGuiHovered, "imgui hover should be preserved");
+        Equal(92u, snapshot.LastAgentActionId);
+        Equal(91u, snapshot.LastAgentOriginalId);
+        True(snapshot.HasLastNativeAddon, "native addon state should be captured");
+        True(snapshot.LastAddonVisible, "addon visibility should be preserved");
+        Vector(new Vector2(120, 64), snapshot.LastAddonSize);
+        Vector(new Vector2(20, 30), snapshot.LastControlMouse);
+        Vector(new Vector2(38, 48), snapshot.LastControlPosition);
     }
 
     private static void ResetsCountersButKeepsLastEvent()

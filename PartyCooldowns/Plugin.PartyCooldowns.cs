@@ -40,6 +40,7 @@ public sealed unsafe partial class Plugin
         definition.Category = definition.Category.Trim();
         definition.Job = definition.Job.Trim().ToUpperInvariant();
         definition.Name = definition.Name.Trim();
+        definition.ReplacementGroup = definition.ReplacementGroup.Trim();
         definition.StatusIds = definition.StatusIds
             .Where(statusId => statusId > 0)
             .Distinct()
@@ -124,7 +125,7 @@ public sealed unsafe partial class Plugin
     {
         var category = IconWindowRoles.GetPartyCooldownCategory(iconWindow.Role);
         var frameSnapshot = this.GetPartyCooldownFrameSnapshot();
-        var members = frameSnapshot.Members;
+        var members = frameSnapshot.DisplayMembers;
 
         var rows = new List<PartyCooldownMemberRow>(members.Count);
         var candidateItemCount = 0;
@@ -169,8 +170,18 @@ public sealed unsafe partial class Plugin
             return this.partyCooldownFrameSnapshot;
 
         var members = this.GetPartyCooldownMembers();
-        this.RebuildPartyCooldownActiveStatusIndex(members);
-        this.partyCooldownFrameSnapshot = new PartyCooldownFrameSnapshot(members, DateTime.UtcNow);
+        var displayMembers = this.GetPartyCooldownDisplayMembers(members);
+        this.RebuildPartyCooldownActiveStatusIndex(displayMembers);
+        this.partyCooldownFrameSnapshot = new PartyCooldownFrameSnapshot(
+            members,
+            displayMembers,
+            PartyCooldownRoster.CreateDiagnostics(
+                PartyList.Length > 0 ? PartyCooldownRosterSource.PartyList : PartyCooldownRosterSource.SoloFallback,
+                PartyList.Length,
+                members,
+                displayMembers,
+                ObjectTable.LocalPlayer?.EntityId ?? 0),
+            DateTime.UtcNow);
         return this.partyCooldownFrameSnapshot;
     }
 
@@ -200,7 +211,7 @@ public sealed unsafe partial class Plugin
     private float GetEstimatedPartyCooldownBoardHeight(IconWindowConfig iconWindow, uint level)
     {
         var category = IconWindowRoles.GetPartyCooldownCategory(iconWindow.Role);
-        var members = this.GetPartyCooldownFrameSnapshot().Members;
+        var members = this.GetPartyCooldownFrameSnapshot().DisplayMembers;
         var iconSize = iconWindow.IconSize;
         var gap = Math.Max(2f, iconWindow.Gap);
         var padding = Math.Max(4f, gap);
@@ -362,6 +373,9 @@ public sealed unsafe partial class Plugin
 
     private string GetPartyCooldownEquivalenceKey(PartyCooldownDefinition definition)
     {
+        if (!string.IsNullOrWhiteSpace(definition.ReplacementGroup))
+            return $"{definition.Job}:{definition.Category}:{definition.ReplacementGroup}";
+
         var group = this.GetActionEquivalenceGroup(definition.ActionId);
         var actionCategory = this.GetActionCategory(definition.ActionId).RowId;
         if (group == 0 || actionCategory == 0)
@@ -374,7 +388,7 @@ public sealed unsafe partial class Plugin
         uint entityId,
         out PartyCooldownMemberSnapshot member)
     {
-        foreach (var candidate in this.GetPartyCooldownMembers())
+        foreach (var candidate in this.GetPartyCooldownDisplayMembers(this.GetPartyCooldownMembers()))
         {
             if (candidate.EntityId == entityId)
             {
@@ -526,6 +540,13 @@ public sealed unsafe partial class Plugin
         var localEntityId = ObjectTable.LocalPlayer?.EntityId ?? 0;
         return PartyCooldownMemberOrdering.Sort(members, localEntityId);
     }
+
+    private IReadOnlyList<PartyCooldownMemberSnapshot> GetPartyCooldownDisplayMembers(
+        IReadOnlyList<PartyCooldownMemberSnapshot> members)
+        => PartyCooldownRoster.CreateDisplayMembers(
+            members,
+            ObjectTable.LocalPlayer?.EntityId ?? 0,
+            excludeLocalPlayer: true);
 
     private void RebuildPartyCooldownActiveStatusIndex(IReadOnlyList<PartyCooldownMemberSnapshot> members)
     {

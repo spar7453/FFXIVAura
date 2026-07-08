@@ -132,6 +132,7 @@ public sealed unsafe partial class Plugin
         var iconAreaWidth = Math.Max(0f, areaSize.X - padding * 2f - labelWidth);
         var iconsPerLine = PartyCooldownBoardLayout.GetIconLineCapacity(iconAreaWidth, iconSize, gap);
         var rowY = areaOrigin.Y + padding;
+        var drawnIconCount = rows.Sum(row => row.Items.Count);
 
         draw.PushClipRect(areaOrigin, areaOrigin + areaSize, true);
         for (var rowIndex = 0; rowIndex < rows.Count; rowIndex++)
@@ -173,7 +174,7 @@ public sealed unsafe partial class Plugin
 
                     ImGui.SetCursorScreenPos(iconPos);
                     this.DrawPartyCooldownIcon(row.Items[itemIndex], iconSize);
-                    this.HandlePartyCooldownIconInteraction(row.Items[itemIndex], iconPos, iconSize);
+                    this.HandlePartyCooldownIconInteraction(iconWindow, row.Items[itemIndex], iconPos, iconSize, drawnIconCount);
                 }
             }
 
@@ -235,14 +236,14 @@ public sealed unsafe partial class Plugin
         }
     }
 
-    private void HandlePartyCooldownIconInteraction(PartyCooldownDisplayItem item, Vector2 iconPos, float iconSize)
+    private void HandlePartyCooldownIconInteraction(IconWindowConfig iconWindow, PartyCooldownDisplayItem item, Vector2 iconPos, float iconSize, int drawnIconCount)
     {
         var iconMax = iconPos + new Vector2(iconSize, iconSize);
         if (this.config.LockOverlay)
         {
             if (IsMouseInRect(iconPos, iconMax))
             {
-                this.RecordTooltipHover(TooltipDiagnosticKind.PartyCooldown, item.Definition.Id, item.Definition.ActionId, iconPos, iconMax, imguiHovered: false);
+                this.RecordTooltipHover(TooltipDiagnosticKind.PartyCooldown, iconWindow.Id, item.Definition.Id, item.Definition.ActionId, drawnIconCount, hitboxExpanded: false, iconPos, iconMax, imguiHovered: false);
                 this.ShowPartyCooldownTooltip(item);
             }
 
@@ -254,7 +255,7 @@ public sealed unsafe partial class Plugin
         var hovered = ImGui.IsItemHovered() && !ImGui.IsItemActive();
         if (hovered)
         {
-            this.RecordTooltipHover(TooltipDiagnosticKind.PartyCooldown, item.Definition.Id, item.Definition.ActionId, iconPos, iconMax, imguiHovered: true);
+            this.RecordTooltipHover(TooltipDiagnosticKind.PartyCooldown, iconWindow.Id, item.Definition.Id, item.Definition.ActionId, drawnIconCount, hitboxExpanded: false, iconPos, iconMax, imguiHovered: true);
             this.ShowPartyCooldownTooltip(item);
         }
     }

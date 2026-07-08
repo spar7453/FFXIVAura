@@ -22,6 +22,7 @@ public sealed unsafe partial class Plugin
             return;
         }
 
+        this.tooltipDiagnostics.RecordNativeAgentIds(agent->ActionId, agent->OriginalId);
         this.overlayTooltipRequestedThisFrame = true;
         this.SetBugDiagnosticEvent($"tooltipActionNative:{actionId}");
         this.nativeActionTooltipController.BeginHover(actionId, DateTime.UtcNow);
@@ -29,6 +30,7 @@ public sealed unsafe partial class Plugin
         try
         {
             agent->HandleActionHover(DetailKind.Action, actionId, flag: 0, isLovmActionDetail: false, a5: 0, a6: 0);
+            this.tooltipDiagnostics.RecordNativeAgentIds(agent->ActionId, agent->OriginalId);
         }
         finally
         {
@@ -210,12 +212,12 @@ public sealed unsafe partial class Plugin
             return;
         }
 
-        this.tooltipDiagnostics.RecordNativeControl();
         this.performanceStats.CountNativeTooltipControl();
         var profileStart = this.performanceProfiler.BeginSection(PerformanceProfileSection.TooltipControl);
         try
         {
-            this.nativeActionTooltipController.Control(addon, suppressSound, ImGui.GetMousePos(), ImGui.GetIO().DisplaySize);
+            var control = this.nativeActionTooltipController.Control(addon, suppressSound, ImGui.GetMousePos(), ImGui.GetIO().DisplaySize);
+            this.tooltipDiagnostics.RecordNativeControl(control);
         }
         finally
         {

@@ -2,6 +2,12 @@ using FFXIVClientStructs.FFXIV.Component.GUI;
 
 namespace FFXIVAura;
 
+internal readonly record struct NativeActionTooltipControlResult(
+    bool AddonVisible,
+    Vector2 AddonSize,
+    Vector2 MousePosition,
+    Vector2 Position);
+
 internal sealed unsafe class NativeActionTooltipController
 {
     public const string AddonName = "ActionDetail";
@@ -64,15 +70,18 @@ internal sealed unsafe class NativeActionTooltipController
         return NativeActionTooltipIdMatcher.MatchesAny(this.state.ActionId, actionId, originalId, getAdjustedActionId);
     }
 
-    public void Control(AtkUnitBase* addon, bool suppressSound, Vector2 mousePos, Vector2 displaySize)
+    public NativeActionTooltipControlResult Control(AtkUnitBase* addon, bool suppressSound, Vector2 mousePos, Vector2 displaySize)
     {
         if (addon is null)
-            return;
+            return default;
 
         if (suppressSound)
             this.SuppressSound(addon);
 
-        MoveToMouse(addon, mousePos, displaySize, requireVisible: false);
+        var addonSize = GetAddonSize(addon);
+        var position = GetPositionAtMouse(mousePos, displaySize, addonSize);
+        addon->SetPosition((short)Math.Round(position.X), (short)Math.Round(position.Y));
+        return new NativeActionTooltipControlResult(addon->IsVisible, addonSize, mousePos, position);
     }
 
     public void SuppressSound(AtkUnitBase* addon)
@@ -135,15 +144,6 @@ internal sealed unsafe class NativeActionTooltipController
         return new Vector2(
             Math.Clamp(position.X, 0f, Math.Max(0f, displaySize.X - tooltipSize.X)),
             Math.Clamp(position.Y, 0f, Math.Max(0f, displaySize.Y - tooltipSize.Y)));
-    }
-
-    private static void MoveToMouse(AtkUnitBase* addon, Vector2 mousePos, Vector2 displaySize, bool requireVisible)
-    {
-        if (addon is null || (requireVisible && !addon->IsVisible))
-            return;
-
-        var position = GetPositionAtMouse(mousePos, displaySize, GetAddonSize(addon));
-        addon->SetPosition((short)Math.Round(position.X), (short)Math.Round(position.Y));
     }
 
     private static Vector2 GetAddonSize(AtkUnitBase* addon)

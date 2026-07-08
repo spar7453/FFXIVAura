@@ -309,13 +309,20 @@ public sealed unsafe partial class Plugin
                 partyLogOther++;
         }
 
+        var partyCooldownRoster = this.partyCooldownFrameSnapshot?.RosterDiagnostics ?? default;
         this.AppendPerformanceProfileDiagnosticRow(builder, timestampUtc, "partyCooldown", "Party Cooldown", FormatDiagnosticPairs(
             ("partyListLength", PartyList.Length),
+            ("rosterSource", partyCooldownRoster.Source),
             ("definitions", this.partyCooldownDefinitions.Count),
             ("runtimeStates", this.partyCooldownRuntimeStates.Count),
             ("activeStatuses", this.partyCooldownActiveStatusFrameCache.Count),
             ("frameSnapshot", this.partyCooldownFrameSnapshot is not null),
             ("frameMembers", this.partyCooldownFrameSnapshot?.Members.Count ?? 0),
+            ("displayMembers", this.partyCooldownFrameSnapshot?.DisplayMembers.Count ?? 0),
+            ("excludedLocalPlayer", partyCooldownRoster.ExcludedLocalPlayer),
+            ("alliancePartyCount", partyCooldownRoster.AlliancePartyCount),
+            ("allianceMembers", partyCooldownRoster.AllianceMemberCount),
+            ("hasAllianceSource", partyCooldownRoster.HasAllianceSource),
             ("liveRuntimeKeys", this.partyCooldownLiveRuntimeKeysFrameCache?.Count ?? 0),
             ("logObservations", this.partyCooldownLogObservations.Count),
             ("logTracked", partyLogTracked),
@@ -368,13 +375,24 @@ public sealed unsafe partial class Plugin
             ("nativeControls", tooltipDiagnostics.NativeControls),
             ("lastKind", tooltipDiagnostics.LastKind),
             ("lastId", tooltipDiagnostics.LastId),
+            ("lastWindowId", tooltipDiagnostics.LastWindowId),
+            ("lastIconId", tooltipDiagnostics.LastIconId),
             ("lastActionId", tooltipDiagnostics.LastActionId),
+            ("lastDrawnIconCount", tooltipDiagnostics.LastDrawnIconCount),
+            ("lastHitboxExpanded", tooltipDiagnostics.LastHitboxExpanded),
             ("lastSkip", tooltipDiagnostics.LastSkipReason),
             ("lastTimeLocal", tooltipDiagnostics.LastEventUtc == DateTime.MinValue ? string.Empty : tooltipDiagnostics.LastEventUtc.ToLocalTime()),
             ("lastMouse", tooltipDiagnostics.HasLastGeometry ? FormatDiagnosticVector(tooltipDiagnostics.LastMouse) : string.Empty),
             ("lastRect", tooltipDiagnostics.HasLastGeometry ? FormatDiagnosticRect(tooltipDiagnostics.LastRectMin, tooltipDiagnostics.LastRectMax) : string.Empty),
             ("lastContainsMouse", tooltipDiagnostics.HasLastGeometry && tooltipDiagnostics.LastContainsMouse),
-            ("lastImGuiHovered", tooltipDiagnostics.HasLastGeometry && tooltipDiagnostics.LastImGuiHovered)));
+            ("lastImGuiHovered", tooltipDiagnostics.HasLastGeometry && tooltipDiagnostics.LastImGuiHovered),
+            ("agentActionId", tooltipDiagnostics.LastAgentActionId),
+            ("agentOriginalId", tooltipDiagnostics.LastAgentOriginalId),
+            ("addonCaptured", tooltipDiagnostics.HasLastNativeAddon),
+            ("addonVisible", tooltipDiagnostics.HasLastNativeAddon && tooltipDiagnostics.LastAddonVisible),
+            ("addonSize", tooltipDiagnostics.HasLastNativeAddon ? FormatDiagnosticVector(tooltipDiagnostics.LastAddonSize) : string.Empty),
+            ("lastControlMouse", tooltipDiagnostics.HasLastNativeAddon ? FormatDiagnosticVector(tooltipDiagnostics.LastControlMouse) : string.Empty),
+            ("lastControlPosition", tooltipDiagnostics.HasLastNativeAddon ? FormatDiagnosticVector(tooltipDiagnostics.LastControlPosition) : string.Empty)));
 
         this.AppendPerformanceProfileDiagnosticRow(builder, timestampUtc, "lastEvent", "Last Event", FormatDiagnosticPairs(
             ("timeLocal", this.lastBugDiagnosticEventAtUtc == DateTime.MinValue ? string.Empty : this.lastBugDiagnosticEventAtUtc.ToLocalTime()),

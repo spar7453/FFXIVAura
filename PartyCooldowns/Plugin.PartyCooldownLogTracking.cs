@@ -158,7 +158,7 @@ public sealed unsafe partial class Plugin
     {
         PartyCooldownMemberSnapshot? matchedMember = null;
         var matchCount = 0;
-        foreach (var candidate in this.GetPartyCooldownMembers())
+        foreach (var candidate in this.GetPartyCooldownDisplayMembers(this.GetPartyCooldownMembers()))
         {
             if (!PartyCooldownLogMatcher.IsSameActor(sourceName, sourceWorldId, candidate.Name, candidate.WorldId))
                 continue;

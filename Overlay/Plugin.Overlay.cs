@@ -122,7 +122,7 @@ public sealed unsafe partial class Plugin
 
             ImGui.SetCursorScreenPos(iconPos);
             this.DrawAbilityIcon(ability, iconSize, iconWindow);
-            this.HandleOverlayIconInteraction(iconWindow, job, level, ability, localPos, iconPos, areaSize, iconSize);
+            this.HandleOverlayIconInteraction(iconWindow, job, level, ability, localPos, iconPos, areaSize, iconSize, visible.Count);
         }
 
         for (var i = 0; i < auras.Count; i++)
@@ -132,7 +132,7 @@ public sealed unsafe partial class Plugin
             var iconPos = areaOrigin + localPos;
             ImGui.SetCursorScreenPos(iconPos);
             this.DrawAuraIcon(aura, iconSize, iconWindow);
-            this.HandleAuraIconInteraction(iconWindow, aura, localPos, iconPos, areaSize, iconSize);
+            this.HandleAuraIconInteraction(iconWindow, aura, localPos, iconPos, areaSize, iconSize, auras.Count);
         }
 
         this.RememberOverlayWindowDiagnostics(iconWindow, frame);
@@ -214,14 +214,14 @@ public sealed unsafe partial class Plugin
     }
 
 
-    private void HandleOverlayIconInteraction(IconWindowConfig iconWindow, string job, uint level, AbilityDefinition ability, Vector2 localPos, Vector2 iconPos, Vector2 areaSize, float iconSize)
+    private void HandleOverlayIconInteraction(IconWindowConfig iconWindow, string job, uint level, AbilityDefinition ability, Vector2 localPos, Vector2 iconPos, Vector2 areaSize, float iconSize, int drawnIconCount)
     {
         var iconMax = iconPos + new Vector2(iconSize, iconSize);
         if (this.config.LockOverlay)
         {
             if (IsMouseInRect(iconPos, iconMax))
             {
-                this.RecordTooltipHover(TooltipDiagnosticKind.Ability, ability.Id, ability.ActionId, iconPos, iconMax, imguiHovered: false);
+                this.RecordTooltipHover(TooltipDiagnosticKind.Ability, iconWindow.Id, ability.Id, ability.ActionId, drawnIconCount, hitboxExpanded: false, iconPos, iconMax, imguiHovered: false);
                 this.RegisterAbilityTooltipCandidate(ability);
             }
 
@@ -234,7 +234,7 @@ public sealed unsafe partial class Plugin
         var hovered = ImGui.IsItemHovered() && !ImGui.IsItemActive();
         if (hovered)
         {
-            this.RecordTooltipHover(TooltipDiagnosticKind.Ability, ability.Id, ability.ActionId, iconPos, iconMax, imguiHovered: true);
+            this.RecordTooltipHover(TooltipDiagnosticKind.Ability, iconWindow.Id, ability.Id, ability.ActionId, drawnIconCount, hitboxExpanded: false, iconPos, iconMax, imguiHovered: true);
             this.ShowAbilityTooltip(ability);
         }
 
@@ -294,14 +294,14 @@ public sealed unsafe partial class Plugin
                && mouse.Y <= max.Y;
     }
 
-    private void HandleAuraIconInteraction(IconWindowConfig iconWindow, AuraState aura, Vector2 localPos, Vector2 iconPos, Vector2 areaSize, float iconSize)
+    private void HandleAuraIconInteraction(IconWindowConfig iconWindow, AuraState aura, Vector2 localPos, Vector2 iconPos, Vector2 areaSize, float iconSize, int drawnIconCount)
     {
         var iconMax = iconPos + new Vector2(iconSize, iconSize);
         if (this.config.LockOverlay || UsesCompactAuraLayout(iconWindow))
         {
             if (IsMouseInRect(iconPos, iconMax))
             {
-                this.RecordTooltipHover(TooltipDiagnosticKind.Aura, aura.StatusId.ToString(), 0, iconPos, iconMax, imguiHovered: false);
+                this.RecordTooltipHover(TooltipDiagnosticKind.Aura, iconWindow.Id, aura.StatusId.ToString(), 0, drawnIconCount, hitboxExpanded: false, iconPos, iconMax, imguiHovered: false);
                 this.RegisterAuraTooltipCandidate(aura);
             }
 
@@ -315,7 +315,7 @@ public sealed unsafe partial class Plugin
         var hovered = ImGui.IsItemHovered() && !ImGui.IsItemActive();
         if (hovered)
         {
-            this.RecordTooltipHover(TooltipDiagnosticKind.Aura, aura.StatusId.ToString(), 0, iconPos, iconMax, imguiHovered: true);
+            this.RecordTooltipHover(TooltipDiagnosticKind.Aura, iconWindow.Id, aura.StatusId.ToString(), 0, drawnIconCount, hitboxExpanded: false, iconPos, iconMax, imguiHovered: true);
             this.ShowAuraTooltip(aura);
         }
 
@@ -356,16 +356,22 @@ public sealed unsafe partial class Plugin
 
     private void RecordTooltipHover(
         TooltipDiagnosticKind kind,
+        string windowId,
         string id,
         uint actionId,
+        int drawnIconCount,
+        bool hitboxExpanded,
         Vector2 iconPos,
         Vector2 iconMax,
         bool imguiHovered)
     {
         this.tooltipDiagnostics.RecordHover(
             kind,
+            windowId,
             id,
             actionId,
+            drawnIconCount,
+            hitboxExpanded,
             ImGui.GetMousePos(),
             iconPos,
             iconMax,
