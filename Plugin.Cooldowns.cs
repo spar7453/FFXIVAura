@@ -8,7 +8,9 @@ public sealed unsafe partial class Plugin
         if (this.cooldownFrameCache.TryGetValue(key, out var cached))
             return cached;
 
+        var profileStart = this.performanceProfiler.BeginSection(PerformanceProfileSection.Cooldown);
         var state = this.ComputeCooldown(ability);
+        this.performanceProfiler.EndSection(PerformanceProfileSection.Cooldown, profileStart);
         this.performanceStats.CountCooldownCalculation();
         this.cooldownFrameCache[key] = state;
         return state;

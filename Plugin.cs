@@ -29,6 +29,12 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private const float MaxOverlayWidth = 1200f;
     private const float MinOverlayHeight = 40f;
     private const float MaxOverlayHeight = 400f;
+    private const int AbilityCandidateCacheLimit = 512;
+    private const int PartyCooldownLogObservationLimit = 64;
+    private const int MinPerformanceProfileRecordIntervalSeconds = 1;
+    private const int MaxPerformanceProfileRecordIntervalSeconds = 60;
+    private const int MinPerformanceProfileMaxFileMegabytes = 1;
+    private const int MaxPerformanceProfileMaxFileMegabytes = 1024;
     private const float DefaultIconSize = 42f;
     private const float MinIconSize = 24f;
     private const float MaxIconSize = 72f;
@@ -55,6 +61,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     [PluginService] private static IObjectTable ObjectTable { get; set; } = null!;
     [PluginService] private static IPartyList PartyList { get; set; } = null!;
     [PluginService] private static IGameGui GameGui { get; set; } = null!;
+    [PluginService] private static IChatGui ChatGui { get; set; } = null!;
     [PluginService] private static IAddonLifecycle AddonLifecycle { get; set; } = null!;
     [PluginService] private static IPluginLog Log { get; set; } = null!;
 
@@ -66,6 +73,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
         ("Role", "역할"),
     ];
     private readonly List<AbilityDefinition> abilities = [];
+    private readonly List<PartyCooldownDefinition> partyCooldownDefinitions = [];
     private readonly Dictionary<uint, (uint RowId, string Name)> actionCategoryCache = new();
     private readonly Dictionary<uint, byte> actionEquivalenceGroupCache = new();
     private readonly Dictionary<uint, GameAction> actionRowCache = new();
@@ -76,6 +84,20 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private readonly List<AuraSearchIndexEntry> actionGrantedStatusSearchIndex = [];
     private readonly List<AuraSearchIndexEntry> allStatusSearchIndex = [];
     private readonly Dictionary<string, CooldownState> cooldownFrameCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, IReadOnlyList<AbilityDefinition>> jobCandidatesCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, PartyCooldownRuntimeState> partyCooldownRuntimeStates = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<ulong, PartyCooldownActiveStatus> partyCooldownActiveStatusFrameCache = new();
+    private readonly Dictionary<uint, uint[]> partyCooldownStatusIdsByActionId = new();
+    private readonly Dictionary<uint, PartyCooldownDefinition> partyCooldownDefinitionsByActionId = new();
+    private readonly Dictionary<string, List<PartyCooldownDefinition>> partyCooldownDefinitionsByName = new(StringComparer.Ordinal);
+    private readonly Dictionary<PartyCooldownCategory, List<PartyCooldownDefinition>> partyCooldownDefinitionsByCategory = new();
+    private readonly Dictionary<string, IReadOnlyList<PartyCooldownDefinition>> partyCooldownEffectiveDefinitionsByScope = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<PartyCooldownCategory, IReadOnlyList<PartyCooldownDefinition>> partyCooldownPresetDefinitionsByCategory = new();
+    private readonly Dictionary<string, IReadOnlyList<PartyCooldownDefinition>> partyCooldownEffectiveDefinitionsByCategoryAndLevel = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> partyCooldownCanonicalDefinitionIdById = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<uint, int> partyCooldownLogActionParamIndexByLogMessageId = new();
+    private readonly Queue<PartyCooldownLogObservation> partyCooldownLogObservations = new();
+    private readonly List<string> partyCooldownRuntimePruneBuffer = [];
     private readonly Dictionary<uint, CharacterAuraAggregate> playerAuraFrameCache = new();
     private readonly Dictionary<uint, CharacterAuraAggregate> targetAuraFrameCache = new();
     private readonly Dictionary<uint, PartyAuraAggregate> partyAuraFrameAllCache = new();
@@ -85,6 +107,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private readonly Dictionary<string, HashSet<uint>> visibleAurasByScope = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<uint, IDalamudTextureWrap> grayscaleIconCache = new();
     private readonly Dictionary<string, string> visibleAbilityKeys = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, OverlayWindowDebugSnapshot> overlayWindowDebugSnapshots = new(StringComparer.OrdinalIgnoreCase);
     private readonly Queue<uint> grayscaleIconQueue = new();
     private readonly HashSet<uint> grayscaleIconPending = new();
     private readonly HashSet<uint> grayscaleIconFailed = new();
@@ -103,12 +126,18 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private bool targetAuraFrameCacheValid;
     private bool partyAuraFrameAllCacheValid;
     private bool partyAuraFrameOwnCacheValid;
+    private PartyCooldownFrameSnapshot? partyCooldownFrameSnapshot;
+    private HashSet<string>? partyCooldownLiveRuntimeKeysFrameCache;
     private bool overlayTooltipRequestedThisFrame;
     private int pendingStatusId;
     private Vector2 draggedOverlayMouseStart;
     private Vector2 draggedOverlayPositionStart;
     private DateTime configSaveAfter = DateTime.MinValue;
     private DateTime keybindCacheRefreshAfter = DateTime.MinValue;
+    private DateTime performanceProfileNextRecordAtUtc = DateTime.MinValue;
+    private DateTime performanceProfileNextErrorLogAtUtc = DateTime.MinValue;
+    private DateTime lastBugDiagnosticEventAtUtc = DateTime.MinValue;
+    private string lastBugDiagnosticEvent = string.Empty;
     private PluginConfig config;
     private bool configVisible;
     private bool zoneLoadActive;
@@ -116,6 +145,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private readonly NativeActionTooltipController nativeActionTooltipController = new();
     private readonly OverlayTooltipResolver overlayTooltipResolver = new();
     private readonly PerformanceFrameStats performanceStats = new();
+    private readonly PerformanceProfiler performanceProfiler = new();
     private readonly LoginStabilizationState loginStabilizationState = new(LoginSkillAutoAlignSuppressionDuration);
     private readonly IFontHandle cooldownFont;
     private readonly IFontHandle chargeFont;
@@ -155,6 +185,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
             Bold = true,
         });
         this.LoadAbilities();
+        this.LoadPartyCooldowns();
 
         foreach (var commandName in CommandNames)
         {
@@ -167,6 +198,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
         PluginInterface.UiBuilder.Draw += this.Draw;
         PluginInterface.UiBuilder.OpenMainUi += this.OpenConfig;
         PluginInterface.UiBuilder.OpenConfigUi += this.OpenConfig;
+        ChatGui.LogMessage += this.OnLogMessage;
         Condition.ConditionChange += this.OnConditionChange;
         ClientState.ZoneInit += this.OnZoneInit;
         foreach (var eventType in ActionDetailTooltipEvents)
@@ -182,6 +214,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
         PluginInterface.UiBuilder.Draw -= this.Draw;
         PluginInterface.UiBuilder.OpenMainUi -= this.OpenConfig;
         PluginInterface.UiBuilder.OpenConfigUi -= this.OpenConfig;
+        ChatGui.LogMessage -= this.OnLogMessage;
         Condition.ConditionChange -= this.OnConditionChange;
         ClientState.ZoneInit -= this.OnZoneInit;
         foreach (var commandName in CommandNames)
@@ -215,6 +248,9 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
 
             if (loaded is not null)
                 this.abilities.AddRange(loaded.Where(a => a.ActionId > 0 && a.IconId > 0).Select(this.NormalizeAbilityDefinition));
+
+            this.jobCandidatesCache.Clear();
+            this.gameActionCandidatesCache.Clear();
         }
         catch (Exception ex)
         {
@@ -319,7 +355,15 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
         this.targetAuraFrameCacheValid = false;
         this.partyAuraFrameAllCacheValid = false;
         this.partyAuraFrameOwnCacheValid = false;
-        this.performanceStats.CountGrayscaleIcons(this.ProcessGrayscaleIconQueue());
+        this.partyCooldownFrameSnapshot = null;
+        this.partyCooldownLiveRuntimeKeysFrameCache = null;
+        this.overlayWindowDebugSnapshots.Clear();
+        var grayscaleProfileStart = this.performanceProfiler.BeginSection(PerformanceProfileSection.GrayscaleProcessing);
+        var grayscaleIconCount = this.ProcessGrayscaleIconQueue();
+        if (grayscaleIconCount > 0)
+            this.performanceProfiler.EndSection(PerformanceProfileSection.GrayscaleProcessing, grayscaleProfileStart);
+
+        this.performanceStats.CountGrayscaleIcons(grayscaleIconCount);
     }
 
     private void QueueConfigSave()
@@ -331,6 +375,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private void SaveConfigNow()
     {
         PluginInterface.SavePluginConfig(this.config);
+        this.SetBugDiagnosticEvent("configSaved");
         this.configSavePending = false;
         this.configSaveAfter = DateTime.MinValue;
     }

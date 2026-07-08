@@ -16,6 +16,41 @@ internal static class ConfigMapNormalizer
         return true;
     }
 
+    public static List<string> NormalizeStringList(List<string>? source, out bool changed)
+    {
+        changed = source is null;
+        var normalized = new List<string>();
+        if (source is null)
+            return normalized;
+
+        foreach (var rawValue in source)
+        {
+            var value = rawValue?.Trim();
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                changed = true;
+                continue;
+            }
+
+            if (!string.Equals(rawValue, value, StringComparison.Ordinal))
+                changed = true;
+
+            if (normalized.Contains(value, StringComparer.OrdinalIgnoreCase))
+            {
+                changed = true;
+                continue;
+            }
+
+            normalized.Add(value);
+        }
+
+        if (!changed && normalized.SequenceEqual(source, StringComparer.OrdinalIgnoreCase))
+            return source;
+
+        changed = true;
+        return normalized;
+    }
+
     public static Dictionary<string, List<string>> NormalizeStringListMap(Dictionary<string, List<string>>? source, out bool changed)
     {
         changed = source is null || !Equals(source.Comparer, StringComparer.OrdinalIgnoreCase);

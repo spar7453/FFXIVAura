@@ -4,20 +4,54 @@ public sealed unsafe partial class Plugin
 {
     private void DrawOverlay()
     {
-        var job = JobInfo.Code(PlayerState.ClassJob.RowId);
-        var level = (uint)(PlayerState.EffectiveLevel > 0 ? PlayerState.EffectiveLevel : PlayerState.Level);
-        if (this.EnsureIconWindows())
-            this.QueueConfigSave();
+        var profileStart = this.performanceProfiler.BeginSection(PerformanceProfileSection.Overlay);
+        try
+        {
+            var job = JobInfo.Code(PlayerState.ClassJob.RowId);
+            var level = (uint)(PlayerState.EffectiveLevel > 0 ? PlayerState.EffectiveLevel : PlayerState.Level);
+            if (this.EnsureIconWindows())
+                this.QueueConfigSave();
 
-        foreach (var iconWindow in this.config.IconWindows)
-            this.DrawIconWindow(iconWindow, job, level);
+            foreach (var iconWindow in this.config.IconWindows)
+                this.DrawIconWindow(iconWindow, job, level);
+        }
+        finally
+        {
+            this.performanceProfiler.EndSection(PerformanceProfileSection.Overlay, profileStart);
+        }
     }
 
     private void DrawIconWindow(IconWindowConfig iconWindow, string job, uint level)
     {
+        var profileLabel = GetIconWindowDisplayName(iconWindow);
+        var profileStart = this.performanceProfiler.BeginWindow(iconWindow.Id, profileLabel);
+        try
+        {
+            this.DrawIconWindowContent(iconWindow, job, level);
+        }
+        finally
+        {
+            this.performanceProfiler.EndWindow(iconWindow.Id, profileLabel, profileStart);
+        }
+    }
+
+    private void DrawIconWindowContent(IconWindowConfig iconWindow, string job, uint level)
+    {
+        if (IconWindowRoles.IsPartyCooldownRole(iconWindow.Role))
+        {
+            this.DrawPartyCooldownWindowContent(iconWindow, job, level);
+            return;
+        }
+
+        var frameModelProfileStart = this.performanceProfiler.BeginSection(PerformanceProfileSection.FrameModel);
         var frame = this.BuildOverlayFrameModel(iconWindow, job, level);
+        this.performanceProfiler.EndSection(PerformanceProfileSection.FrameModel, frameModelProfileStart);
         this.performanceStats.CountOverlayWindow(frame.DisplayAbilities.Count, frame.DisplayAuras.Count);
-        if (this.EnsureOverlayPositionsForItems(iconWindow, job, level, frame.Layout, frame.AreaSize))
+
+        var positioningProfileStart = this.performanceProfiler.BeginSection(PerformanceProfileSection.Positioning);
+        var positionsChanged = this.EnsureOverlayPositionsForItems(iconWindow, job, level, frame.Layout, frame.AreaSize);
+        this.performanceProfiler.EndSection(PerformanceProfileSection.Positioning, positioningProfileStart);
+        if (positionsChanged)
             this.QueueConfigSave();
 
         if (!frame.HasDisplayItems && this.config.LockOverlay)
@@ -32,6 +66,7 @@ public sealed unsafe partial class Plugin
         if (positionWasClamped)
         {
             iconWindow.Position = clampedPosition;
+            this.SetBugDiagnosticEvent($"windowClamped:{iconWindow.Id}");
             this.QueueConfigSave();
         }
 
@@ -100,6 +135,8 @@ public sealed unsafe partial class Plugin
             this.HandleAuraIconInteraction(iconWindow, aura, localPos, iconPos, areaSize, iconSize);
         }
 
+        this.RememberOverlayWindowDiagnostics(iconWindow, frame);
+
         if (!this.config.LockOverlay)
             this.HandleOverlayResize(iconWindow, job, frame.LayoutAbilities, frame.LayoutAuras, areaOrigin, areaSize);
 
@@ -167,9 +204,10 @@ public sealed unsafe partial class Plugin
 
         iconWindow.Width = nextWidth;
         iconWindow.Height = nextHeight;
+        this.SetBugDiagnosticEvent($"windowResized:{iconWindow.Id}:{nextWidth:0}x{nextHeight:0}");
         if (iconWindow.Role == IconWindowRole.SkillCooldowns)
             this.NormalizeIconPositionsAfterResize(iconWindow, job, visible, new Vector2(nextWidth, nextHeight));
-        else
+        else if (IconWindowRoles.IsStandardAuraRole(iconWindow.Role))
             this.NormalizeAuraIconPositionsAfterResize(iconWindow, auras, new Vector2(nextWidth, nextHeight));
 
         this.QueueConfigSave();
@@ -192,7 +230,7 @@ public sealed unsafe partial class Plugin
         if (ImGui.IsItemHovered() && !ImGui.IsItemActive())
             this.ShowAbilityTooltip(ability);
 
-        if (ImGui.IsItemHovered() && ImGui.IsMouseClicked(ImGuiMouseButton.Right))
+        if (ImGui.IsItemHovered() && ImGui.IsMouseClicked(ImGuiMouseButton.Right) && ImGui.GetIO().KeyCtrl)
         {
             this.UntrackAbilityFromOverlay(iconWindow, job, ability.Id);
             this.QueueConfigSave();
@@ -230,6 +268,7 @@ public sealed unsafe partial class Plugin
             return;
 
         var state = this.GetCooldown(ability);
+        this.SetBugDiagnosticEvent($"tooltipAction:{ability.Id}:{state.DisplayActionId}");
         ShowNativeActionTooltip(state.DisplayActionId > 0 ? state.DisplayActionId : ability.ActionId);
     }
 

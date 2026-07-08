@@ -5,7 +5,7 @@ public sealed unsafe partial class Plugin
     private IEnumerable<AbilityDefinition> GetVisibleAbilities(string job, uint level, IconWindowConfig? iconWindow = null)
     {
         iconWindow ??= this.GetActiveIconWindow();
-        var candidates = this.GetJobCandidates(job, level).ToList();
+        var candidates = this.GetJobCandidates(job, level);
         if (iconWindow.TrackedByJob.TryGetValue(job, out var tracked) && tracked.Count > 0)
         {
             var resolved = new List<AbilityDefinition>();
@@ -53,25 +53,45 @@ public sealed unsafe partial class Plugin
                || (ObjectTable.LocalPlayer is not null && ObjectTable.LocalPlayer.StatusFlags.HasFlag(StatusFlags.InCombat));
     }
 
-    private IEnumerable<AbilityDefinition> GetJobCandidates(string job, uint level)
+    private IReadOnlyList<AbilityDefinition> GetJobCandidates(string job, uint level)
     {
-        var configured = this.abilities
-            .Where(a => a.Level <= level)
-            .Where(a => string.Equals(a.Job, job, StringComparison.OrdinalIgnoreCase)
-                        || JobInfo.CanUseRoleAction(job, a));
+        var normalizedJob = job.Trim().ToUpperInvariant();
+        var key = $"{normalizedJob}:{level}";
+        if (this.jobCandidatesCache.TryGetValue(key, out var cached))
+            return cached;
 
+        var candidates = this.BuildJobCandidates(normalizedJob, level);
+        if (this.jobCandidatesCache.Count >= AbilityCandidateCacheLimit)
+            this.jobCandidatesCache.Clear();
+
+        this.jobCandidatesCache[key] = candidates;
+        return candidates;
+    }
+
+    private IReadOnlyList<AbilityDefinition> BuildJobCandidates(string job, uint level)
+    {
+        var candidates = new List<AbilityDefinition>();
         var seen = new HashSet<uint>();
-        foreach (var ability in configured)
+        foreach (var ability in this.abilities)
         {
+            if (ability.Level > level
+                || (!string.Equals(ability.Job, job, StringComparison.OrdinalIgnoreCase)
+                    && !JobInfo.CanUseRoleAction(job, ability)))
+            {
+                continue;
+            }
+
             seen.Add(ability.ActionId);
-            yield return ability;
+            candidates.Add(ability);
         }
 
         foreach (var ability in this.GetGameActionCandidates(job, level))
         {
             if (seen.Add(ability.ActionId))
-                yield return ability;
+                candidates.Add(ability);
         }
+
+        return candidates;
     }
 
     private int GetTrackedOrder(IconWindowConfig iconWindow, string job, string id)
@@ -89,6 +109,9 @@ public sealed unsafe partial class Plugin
         if (!this.gameActionCandidatesCache.TryGetValue(key, out var cached))
         {
             cached = this.BuildGameActionCandidates(job, level).ToList();
+            if (this.gameActionCandidatesCache.Count >= AbilityCandidateCacheLimit)
+                this.gameActionCandidatesCache.Clear();
+
             this.gameActionCandidatesCache[key] = cached;
         }
 

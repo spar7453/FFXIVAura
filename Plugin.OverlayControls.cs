@@ -84,10 +84,15 @@ public sealed unsafe partial class Plugin
                     if (ImGui.Selectable(label, selected) && !selected)
                     {
                         iconWindow.DisplayCondition = condition;
-                        if (iconWindow.Role != IconWindowRole.SkillCooldowns)
+                        this.StoreRoleDisplayCondition(iconWindow);
+                        if (IconWindowRoles.IsStandardAuraRole(iconWindow.Role))
                         {
                             var auras = this.GetOverlayAuras(iconWindow, OverlayItemVisibility.Layout).ToList();
-                            this.EnsureAuraIconPositions(iconWindow, auras, new Vector2(iconWindow.Width, iconWindow.Height));
+                            var areaSize = new Vector2(iconWindow.Width, iconWindow.Height);
+                            if (!UsesCompactAuraLayout(iconWindow))
+                                this.NormalizeAuraIconPositionsAfterResize(iconWindow, auras, areaSize);
+
+                            this.EnsureAuraIconPositions(iconWindow, auras, areaSize);
                         }
 
                         this.QueueConfigSave();
@@ -332,7 +337,7 @@ public sealed unsafe partial class Plugin
         iconWindow.Alignment = alignment;
         if (iconWindow.Role == IconWindowRole.SkillCooldowns)
             this.AlignOverlayIcons(iconWindow, job, level);
-        else
+        else if (IconWindowRoles.IsStandardAuraRole(iconWindow.Role))
             this.AlignAuraIcons(iconWindow);
 
         this.QueueConfigSave();
@@ -343,8 +348,27 @@ public sealed unsafe partial class Plugin
         if (iconWindow.Role == role)
             return;
 
+        this.StoreRoleDisplayCondition(iconWindow);
         iconWindow.Role = role;
-        iconWindow.DisplayCondition = IconDisplayCondition.Always;
+        iconWindow.DisplayCondition = this.GetStoredRoleDisplayCondition(iconWindow, role);
         this.NormalizeActiveWindowIconPositions(iconWindow, job, level);
     }
+
+    private void StoreRoleDisplayCondition(IconWindowConfig iconWindow)
+    {
+        if (iconWindow.Role == IconWindowRole.SkillCooldowns)
+            iconWindow.SkillDisplayCondition = iconWindow.DisplayCondition;
+        else if (IconWindowRoles.IsPartyCooldownRole(iconWindow.Role))
+            iconWindow.PartyCooldownDisplayCondition = iconWindow.DisplayCondition;
+        else
+            iconWindow.AuraDisplayCondition = iconWindow.DisplayCondition;
+    }
+
+    private IconDisplayCondition GetStoredRoleDisplayCondition(IconWindowConfig iconWindow, IconWindowRole role)
+        => role switch
+        {
+            IconWindowRole.SkillCooldowns => iconWindow.SkillDisplayCondition,
+            IconWindowRole.PartyDefensives or IconWindowRole.PartyHealingCooldowns or IconWindowRole.PartySynergies => iconWindow.PartyCooldownDisplayCondition,
+            _ => iconWindow.AuraDisplayCondition,
+        };
 }

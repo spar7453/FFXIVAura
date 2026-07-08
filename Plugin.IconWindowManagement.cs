@@ -21,6 +21,9 @@ public sealed unsafe partial class Plugin
             OrderEditorHeight = activeWindow.OrderEditorHeight,
             Role = activeWindow.Role,
             DisplayCondition = activeWindow.DisplayCondition,
+            SkillDisplayCondition = activeWindow.SkillDisplayCondition,
+            AuraDisplayCondition = activeWindow.AuraDisplayCondition,
+            PartyCooldownDisplayCondition = activeWindow.PartyCooldownDisplayCondition,
             Alignment = activeWindow.Alignment,
             HighlightReady = activeWindow.HighlightReady,
             HighlightAdjusted = activeWindow.HighlightAdjusted,
@@ -31,12 +34,45 @@ public sealed unsafe partial class Plugin
             AuraSearch = activeWindow.AuraSearch,
             AuraSearchActiveOnly = activeWindow.AuraSearchActiveOnly,
             TrackedStatusIds = activeWindow.TrackedStatusIds.ToList(),
+            ExcludedPartyCooldownIds = activeWindow.ExcludedPartyCooldownIds.ToList(),
             TrackedByJob = IconWindowClone.CloneStringListMap(activeWindow.TrackedByJob),
             ExcludedByJob = IconWindowClone.CloneStringListMap(activeWindow.ExcludedByJob),
             IconPositionsByJob = IconWindowClone.CloneVector2Map(activeWindow.IconPositionsByJob),
-            AuraPositionsByRole = UsesCompactAuraLayout(activeWindow)
-                ? new Dictionary<string, Dictionary<string, Vector2>>(StringComparer.OrdinalIgnoreCase)
-                : IconWindowClone.CloneAuraPositionsForWindow(activeWindow.AuraPositionsByRole, activeWindow.Id, id),
+            AuraPositionsByRole = IconWindowClone.CloneAuraPositionsForWindow(activeWindow.AuraPositionsByRole, activeWindow.Id, id),
+        };
+
+        this.config.IconWindows.Add(window);
+        this.config.ActiveWindowId = id;
+        return window;
+    }
+
+    private IconWindowConfig AddDefaultIconWindow(IconWindowConfig activeWindow)
+    {
+        var number = this.GetNextIconWindowNumber();
+        this.config.WindowCounter = Math.Max(this.config.WindowCounter, number);
+        var id = $"win{number}";
+        var windowSize = new Vector2(activeWindow.Width, activeWindow.Height);
+        var window = new IconWindowConfig
+        {
+            Id = id,
+            Name = $"\uCC3D {number}",
+            Position = ClampOverlayWindowPosition(this.GetNewIconWindowPosition(activeWindow), windowSize),
+            Width = activeWindow.Width,
+            Height = activeWindow.Height,
+            IconSize = activeWindow.IconSize,
+            Gap = activeWindow.Gap,
+            FontScale = activeWindow.FontScale,
+            OrderEditorHeight = activeWindow.OrderEditorHeight,
+            Role = IconWindowRole.SkillCooldowns,
+            DisplayCondition = IconDisplayCondition.Always,
+            SkillDisplayCondition = IconDisplayCondition.Always,
+            AuraDisplayCondition = IconDisplayCondition.Always,
+            PartyCooldownDisplayCondition = IconDisplayCondition.Always,
+            Alignment = IconAlignment.Center,
+            HighlightAdjusted = true,
+            ShowKeybindText = true,
+            ShowMissingAuras = true,
+            ShowPartyAuraCount = true,
         };
 
         this.config.IconWindows.Add(window);
@@ -82,6 +118,9 @@ public sealed unsafe partial class Plugin
 
             return;
         }
+
+        if (IconWindowRoles.IsPartyCooldownRole(activeWindow.Role))
+            return;
 
         var auras = items.Auras;
         this.NormalizeAuraIconPositionsAfterResize(activeWindow, auras, areaSize);

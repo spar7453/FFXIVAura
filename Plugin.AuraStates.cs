@@ -102,19 +102,27 @@ public sealed unsafe partial class Plugin
 
     private void RebuildCharacterAuraFrameIndex(Dictionary<uint, CharacterAuraAggregate> auraIndex, IBattleChara? chara)
     {
-        auraIndex.Clear();
-        if (chara is null)
-            return;
-
-        foreach (var status in chara.StatusList)
+        var profileStart = this.performanceProfiler.BeginSection(PerformanceProfileSection.AuraScan);
+        try
         {
-            AuraStatusFrameIndex.AddStatus(
-                auraIndex,
-                new CharacterAuraStatusSample(
-                    status.StatusId,
-                    status.RemainingTime,
-                    status.Param,
-                    this.IsStatusFromSelf(status.SourceId)));
+            auraIndex.Clear();
+            if (chara is null)
+                return;
+
+            foreach (var status in chara.StatusList)
+            {
+                AuraStatusFrameIndex.AddStatus(
+                    auraIndex,
+                    new CharacterAuraStatusSample(
+                        status.StatusId,
+                        status.RemainingTime,
+                        status.Param,
+                        this.IsStatusFromSelf(status.SourceId)));
+            }
+        }
+        finally
+        {
+            this.performanceProfiler.EndSection(PerformanceProfileSection.AuraScan, profileStart);
         }
     }
 
@@ -152,24 +160,32 @@ public sealed unsafe partial class Plugin
 
     private void RebuildPartyAuraFrameIndex(Dictionary<uint, PartyAuraAggregate> aggregateAuras, bool ownOnly)
     {
-        aggregateAuras.Clear();
-
-        var memberAuras = new Dictionary<uint, PartyMemberAuraState>();
-        for (var i = 0; i < PartyList.Length; i++)
+        var profileStart = this.performanceProfiler.BeginSection(PerformanceProfileSection.AuraScan);
+        try
         {
-            var member = PartyList[i];
-            if (member is null)
-                continue;
+            aggregateAuras.Clear();
 
-            memberAuras.Clear();
-            foreach (var status in member.Statuses)
+            var memberAuras = new Dictionary<uint, PartyMemberAuraState>();
+            for (var i = 0; i < PartyList.Length; i++)
             {
-                var fromSelf = this.IsStatusFromSelf(status.SourceId);
-                var sample = new PartyAuraStatusSample(status.StatusId, status.RemainingTime, status.Param, fromSelf);
-                PartyAuraAggregator.AddMemberStatus(memberAuras, sample, ownOnly);
-            }
+                var member = PartyList[i];
+                if (member is null)
+                    continue;
 
-            PartyAuraAggregator.MergeMemberAuras(memberAuras, aggregateAuras);
+                memberAuras.Clear();
+                foreach (var status in member.Statuses)
+                {
+                    var fromSelf = this.IsStatusFromSelf(status.SourceId);
+                    var sample = new PartyAuraStatusSample(status.StatusId, status.RemainingTime, status.Param, fromSelf);
+                    PartyAuraAggregator.AddMemberStatus(memberAuras, sample, ownOnly);
+                }
+
+                PartyAuraAggregator.MergeMemberAuras(memberAuras, aggregateAuras);
+            }
+        }
+        finally
+        {
+            this.performanceProfiler.EndSection(PerformanceProfileSection.AuraScan, profileStart);
         }
     }
 

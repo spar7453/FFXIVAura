@@ -6,6 +6,7 @@ internal sealed class PerformanceFrameStats
     public double FrameMilliseconds { get; private set; }
     public double AverageFrameMilliseconds { get; private set; }
     public double MaxFrameMilliseconds { get; private set; }
+    public DateTime MaxFrameOccurredAtUtc { get; private set; } = DateTime.MinValue;
     public int WindowCount { get; private set; }
     public int SkillIconCount { get; private set; }
     public int AuraIconCount { get; private set; }
@@ -25,6 +26,7 @@ internal sealed class PerformanceFrameStats
         {
             this.AverageFrameMilliseconds = 0;
             this.MaxFrameMilliseconds = 0;
+            this.MaxFrameOccurredAtUtc = DateTime.MinValue;
             this.FrameSampleCount = 0;
         }
 
@@ -47,7 +49,11 @@ internal sealed class PerformanceFrameStats
         this.AverageFrameMilliseconds = this.FrameSampleCount == 1
             ? this.FrameMilliseconds
             : this.AverageFrameMilliseconds + (this.FrameMilliseconds - this.AverageFrameMilliseconds) / this.FrameSampleCount;
-        this.MaxFrameMilliseconds = Math.Max(this.MaxFrameMilliseconds, this.FrameMilliseconds);
+        if (this.FrameMilliseconds >= this.MaxFrameMilliseconds)
+        {
+            this.MaxFrameMilliseconds = this.FrameMilliseconds;
+            this.MaxFrameOccurredAtUtc = DateTime.UtcNow;
+        }
     }
 
     public void CountOverlayWindow(int skillIconCount, int auraIconCount)

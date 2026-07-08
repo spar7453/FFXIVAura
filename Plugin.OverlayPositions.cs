@@ -9,9 +9,11 @@ public sealed unsafe partial class Plugin
         OverlayItemSet items,
         Vector2 areaSize)
     {
-        return iconWindow.Role == IconWindowRole.SkillCooldowns
-            ? this.AutoAlignWhenVisibleSkillsChanged(iconWindow, job, level, items.Abilities, areaSize)
-            : this.EnsureAuraIconPositions(iconWindow, items.Auras, areaSize);
+        if (iconWindow.Role == IconWindowRole.SkillCooldowns)
+            return this.AutoAlignWhenVisibleSkillsChanged(iconWindow, job, level, items.Abilities, areaSize);
+
+        return IconWindowRoles.IsStandardAuraRole(iconWindow.Role)
+            && this.EnsureAuraIconPositions(iconWindow, items.Auras, areaSize);
     }
 
     private Vector2 GetOverlayAutoPosition(IconWindowConfig iconWindow, int index, int visibleCount, Vector2 areaSize, float iconSize, float gap)
@@ -65,13 +67,12 @@ public sealed unsafe partial class Plugin
             this.NormalizeIconPositions(skillPositions, orderedKeys, iconWindow, areaSize, positionJob);
         }
 
-        this.ClearAuraIconPositions(iconWindow);
     }
 
     private bool EnsureAuraIconPositions(IconWindowConfig iconWindow, IReadOnlyList<AuraState> auras, Vector2 areaSize)
     {
         return UsesCompactAuraLayout(iconWindow)
-            ? this.ClearAuraIconPositions(iconWindow)
+            ? false
             : this.AddMissingAuraIconPositions(iconWindow, auras, areaSize);
     }
 
@@ -81,10 +82,7 @@ public sealed unsafe partial class Plugin
         Vector2 areaSize)
     {
         if (UsesCompactAuraLayout(iconWindow))
-        {
-            this.ClearAuraIconPositions(iconWindow);
             return;
-        }
 
         var auraGroupKey = OverlayPositionKeys.AuraGroup(iconWindow);
         var auraGroupPrefix = OverlayPositionKeys.WindowPrefix(iconWindow.Id);

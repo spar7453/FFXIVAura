@@ -9,10 +9,12 @@ internal static class ConfigTests
     public static IReadOnlyList<(string Name, Action Run)> Cases { get; } =
     [
         ("ConfigValueNormalizer repairs invalid scalar and positions", ConfigValueNormalizerRepairsInvalidValues),
+        ("ConfigMapNormalizer normalizes string lists", ConfigMapNormalizerNormalizesStringLists),
         ("ConfigMapNormalizer normalizes string list maps", ConfigMapNormalizerNormalizesStringListMaps),
         ("ConfigMapNormalizer normalizes vector maps", ConfigMapNormalizerNormalizesVectorMaps),
         ("PluginConfigNormalizer migrates legacy root config", PluginConfigNormalizerMigratesLegacyRootConfig),
         ("PluginConfigNormalizer repairs window ids and values", PluginConfigNormalizerRepairsWindowIdsAndValues),
+        ("PluginConfigNormalizer repairs performance profile settings", PluginConfigNormalizerRepairsPerformanceProfileSettings),
     ];
 
     private static void ConfigValueNormalizerRepairsInvalidValues()
@@ -41,6 +43,15 @@ internal static class ConfigTests
         True(result.Comparer.Equals(StringComparer.OrdinalIgnoreCase), "map comparer should ignore case");
         True(result.ContainsKey("DRG"), "trimmed key should exist");
         Sequence(["a", "b"], result["DRG"]);
+    }
+
+    private static void ConfigMapNormalizerNormalizesStringLists()
+    {
+        var source = new List<string> { " rampart ", "Rampart", "", "reprisal" };
+        var result = ConfigMapNormalizer.NormalizeStringList(source, out var changed);
+
+        True(changed, "list should be changed");
+        Sequence(["rampart", "reprisal"], result);
     }
 
     private static void ConfigMapNormalizerNormalizesVectorMaps()
@@ -130,8 +141,11 @@ internal static class ConfigTests
                     ActiveOrderRow = -1,
                     Role = (IconWindowRole)999,
                     DisplayCondition = (IconDisplayCondition)999,
+                    SkillDisplayCondition = (IconDisplayCondition)998,
+                    AuraDisplayCondition = (IconDisplayCondition)997,
                     Alignment = (IconAlignment)999,
                     TrackedStatusIds = [0, 5, 5],
+                    ExcludedPartyCooldownIds = [" rampart ", "Rampart", "", "reprisal"],
                     TrackedByJob = new Dictionary<string, List<string>>
                     {
                         [" DRG "] = [" jump ", "JUMP"],
@@ -149,6 +163,7 @@ internal static class ConfigTests
                     Id = "win2",
                     Name = "Custom",
                     Role = IconWindowRole.PartyBuffs,
+                    DisplayCondition = IconDisplayCondition.CoolingOnly,
                     AuraPositionsByRole = new Dictionary<string, Dictionary<string, Vector2>>(StringComparer.OrdinalIgnoreCase)
                     {
                         ["win2:PartyBuffs"] = new(StringComparer.OrdinalIgnoreCase)
@@ -180,13 +195,40 @@ internal static class ConfigTests
         Equal(0, repaired.ActiveOrderRow);
         Equal(IconWindowRole.SkillCooldowns, repaired.Role);
         Equal(IconDisplayCondition.Always, repaired.DisplayCondition);
+        Equal(IconDisplayCondition.Always, repaired.SkillDisplayCondition);
+        Equal(IconDisplayCondition.Always, repaired.AuraDisplayCondition);
         Equal(IconAlignment.Center, repaired.Alignment);
         Sequence([5u], repaired.TrackedStatusIds);
+        Sequence(["rampart", "reprisal"], repaired.ExcludedPartyCooldownIds);
         Sequence(["jump"], repaired.TrackedByJob["DRG"]);
 
         var duplicate = config.IconWindows[1];
         Equal("win3", duplicate.Id);
+        Equal(IconDisplayCondition.CoolingOnly, duplicate.AuraDisplayCondition);
         True(duplicate.AuraPositionsByRole.ContainsKey("win3:PartyBuffs"), "duplicate window aura positions should be remapped");
         True(!duplicate.AuraPositionsByRole.ContainsKey("win2:PartyBuffs"), "old duplicate aura position key should be removed");
+    }
+
+    private static void PluginConfigNormalizerRepairsPerformanceProfileSettings()
+    {
+        var config = new PluginConfigData
+        {
+            PerformanceProfileRecordIntervalSeconds = 0,
+            PerformanceProfileMaxFileMegabytes = -10,
+        };
+
+        var changed = PluginConfigNormalizer.Normalize(config, TestData.ConfigOptions());
+
+        True(changed, "invalid profile settings should be repaired");
+        Equal(1, config.PerformanceProfileRecordIntervalSeconds);
+        Equal(64, config.PerformanceProfileMaxFileMegabytes);
+
+        config.PerformanceProfileRecordIntervalSeconds = 999;
+        config.PerformanceProfileMaxFileMegabytes = 9999;
+        changed = PluginConfigNormalizer.Normalize(config, TestData.ConfigOptions());
+
+        True(changed, "profile settings should be clamped");
+        Equal(60, config.PerformanceProfileRecordIntervalSeconds);
+        Equal(1024, config.PerformanceProfileMaxFileMegabytes);
     }
 }

@@ -33,6 +33,7 @@ internal static class PerformanceFrameStatsTests
         Near(0, stats.FrameMilliseconds);
         Near(0, stats.AverageFrameMilliseconds);
         Near(0, stats.MaxFrameMilliseconds);
+        Equal(DateTime.MinValue, stats.MaxFrameOccurredAtUtc);
     }
 
     private static void CountsEnabledFrame()
@@ -59,6 +60,7 @@ internal static class PerformanceFrameStatsTests
         Near(8.75, stats.FrameMilliseconds);
         Near(8.75, stats.AverageFrameMilliseconds);
         Near(8.75, stats.MaxFrameMilliseconds);
+        True(stats.MaxFrameOccurredAtUtc > DateTime.MinValue, "max frame timestamp should be captured");
 
         stats.Begin(true);
         Equal(0, stats.WindowCount);
@@ -72,6 +74,7 @@ internal static class PerformanceFrameStatsTests
         Equal(2, stats.FrameSampleCount);
         Near(10, stats.AverageFrameMilliseconds);
         Near(11.25, stats.MaxFrameMilliseconds);
+        True(stats.MaxFrameOccurredAtUtc > DateTime.MinValue, "max frame timestamp should remain captured");
 
         stats.Begin(false);
         stats.Begin(true);
@@ -79,5 +82,6 @@ internal static class PerformanceFrameStatsTests
         Equal(1, stats.FrameSampleCount);
         Near(2, stats.AverageFrameMilliseconds);
         Near(2, stats.MaxFrameMilliseconds);
+        True(stats.MaxFrameOccurredAtUtc > DateTime.MinValue, "max frame timestamp should be reset and captured again");
     }
 }

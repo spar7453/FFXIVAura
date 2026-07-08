@@ -29,14 +29,17 @@ public sealed unsafe partial class Plugin
         {
             if (ImGui.BeginTabItem("일반/표시"))
             {
+                ImGui.TextDisabled("전체 설정");
                 changed |= this.DrawGeneralSettings();
                 ImGui.Separator();
+                ImGui.TextDisabled($"현재 창 표시 설정: {GetIconWindowDisplayName(activeWindow)}");
                 changed |= this.DrawVisualSettings(activeWindow);
                 ImGui.EndTabItem();
             }
 
             if (ImGui.BeginTabItem("오버레이/추적"))
             {
+                ImGui.TextDisabled($"현재 창 크기 설정: {GetIconWindowDisplayName(activeWindow)}");
                 changed |= this.DrawOverlayWindowSettings(activeWindow, job, level);
                 ImGui.Separator();
                 this.DrawTrackingSettings(activeWindow, job, level);
@@ -76,12 +79,30 @@ public sealed unsafe partial class Plugin
         var hideDuringZoneLoad = this.config.HideDuringZoneLoad;
         var showTooltips = this.config.ShowTooltips;
         var showPerformanceOverlay = this.config.ShowPerformanceOverlay;
+        var showDetailedPerformanceProfile = this.config.ShowDetailedPerformanceProfile;
+        var recordPerformanceProfile = this.config.RecordPerformanceProfile;
+        var performanceProfileRecordIntervalSeconds = this.config.PerformanceProfileRecordIntervalSeconds;
+        var performanceProfileMaxFileMegabytes = this.config.PerformanceProfileMaxFileMegabytes;
+        var showPartyCooldownLogObserver = this.config.ShowPartyCooldownLogObserver;
 
         changed |= ImGui.Checkbox("사용", ref enabled);
         changed |= ImGui.Checkbox("오버레이 이동 잠금", ref lockOverlay);
         changed |= ImGui.Checkbox("지역 이동 중 숨김", ref hideDuringZoneLoad);
         changed |= ImGui.Checkbox("툴팁 표시", ref showTooltips);
         changed |= ImGui.Checkbox("성능 계측 표시", ref showPerformanceOverlay);
+        changed |= ImGui.Checkbox("상세 프로파일 표시 (성능 창 표시)", ref showDetailedPerformanceProfile);
+        changed |= ImGui.Checkbox("프로파일 자동 기록", ref recordPerformanceProfile);
+        ImGui.SetNextItemWidth(120f);
+        changed |= ImGui.InputInt("기록 간격(초)", ref performanceProfileRecordIntervalSeconds);
+        ImGui.SetNextItemWidth(120f);
+        changed |= ImGui.InputInt("최대 파일(MB)", ref performanceProfileMaxFileMegabytes);
+        ImGui.TextDisabled($"기록 파일: {this.GetPerformanceProfileFilePath()}");
+        changed |= ImGui.Checkbox("파티 쿨다운 로그 관측", ref showPartyCooldownLogObserver);
+        if (ImGui.Button("프로파일 초기화"))
+            this.performanceProfiler.Reset();
+        ImGui.SameLine();
+        if (ImGui.Button("기록 파일 삭제"))
+            this.ClearPerformanceProfileFiles();
 
         if (!changed)
             return false;
@@ -91,6 +112,17 @@ public sealed unsafe partial class Plugin
         this.config.HideDuringZoneLoad = hideDuringZoneLoad;
         this.config.ShowTooltips = showTooltips;
         this.config.ShowPerformanceOverlay = showPerformanceOverlay;
+        this.config.ShowDetailedPerformanceProfile = showDetailedPerformanceProfile;
+        this.config.RecordPerformanceProfile = recordPerformanceProfile;
+        this.config.PerformanceProfileRecordIntervalSeconds = Math.Clamp(
+            performanceProfileRecordIntervalSeconds,
+            MinPerformanceProfileRecordIntervalSeconds,
+            MaxPerformanceProfileRecordIntervalSeconds);
+        this.config.PerformanceProfileMaxFileMegabytes = Math.Clamp(
+            performanceProfileMaxFileMegabytes,
+            MinPerformanceProfileMaxFileMegabytes,
+            MaxPerformanceProfileMaxFileMegabytes);
+        this.config.ShowPartyCooldownLogObserver = showPartyCooldownLogObserver;
         return true;
     }
 
@@ -150,7 +182,7 @@ public sealed unsafe partial class Plugin
         if (activeWindow.Role == IconWindowRole.SkillCooldowns)
             changed |= ImGui.Checkbox("단축키 표시", ref showKeybindText);
 
-        if (activeWindow.Role != IconWindowRole.SkillCooldowns)
+        if (IconWindowRoles.IsStandardAuraRole(activeWindow.Role))
         {
             var showMissingChanged = ImGui.Checkbox("없는 버프/디버프 표시", ref showMissingAuras);
             changed |= showMissingChanged;
@@ -174,7 +206,7 @@ public sealed unsafe partial class Plugin
         activeWindow.ShowMissingAuras = showMissingAuras;
         activeWindow.PartyAurasOwnOnly = partyAurasOwnOnly;
         activeWindow.ShowPartyAuraCount = showPartyAuraCount;
-        if (auraVisibilityChanged && activeWindow.Role != IconWindowRole.SkillCooldowns)
+        if (auraVisibilityChanged && IconWindowRoles.IsStandardAuraRole(activeWindow.Role))
         {
             var auras = this.GetOverlayAuras(activeWindow, OverlayItemVisibility.Layout).ToList();
             this.EnsureAuraIconPositions(activeWindow, auras, new Vector2(activeWindow.Width, activeWindow.Height));
@@ -187,8 +219,135 @@ public sealed unsafe partial class Plugin
     {
         if (activeWindow.Role == IconWindowRole.SkillCooldowns)
             this.DrawTrackedSkillEditor(activeWindow, job, level);
+        else if (IconWindowRoles.IsPartyCooldownRole(activeWindow.Role))
+            this.DrawPartyCooldownTrackingInfo(activeWindow, level);
         else
             this.DrawAuraTrackerEditor(activeWindow);
+    }
+
+    private void DrawPartyCooldownTrackingInfo(IconWindowConfig activeWindow, uint level)
+    {
+        var category = IconWindowRoles.GetPartyCooldownCategory(activeWindow.Role);
+        var definitions = this.GetPartyCooldownDefinitionsForCategory(category);
+        var presetDefinitions = this.GetPartyCooldownPresetDefinitionsForCategory(category);
+        var effectiveDefinitions = this.GetPartyCooldownEffectiveDefinitionsForCategory(category, level);
+        var availableAtLevel = effectiveDefinitions.Count;
+        var visibleAtLevel = effectiveDefinitions.Count(definition => !this.IsPartyCooldownExcluded(activeWindow, definition));
+        var excludedInCategory = presetDefinitions.Count(definition => this.IsPartyCooldownExcluded(activeWindow, definition));
+        var statuslessAtLevel = effectiveDefinitions.Count(definition =>
+            !this.IsPartyCooldownExcluded(activeWindow, definition)
+            && !this.HasPartyCooldownStatusTracking(definition));
+
+        ImGui.TextUnformatted("\uD30C\uD2F0 \uCFE8\uB2E4\uC6B4 \uBCF4\uB4DC");
+        ImGui.TextWrapped("\uC774 \uCC3D\uC740 \uC218\uB3D9 \uCD94\uC801 \uBAA9\uB85D \uB300\uC2E0 \uAE30\uBCF8 \uC9C1\uC5C5 \uB370\uC774\uD130\uB85C \uD30C\uD2F0\uC6D0\uC758 \uC0DD\uC874\uAE30/\uD790\uCFE8/\uB51C \uC2DC\uB108\uC9C0\uB97C \uD45C\uC2DC\uD569\uB2C8\uB2E4.");
+        ImGui.TextDisabled($"\uD604\uC7AC \uC720\uD6A8 \uB808\uBCA8 {level}: {visibleAtLevel}/{availableAtLevel}\uAC1C \uD45C\uC2DC, {excludedInCategory}\uAC1C \uC81C\uC678");
+        if (statuslessAtLevel > 0)
+            ImGui.TextDisabled($"\uC0C1\uD0DC \uCD94\uC801 \uC5C6\uC74C: {statuslessAtLevel}\uAC1C");
+
+        var recommendedHeight = this.GetEstimatedPartyCooldownBoardHeight(activeWindow, level);
+        if (recommendedHeight > activeWindow.Height + 0.5f)
+        {
+            ImGui.TextDisabled($"\uD604\uC7AC \uB192\uC774 {activeWindow.Height:0}\uC5D0\uC11C \uC544\uB798 \uD589\uC774 \uC798\uB9B4 \uC218 \uC788\uC2B5\uB2C8\uB2E4. \uAD8C\uC7A5 {recommendedHeight:0}");
+            if (ImGui.Button("\uAD8C\uC7A5 \uB192\uC774 \uC801\uC6A9"))
+            {
+                activeWindow.Height = Math.Clamp(recommendedHeight, MinOverlayHeight, MaxOverlayHeight);
+                this.QueueConfigSave();
+            }
+        }
+
+        if (excludedInCategory > 0)
+        {
+            if (ImGui.Button("\uC774 \uCC3D\uC758 \uC81C\uC678 \uBAA9\uB85D \uCD08\uAE30\uD654"))
+            {
+                this.RemovePartyCooldownExclusions(activeWindow, definitions);
+                this.QueueConfigSave();
+            }
+        }
+
+        ImGui.BeginChild("FFXIVAuraPartyCooldownPresetList", new Vector2(GetConfigContentWidth(), 280f), true);
+        foreach (var group in presetDefinitions.GroupBy(definition => definition.Job))
+        {
+            var groupDefinitions = group.ToList();
+            var groupVisible = groupDefinitions.Count(definition => !this.IsPartyCooldownExcluded(activeWindow, definition));
+            var label = $"{GetPartyCooldownJobLabel(group.Key)}  {groupVisible}/{groupDefinitions.Count}##party-cooldown-job-{group.Key}";
+            if (!ImGui.CollapsingHeader(label, ImGuiTreeNodeFlags.DefaultOpen))
+                continue;
+
+            foreach (var definition in groupDefinitions)
+                this.DrawPartyCooldownPresetRow(activeWindow, definition, level);
+        }
+
+        ImGui.EndChild();
+    }
+
+    private void DrawPartyCooldownPresetRow(IconWindowConfig activeWindow, PartyCooldownDefinition definition, uint level)
+    {
+        ImGui.PushID($"party-cooldown-preset-{definition.Id}");
+        var included = !this.IsPartyCooldownExcluded(activeWindow, definition);
+        if (ImGui.Checkbox("##include-party-cooldown", ref included))
+        {
+            this.SetPartyCooldownExcluded(activeWindow, definition, !included);
+            this.QueueConfigSave();
+        }
+
+        ImGui.SameLine(0f, 8f);
+        this.DrawStatusListIcon(definition.IconId, 22f);
+        ImGui.SameLine(0f, 8f);
+        ImGui.TextUnformatted($"{definition.Name}  Lv{definition.Level}");
+        var effectiveDefinition = this.ResolveEffectivePartyCooldownDefinition(definition, definition.Job, level);
+        if (definition.Level > level)
+        {
+            ImGui.SameLine();
+            if (definition.ActionId != effectiveDefinition.ActionId
+                && !string.Equals(definition.Id, effectiveDefinition.Id, StringComparison.OrdinalIgnoreCase))
+                ImGui.TextDisabled($"\uD604\uC7AC \uB808\uBCA8\uC5D0\uC11C\uB294 {effectiveDefinition.Name}\uB85C \uCD94\uC801");
+            else
+                ImGui.TextDisabled("\uD604\uC7AC \uB808\uBCA8 \uC0AC\uC6A9 \uBD88\uAC00");
+        }
+
+        if (!this.HasPartyCooldownStatusTracking(effectiveDefinition))
+        {
+            ImGui.SameLine();
+            ImGui.TextDisabled("\uC0C1\uD0DC \uCD94\uC801 \uC5C6\uC74C");
+            if (ImGui.IsItemHovered())
+                ImGui.SetTooltip("\uC774 \uD56D\uBAA9\uC740 \uD655\uC778 \uAC00\uB2A5\uD55C \uBC84\uD504/\uB514\uBC84\uD504 \uC0C1\uD0DC\uAC00 \uC5C6\uC5B4 \uD604\uC7AC \uBC29\uC2DD\uC73C\uB85C\uB294 \uC0AC\uC6A9 \uC9C1\uD6C4 \uCFE8\uB2E4\uC6B4\uC744 \uCD94\uC815\uD558\uAE30 \uC5B4\uB824\uC6B8 \uC218 \uC788\uC2B5\uB2C8\uB2E4.");
+        }
+
+        ImGui.PopID();
+    }
+
+    private bool HasPartyCooldownStatusTracking(PartyCooldownDefinition definition)
+        => this.ResolvePartyCooldownStatusIds(definition).Count > 0;
+
+    private static string GetPartyCooldownJobLabel(string job)
+        => string.Equals(job, "ROLE", StringComparison.OrdinalIgnoreCase) ? "\uACF5\uC6A9" : job;
+
+    private static int GetPartyCooldownJobSortOrder(string job)
+    {
+        for (var index = 0; index < PartyCooldownJobOrder.Length; index++)
+        {
+            if (string.Equals(PartyCooldownJobOrder[index], job, StringComparison.OrdinalIgnoreCase))
+                return index;
+        }
+
+        return int.MaxValue;
+    }
+
+    private static int ComparePartyCooldownDefinitionForUi(PartyCooldownDefinition left, PartyCooldownDefinition right)
+    {
+        var jobCompare = GetPartyCooldownJobSortOrder(left.Job).CompareTo(GetPartyCooldownJobSortOrder(right.Job));
+        if (jobCompare != 0)
+            return jobCompare;
+
+        var levelCompare = left.Level.CompareTo(right.Level);
+        if (levelCompare != 0)
+            return levelCompare;
+
+        var cooldownCompare = right.Cooldown.CompareTo(left.Cooldown);
+        if (cooldownCompare != 0)
+            return cooldownCompare;
+
+        return string.Compare(left.Id, right.Id, StringComparison.OrdinalIgnoreCase);
     }
 
     private void DrawIconWindowControls(ref IconWindowConfig activeWindow)
@@ -233,7 +392,14 @@ public sealed unsafe partial class Plugin
             }
         }
 
-        if (ImGui.Button("창 추가"))
+        if (ImGui.Button("기본 창 추가"))
+        {
+            activeWindow = this.AddDefaultIconWindow(activeWindow);
+            this.QueueConfigSave();
+        }
+
+        ImGui.SameLine();
+        if (ImGui.Button("현재 창 복제"))
         {
             activeWindow = this.AddIconWindowClone(activeWindow);
             this.QueueConfigSave();
@@ -243,9 +409,26 @@ public sealed unsafe partial class Plugin
         {
             ImGui.SameLine();
             if (ImGui.Button("창 삭제"))
+                ImGui.OpenPopup("창 삭제 확인##delete-icon-window");
+
+            if (ImGui.BeginPopupModal("창 삭제 확인##delete-icon-window", ImGuiWindowFlags.AlwaysAutoResize))
             {
-                activeWindow = this.DeleteIconWindow(activeWindow);
-                this.QueueConfigSave();
+                ImGui.TextWrapped($"'{GetIconWindowDisplayName(activeWindow)}' 창을 삭제할까요?");
+                ImGui.TextDisabled("추적 목록과 아이콘 위치 설정도 함께 제거됩니다.");
+                ImGui.Spacing();
+
+                if (ImGui.Button("삭제", new Vector2(84f, 0f)))
+                {
+                    activeWindow = this.DeleteIconWindow(activeWindow);
+                    this.QueueConfigSave();
+                    ImGui.CloseCurrentPopup();
+                }
+
+                ImGui.SameLine();
+                if (ImGui.Button("취소", new Vector2(84f, 0f)))
+                    ImGui.CloseCurrentPopup();
+
+                ImGui.EndPopup();
             }
         }
 
@@ -258,6 +441,19 @@ public sealed unsafe partial class Plugin
         (IconWindowRole.PlayerBuffs, "내 버프"),
         (IconWindowRole.TargetDebuffs, "대상 디버프"),
         (IconWindowRole.PartyBuffs, "파티 버프"),
+        (IconWindowRole.PartyDefensives, "\uD30C\uD2F0 \uC0DD\uC874\uAE30"),
+        (IconWindowRole.PartyHealingCooldowns, "\uD30C\uD2F0 \uD790\uCFE8"),
+        (IconWindowRole.PartySynergies, "\uD30C\uD2F0 \uB51C \uC2DC\uB108\uC9C0"),
+    ];
+
+    private static readonly string[] PartyCooldownJobOrder =
+    [
+        "ROLE",
+        "PLD", "WAR", "DRK", "GNB",
+        "WHM", "SCH", "AST", "SGE",
+        "MNK", "DRG", "NIN", "SAM", "RPR", "VPR",
+        "BRD", "MCH", "DNC",
+        "BLM", "SMN", "RDM", "PCT",
     ];
 
     private static readonly (IconDisplayCondition Condition, string Label)[] SkillDisplayConditionOptionItems =
@@ -283,4 +479,13 @@ public sealed unsafe partial class Plugin
 
     private static IReadOnlyList<(IconDisplayCondition Condition, string Label)> DisplayConditionOptions(IconWindowRole role)
         => role == IconWindowRole.SkillCooldowns ? SkillDisplayConditionOptionItems : AuraDisplayConditionOptionItems;
+
+    private static float GetConfigContentWidth(float min = 260f)
+    {
+        var width = ImGui.GetContentRegionAvail().X;
+        if (float.IsNaN(width) || float.IsInfinity(width) || width <= 0f)
+            return min;
+
+        return Math.Max(min, width);
+    }
 }

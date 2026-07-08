@@ -40,7 +40,7 @@ public sealed unsafe partial class Plugin
         }
 
         ImGui.Spacing();
-        ImGui.SetNextItemWidth(240f);
+        ImGui.SetNextItemWidth(Math.Min(360f, Math.Max(180f, GetConfigContentWidth() - 110f)));
         var search = this.config.TrackedSkillSearch ?? string.Empty;
         if (ImGui.InputTextWithHint("##FFXIVAuraTrackedSkillSearch", "스킬 이름 또는 ID 검색", ref search, 80))
         {
@@ -78,7 +78,7 @@ public sealed unsafe partial class Plugin
             }
         }
 
-        ImGui.BeginChild("FFXIVAuraTrackedSkillList", new Vector2(560f, 390f), true);
+        ImGui.BeginChild("FFXIVAuraTrackedSkillList", new Vector2(GetConfigContentWidth(), 390f), true);
         foreach (var ability in editor.Candidates)
         {
             var selected = editor.ManualTracking
@@ -131,7 +131,7 @@ public sealed unsafe partial class Plugin
         ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0f, 0f, 0f, 0f));
         ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new Vector4(1f, 1f, 1f, 0.05f));
         ImGui.PushStyleColor(ImGuiCol.ButtonActive, new Vector4(1f, 1f, 1f, 0.08f));
-        ImGui.Button("##FFXIVAuraOrderResize", new Vector2(560f, 12f));
+        ImGui.Button("##FFXIVAuraOrderResize", new Vector2(GetConfigContentWidth(), 12f));
         ImGui.PopStyleColor(3);
 
         var min = ImGui.GetItemRectMin();
@@ -175,7 +175,7 @@ public sealed unsafe partial class Plugin
 
         ImGui.Spacing();
         ImGui.TextUnformatted("표시 순서");
-        ImGui.BeginChild("FFXIVAuraTrackedOrderList", new Vector2(560f, Math.Clamp(iconWindow.OrderEditorHeight, MinOrderEditorHeight, MaxOrderEditorHeight)), true);
+        ImGui.BeginChild("FFXIVAuraTrackedOrderList", new Vector2(GetConfigContentWidth(), Math.Clamp(iconWindow.OrderEditorHeight, MinOrderEditorHeight, MaxOrderEditorHeight)), true);
         if (!ImGui.IsMouseDown(ImGuiMouseButton.Left))
             this.draggedTrackedId = null;
 

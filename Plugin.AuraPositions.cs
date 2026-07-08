@@ -17,7 +17,7 @@ public sealed unsafe partial class Plugin
     }
 
     private static bool UsesCompactAuraLayout(IconWindowConfig iconWindow)
-        => iconWindow.Role != IconWindowRole.SkillCooldowns
+        => IconWindowRoles.IsStandardAuraRole(iconWindow.Role)
            && iconWindow.DisplayCondition == IconDisplayCondition.CoolingOnly;
 
     private bool AddMissingAuraIconPositions(IconWindowConfig iconWindow, IReadOnlyList<AuraState> auras, Vector2 areaSize)
@@ -51,22 +51,6 @@ public sealed unsafe partial class Plugin
         return changed;
     }
 
-    private bool ClearAuraIconPositions(IconWindowConfig iconWindow)
-    {
-        var groupPrefix = OverlayPositionKeys.WindowPrefix(iconWindow.Id);
-        var changed = false;
-        foreach (var groupKey in iconWindow.AuraPositionsByRole.Keys.ToList())
-        {
-            if (!groupKey.StartsWith(groupPrefix, StringComparison.OrdinalIgnoreCase))
-                continue;
-
-            iconWindow.AuraPositionsByRole.Remove(groupKey);
-            changed = true;
-        }
-
-        return changed;
-    }
-
     private void SetAuraIconPosition(IconWindowConfig iconWindow, uint statusId, Vector2 position)
     {
         var groupKey = OverlayPositionKeys.AuraGroup(iconWindow);
@@ -82,10 +66,7 @@ public sealed unsafe partial class Plugin
     private void AlignAuraIcons(IconWindowConfig iconWindow)
     {
         if (UsesCompactAuraLayout(iconWindow))
-        {
-            this.ClearAuraIconPositions(iconWindow);
             return;
-        }
 
         var groupKey = OverlayPositionKeys.AuraGroup(iconWindow);
         var auras = this.GetOverlayAuras(iconWindow, OverlayItemVisibility.Layout).ToList();

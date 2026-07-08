@@ -4,33 +4,41 @@ public sealed unsafe partial class Plugin
 {
     private void DrawAuraIcon(AuraState aura, float size, IconWindowConfig iconWindow)
     {
-        var lookup = new GameIconLookup(aura.IconId, false, true, null);
-        var texture = TextureProvider.GetFromGameIcon(in lookup).GetWrapOrEmpty();
-        var pos = ImGui.GetCursorScreenPos();
-        var draw = ImGui.GetWindowDrawList();
-        var grayscaleTexture = !aura.Present ? this.GetGrayscaleIconTexture(aura.IconId) : null;
-        ImGui.Image((grayscaleTexture ?? texture).Handle, new Vector2(size, size));
-        var max = pos + new Vector2(size, size);
-
-        if (!aura.Present)
+        var profileStart = this.performanceProfiler.BeginSection(PerformanceProfileSection.AuraIcon);
+        try
         {
-            if (grayscaleTexture is null)
-                this.DrawUnavailableIconTint(draw, pos, max);
+            var lookup = new GameIconLookup(aura.IconId, false, true, null);
+            var texture = TextureProvider.GetFromGameIcon(in lookup).GetWrapOrEmpty();
+            var pos = ImGui.GetCursorScreenPos();
+            var draw = ImGui.GetWindowDrawList();
+            var grayscaleTexture = !aura.Present ? this.GetGrayscaleIconTexture(aura.IconId) : null;
+            ImGui.Image((grayscaleTexture ?? texture).Handle, new Vector2(size, size));
+            var max = pos + new Vector2(size, size);
 
-            return;
+            if (!aura.Present)
+            {
+                if (grayscaleTexture is null)
+                    this.DrawUnavailableIconTint(draw, pos, max);
+
+                return;
+            }
+
+            if (aura.Remaining > 0.05f)
+                this.DrawTimerText(draw, pos, max, aura.Remaining);
+
+            if (aura.Param > 1)
+                this.DrawChargeText(draw, pos, max, aura.Param);
+
+            if (iconWindow.Role == IconWindowRole.PartyBuffs && iconWindow.ShowPartyAuraCount && aura.Count > 0)
+                this.DrawAuraCountText(draw, pos, max, aura.Count);
+
+            if (aura.FromSelf)
+                draw.AddRect(pos, max, ImGui.GetColorU32(new Vector4(0.45f, 0.75f, 1f, 0.95f)), 3f, ImDrawFlags.None, 1.5f);
         }
-
-        if (aura.Remaining > 0.05f)
-            this.DrawTimerText(draw, pos, max, aura.Remaining);
-
-        if (aura.Param > 1)
-            this.DrawChargeText(draw, pos, max, aura.Param);
-
-        if (iconWindow.Role == IconWindowRole.PartyBuffs && iconWindow.ShowPartyAuraCount && aura.Count > 0)
-            this.DrawAuraCountText(draw, pos, max, aura.Count);
-
-        if (aura.FromSelf)
-            draw.AddRect(pos, max, ImGui.GetColorU32(new Vector4(0.45f, 0.75f, 1f, 0.95f)), 3f, ImDrawFlags.None, 1.5f);
+        finally
+        {
+            this.performanceProfiler.EndSection(PerformanceProfileSection.AuraIcon, profileStart);
+        }
     }
 
     private void DrawAuraCountText(ImDrawListPtr draw, Vector2 min, Vector2 max, int count)

@@ -54,38 +54,46 @@ public sealed unsafe partial class Plugin
 
     private void RebuildActionKeybindIndex()
     {
-        this.actionKeybindIndex.Clear();
-        this.hotbarVisibilityCache.Clear();
-
-        var hotbarModule = RaptureHotbarModule.Instance();
-        if (hotbarModule is null)
-            return;
-
-        for (var visibleOnly = true; ; visibleOnly = false)
+        var profileStart = this.performanceProfiler.BeginSection(PerformanceProfileSection.KeybindRebuild);
+        try
         {
-            for (uint hotbarId = 0; hotbarId < 18; hotbarId++)
+            this.actionKeybindIndex.Clear();
+            this.hotbarVisibilityCache.Clear();
+
+            var hotbarModule = RaptureHotbarModule.Instance();
+            if (hotbarModule is null)
+                return;
+
+            for (var visibleOnly = true; ; visibleOnly = false)
             {
-                var visible = this.IsHotbarVisible(hotbarId);
-                if (visibleOnly != visible)
-                    continue;
-
-                for (uint slotIndex = 0; slotIndex < 16; slotIndex++)
+                for (uint hotbarId = 0; hotbarId < 18; hotbarId++)
                 {
-                    var slot = hotbarModule->GetSlotById(hotbarId, slotIndex);
-                    if (slot is null || slot->CommandType == RaptureHotbarModule.HotbarSlotType.Empty)
+                    var visible = this.IsHotbarVisible(hotbarId);
+                    if (visibleOnly != visible)
                         continue;
 
-                    if (!IsActionHotbarSlot(slot))
-                        continue;
+                    for (uint slotIndex = 0; slotIndex < 16; slotIndex++)
+                    {
+                        var slot = hotbarModule->GetSlotById(hotbarId, slotIndex);
+                        if (slot is null || slot->CommandType == RaptureHotbarModule.HotbarSlotType.Empty)
+                            continue;
 
-                    var text = GetHotbarSlotKeybindText(slot);
-                    if (!string.IsNullOrWhiteSpace(text))
-                        this.RegisterHotbarSlotKeybind(slot, text);
+                        if (!IsActionHotbarSlot(slot))
+                            continue;
+
+                        var text = GetHotbarSlotKeybindText(slot);
+                        if (!string.IsNullOrWhiteSpace(text))
+                            this.RegisterHotbarSlotKeybind(slot, text);
+                    }
                 }
-            }
 
-            if (!visibleOnly)
-                break;
+                if (!visibleOnly)
+                    break;
+            }
+        }
+        finally
+        {
+            this.performanceProfiler.EndSection(PerformanceProfileSection.KeybindRebuild, profileStart);
         }
     }
 

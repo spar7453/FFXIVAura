@@ -1,0 +1,28 @@
+namespace FFXIVAura;
+
+internal readonly record struct OverlayWindowDebugSnapshot(
+    string WindowId,
+    IconWindowRole Role,
+    IconDisplayCondition DisplayCondition,
+    int SkillLayoutCount,
+    int SkillDisplayCount,
+    int SkillHiddenByDisplayConditionCount,
+    int SkillReadyCount,
+    int SkillCoolingCount,
+    int SkillUnavailableCount,
+    int SkillAdjustedCount,
+    int SkillTrackedResolveMissingCount,
+    int AuraLayoutCount,
+    int AuraDisplayCount,
+    int AuraHiddenByDisplayConditionCount,
+    int AuraPresentCount,
+    int AuraMissingCount,
+    int PartyCandidateItemCount,
+    int PartyDisplayItemCount,
+    int PartyHiddenByDisplayConditionCount,
+    int PartyRowCount,
+    int PartyEmptyRowCount,
+    int PartyReadyCount,
+    int PartyActiveCount,
+    int PartyCooldownCount,
+    int PartyStatuslessCandidateCount);

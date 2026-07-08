@@ -7,7 +7,7 @@ public sealed unsafe partial class Plugin
         ImGui.TextUnformatted("\uCD94\uC801 \uBC84\uD504/\uB514\uBC84\uD504");
 
         var search = iconWindow.AuraSearch ?? string.Empty;
-        ImGui.SetNextItemWidth(260f);
+        ImGui.SetNextItemWidth(Math.Min(360f, Math.Max(180f, GetConfigContentWidth() - 100f)));
         if (ImGui.InputTextWithHint("##FFXIVAuraAuraSearch", "\uBC84\uD504/\uB514\uBC84\uD504 \uC774\uB984 \uB610\uB294 ID \uAC80\uC0C9", ref search, 80))
         {
             iconWindow.AuraSearch = search;
@@ -48,7 +48,7 @@ public sealed unsafe partial class Plugin
                 this.QueueConfigSave();
         }
 
-        ImGui.BeginChild("FFXIVAuraTrackedAuraList", new Vector2(560f, 220f), true);
+        ImGui.BeginChild("FFXIVAuraTrackedAuraList", new Vector2(GetConfigContentWidth(), 220f), true);
         for (var i = 0; i < iconWindow.TrackedStatusIds.Count; i++)
         {
             var statusId = iconWindow.TrackedStatusIds[i];
@@ -79,6 +79,7 @@ public sealed unsafe partial class Plugin
             return;
 
         ImGui.SetNextWindowSize(new Vector2(620f, 460f), ImGuiCond.FirstUseEver);
+        ImGui.SetNextWindowSizeConstraints(new Vector2(420f, 320f), new Vector2(float.MaxValue, float.MaxValue));
         if (!ImGui.Begin("\uBC84\uD504/\uB514\uBC84\uD504 \uAC80\uC0C9", ref this.auraSearchWindowVisible))
         {
             if (!this.auraSearchWindowVisible)
@@ -89,7 +90,9 @@ public sealed unsafe partial class Plugin
         }
 
         var search = iconWindow.AuraSearch ?? string.Empty;
-        ImGui.SetNextItemWidth(360f);
+        var contentWidth = GetConfigContentWidth(360f);
+        var clearWidth = ImGui.CalcTextSize("\uC9C0\uC6B0\uAE30").X + ImGui.GetStyle().FramePadding.X * 2f;
+        ImGui.SetNextItemWidth(Math.Max(180f, contentWidth - clearWidth - ImGui.GetStyle().ItemSpacing.X));
         if (ImGui.InputTextWithHint("##FFXIVAuraAuraSearchWindowInput", "\uC774\uB984 \uB610\uB294 ID", ref search, 80))
         {
             iconWindow.AuraSearch = search;
@@ -111,7 +114,9 @@ public sealed unsafe partial class Plugin
         }
 
         ImGui.Separator();
-        this.DrawAuraSearchResults(iconWindow, new Vector2(590f, 340f));
+        var resultSize = ImGui.GetContentRegionAvail();
+        resultSize.Y = Math.Max(120f, resultSize.Y);
+        this.DrawAuraSearchResults(iconWindow, resultSize);
         ImGui.End();
         if (!this.auraSearchWindowVisible)
             this.auraSearchWindowId = null;
@@ -123,9 +128,9 @@ public sealed unsafe partial class Plugin
             return null;
 
         var iconWindow = string.IsNullOrWhiteSpace(this.auraSearchWindowId)
-            ? this.config.IconWindows.FirstOrDefault(window => window.Role != IconWindowRole.SkillCooldowns)
+            ? this.config.IconWindows.FirstOrDefault(window => IconWindowRoles.IsStandardAuraRole(window.Role))
             : this.config.IconWindows.FirstOrDefault(window => string.Equals(window.Id, this.auraSearchWindowId, StringComparison.OrdinalIgnoreCase));
-        if (iconWindow is not null && iconWindow.Role != IconWindowRole.SkillCooldowns)
+        if (iconWindow is not null && IconWindowRoles.IsStandardAuraRole(iconWindow.Role))
             return iconWindow;
 
         this.auraSearchWindowVisible = false;
@@ -142,42 +147,74 @@ public sealed unsafe partial class Plugin
     private void DrawAuraSearchResults(IconWindowConfig iconWindow, Vector2 size)
     {
         var limit = string.IsNullOrWhiteSpace(iconWindow.AuraSearch) ? 200 : 80;
-        var results = this.SearchStatuses(iconWindow.AuraSearch, iconWindow)
-            .Take(limit)
-            .ToList();
+        var results = this.SearchStatuses(iconWindow.AuraSearch, iconWindow);
+        var resultCount = Math.Min(limit, results.Count);
 
         ImGui.BeginChild("FFXIVAuraAuraSearchResults", size, true);
-        if (results.Count == 0)
+        if (resultCount == 0)
         {
-            ImGui.TextUnformatted(iconWindow.AuraSearchActiveOnly
-                ? "\uD604\uC7AC \uBCF4\uC774\uB294 \uBC84\uD504/\uB514\uBC84\uD504\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4."
-                : "\uCD5C\uADFC \uAC10\uC9C0\uB41C \uBC84\uD504/\uB514\uBC84\uD504\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4.");
+            this.DrawEmptyAuraSearchResult(iconWindow);
         }
 
-        foreach (var result in results)
+        if (ImGui.BeginTable("FFXIVAuraAuraSearchResultTable", 3, ImGuiTableFlags.SizingStretchProp | ImGuiTableFlags.RowBg))
         {
-            var alreadyTracked = iconWindow.TrackedStatusIds.Contains(result.StatusId);
-            ImGui.PushID($"status-search-{result.StatusId}");
-            this.DrawStatusListIcon(result.IconId, 22f);
-            ImGui.SameLine(0f, 8f);
-            ImGui.TextUnformatted($"{result.Name}  \uC0C1\uD0DC {result.StatusId}");
-            ImGui.SameLine();
-            if (alreadyTracked)
+            ImGui.TableSetupColumn("##icon", ImGuiTableColumnFlags.WidthFixed, 30f);
+            ImGui.TableSetupColumn("##status", ImGuiTableColumnFlags.WidthStretch);
+            ImGui.TableSetupColumn("##action", ImGuiTableColumnFlags.WidthFixed, 72f);
+            for (var index = 0; index < resultCount; index++)
             {
-                ImGui.BeginDisabled();
-                ImGui.SmallButton("\uCD94\uAC00\uB428");
-                ImGui.EndDisabled();
-            }
-            else if (ImGui.SmallButton("\uCD94\uAC00"))
-            {
-                if (this.TrackAura(iconWindow, result.StatusId))
-                    this.QueueConfigSave();
+                var result = results[index];
+                var alreadyTracked = iconWindow.TrackedStatusIds.Contains(result.StatusId);
+                ImGui.PushID($"status-search-{result.StatusId}");
+                ImGui.TableNextRow();
+                ImGui.TableSetColumnIndex(0);
+                this.DrawStatusListIcon(result.IconId, 22f);
+
+                ImGui.TableSetColumnIndex(1);
+                ImGui.TextUnformatted($"{result.Name}  \uC0C1\uD0DC {result.StatusId}");
+                var tags = AuraSearchDisplayResultFormatter.GetTagText(result);
+                if (!string.IsNullOrEmpty(tags))
+                    ImGui.TextWrapped(tags);
+
+                ImGui.TableSetColumnIndex(2);
+                if (alreadyTracked)
+                {
+                    ImGui.BeginDisabled();
+                    ImGui.SmallButton("\uCD94\uAC00\uB428");
+                    ImGui.EndDisabled();
+                }
+                else if (ImGui.SmallButton("\uCD94\uAC00"))
+                {
+                    if (this.TrackAura(iconWindow, result.StatusId))
+                        this.QueueConfigSave();
+                }
+
+                ImGui.PopID();
             }
 
-            ImGui.PopID();
+            ImGui.EndTable();
         }
 
         ImGui.EndChild();
+    }
+
+    private void DrawEmptyAuraSearchResult(IconWindowConfig iconWindow)
+    {
+        if (iconWindow.AuraSearchActiveOnly && !string.IsNullOrWhiteSpace(iconWindow.AuraSearch))
+        {
+            ImGui.TextWrapped("현재 보이는 버프/디버프만 검색 중입니다. 전체 상태에서 찾으려면 검색 범위를 전환하세요.");
+            if (ImGui.Button("전체 검색으로 전환"))
+            {
+                iconWindow.AuraSearchActiveOnly = false;
+                this.QueueConfigSave();
+            }
+
+            return;
+        }
+
+        ImGui.TextUnformatted(iconWindow.AuraSearchActiveOnly
+            ? "\uD604\uC7AC \uBCF4\uC774\uB294 \uBC84\uD504/\uB514\uBC84\uD504\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4."
+            : "\uCD5C\uADFC \uAC10\uC9C0\uB41C \uBC84\uD504/\uB514\uBC84\uD504\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4.");
     }
 
     private bool TrackAura(IconWindowConfig iconWindow, uint statusId)

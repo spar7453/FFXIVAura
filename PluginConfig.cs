@@ -10,6 +10,11 @@ public class PluginConfigData
     public bool HideDuringZoneLoad { get; set; } = true;
     public bool ShowTooltips { get; set; } = true;
     public bool ShowPerformanceOverlay { get; set; }
+    public bool ShowDetailedPerformanceProfile { get; set; }
+    public bool RecordPerformanceProfile { get; set; }
+    public int PerformanceProfileRecordIntervalSeconds { get; set; } = 1;
+    public int PerformanceProfileMaxFileMegabytes { get; set; } = 64;
+    public bool ShowPartyCooldownLogObserver { get; set; }
     public float IconSize { get; set; } = 42f;
     public float Gap { get; set; } = 5f;
     public float FontScale { get; set; } = 1f;
@@ -42,6 +47,9 @@ public sealed class IconWindowConfig
     public int ActiveOrderRow { get; set; }
     public IconWindowRole Role { get; set; } = IconWindowRole.SkillCooldowns;
     public IconDisplayCondition DisplayCondition { get; set; } = IconDisplayCondition.Always;
+    public IconDisplayCondition SkillDisplayCondition { get; set; } = IconDisplayCondition.Always;
+    public IconDisplayCondition AuraDisplayCondition { get; set; } = IconDisplayCondition.Always;
+    public IconDisplayCondition PartyCooldownDisplayCondition { get; set; } = IconDisplayCondition.Always;
     public IconAlignment Alignment { get; set; } = IconAlignment.Center;
     public bool HighlightReady { get; set; }
     public bool HighlightAdjusted { get; set; } = true;
@@ -52,6 +60,7 @@ public sealed class IconWindowConfig
     public string AuraSearch { get; set; } = string.Empty;
     public bool AuraSearchActiveOnly { get; set; } = true;
     public List<uint> TrackedStatusIds { get; set; } = new();
+    public List<string> ExcludedPartyCooldownIds { get; set; } = new();
     public Dictionary<string, List<string>> TrackedByJob { get; set; } = new();
     public Dictionary<string, List<string>> ExcludedByJob { get; set; } = new();
     public Dictionary<string, Dictionary<string, System.Numerics.Vector2>> IconPositionsByJob { get; set; } = new();
@@ -64,6 +73,9 @@ public enum IconWindowRole
     PlayerBuffs,
     TargetDebuffs,
     PartyBuffs,
+    PartyDefensives,
+    PartyHealingCooldowns,
+    PartySynergies,
 }
 
 public enum IconDisplayCondition

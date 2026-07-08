@@ -31,5 +31,6 @@
 
   <ItemGroup>
     <None Include="Data\abilities.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Data\party_cooldowns.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

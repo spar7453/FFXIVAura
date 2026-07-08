@@ -12,12 +12,15 @@ The goal is simple: show only the skills, buffs, debuffs, charges, cooldowns, an
 - `/fa` command opens the settings window.
 - Multiple overlay windows.
 - Per-window options for size, gap, font scale, position, role, and display condition.
-- Overlay edit controls for window role, display condition, window name, alignment, and resize.
+- Overlay edit controls for window role, display condition, window name, alignment, resize, and safe skill removal.
 - Overlay roles:
   - Skill cooldowns
   - Player buffs
   - Target debuffs
   - Party buffs
+  - Party defensives
+  - Party healing cooldowns
+  - Party damage synergies
 - Per-job tracked skill lists.
 - Per-job icon positions.
 - Manual icon dragging inside the overlay grid.
@@ -40,7 +43,13 @@ The goal is simple: show only the skills, buffs, debuffs, charges, cooldowns, an
   - Cooling/active only
   - Ready/missing only
 - Aura search and tracking for recently seen buffs/debuffs.
+- Aura search by status name, status ID, action name, or action ID, with result tags for active, recently seen, action-granted skill names, status-list, and same-name status IDs.
 - Party aura options for own-only filtering and party member count display.
+- Party cooldown boards show each party member in party-list order with job icon, short name, ready skills, active borders, and estimated cooldown timers after active effects end.
+- Party defensive, healing cooldown, and damage synergy boards are separated so healer cooldowns do not crowd the defensive board.
+- Party cooldown presets show all configured job skills by default, and each window can exclude unneeded preset entries from settings.
+- Optional detailed performance profiling with section and per-window timings.
+- Optional automatic CSV performance recording for development builds.
 
 ## Screenshots
 
@@ -71,6 +80,7 @@ Open the settings window with `/fa`.
 ### Overlay / Tracking
 
 - Add or delete icon windows.
+- Add a clean default window or clone the current window.
 - Change icon size, gap, overlay width, overlay height, and font scale.
 - Select tracked skills by job.
 - Filter skills by category:
@@ -82,7 +92,10 @@ Open the settings window with `/fa`.
 - Edit row-based display order.
 - Resize the tracked order editor area by dragging the divider.
 - Search and add recently seen buffs/debuffs.
+- Aura search results show where a status came from, including active, recent, action-granted skill names, full status list, and same-name ID hints. Action-granted statuses keep their skill source tag even when found by status name or status ID.
 - Buff/debuff windows set to the Active display condition continuously compact the currently active auras so expired or newly appeared statuses do not leave empty slots.
+- Party defensive, party healing cooldown, and party damage synergy windows use built-in job data instead of manual tracking lists. Skills above the current effective level are hidden for synced content.
+- In party cooldown windows, uncheck preset entries in the settings list to exclude skills you do not want that window to track.
 
 The most common per-window controls are available directly on the unlocked overlay:
 
@@ -91,8 +104,24 @@ The most common per-window controls are available directly on the unlocked overl
 - Bottom-left name field renames the window.
 - Bottom-right buttons change icon alignment.
 - The lower-right corner handle resizes the overlay box.
+- Ctrl + right-click on a skill icon removes it from that overlay while edit controls are visible.
 
-Each window stores its own display settings and manual icon positions. Buff/debuff windows use automatic compact placement only while their display condition is Active.
+Each window stores its own display settings and manual icon positions. When a window is switched between skill and aura roles, the last display condition used for that role is restored. Buff/debuff windows use automatic compact placement only while their display condition is Active.
+
+### Performance Profiling
+
+The general settings include a detailed profiling option for local debugging. When enabled, the performance overlay shows:
+
+- Total plugin frame time.
+- Section timings for overlay rendering, frame model creation, positioning, cooldowns, icon rendering, aura scans, keybind rebuilds, tooltip control, and grayscale processing.
+- Current, average, maximum, recent 5-second average, and maximum timestamp values. The recent average keeps a larger bounded sample window so high-FPS clients do not shorten the displayed 5-second view too aggressively.
+- Per-window timings by overlay window name.
+
+Use this only while diagnosing performance. Keep it disabled for normal play unless you are actively checking a problem.
+
+For longer development sessions, enable `프로파일 자동 기록` in the general settings. The plugin writes `performance-profile.csv` to the Dalamud plugin config directory once per configured interval. Rows are stored in long format with `frame`, `section`, `window`, and `diagnostic` scopes, so the same file can be filtered by total frame time, profiler section, overlay window, or runtime state. Diagnostic rows include player level/combat/loading state, overlay/window settings, cache sizes, aura cache state, party cooldown log/runtime counts, grayscale queue state, tooltip activity, per-window display decision counts, and the last notable debug event. When the file reaches the configured size limit, the previous file is rotated to `performance-profile.previous.csv`.
+
+When automatic recording is enabled, party cooldown log observations are kept even if the on-screen log observer is hidden. This keeps the CSV useful for bugs where an action use was logged but ignored, excluded, level-filtered, or matched to the wrong source.
 
 ## Data Files
 
@@ -101,6 +130,18 @@ Each window stores its own display settings and manual icon positions. Buff/debu
 This is the main skill metadata file used by the overlay. It contains job, level, action ID, icon ID, display name, category, and charge/cooldown-related metadata used by the plugin.
 
 When a game patch changes actions, this file is the first place to check.
+
+### `Data/party_cooldowns.json`
+
+This file defines the built-in party defensive, healer cooldown, and damage synergy board entries. Each entry maps a job or role action to an action ID, category, and expected active duration. Runtime status detection is source-aware, so party cooldowns are attributed to the party member who applied the status. Entries are shown by default; user exclusions are stored per overlay window.
+
+When this file changes, verify:
+
+1. The action exists in `abilities.json`.
+2. The job or role action mapping is correct.
+3. The unlock level matches synced-content behavior.
+4. The active duration is close enough for cooldown estimation.
+5. In game, the active border appears on the user who cast the skill.
 
 Typical update workflow:
 
@@ -118,12 +159,18 @@ Typical update workflow:
   - Main settings UI.
 - `Plugin.Overlay.cs`
   - Overlay window rendering and icon interaction.
+- `Plugin.PartyCooldowns.cs`
+  - Built-in party defensive, healing cooldown, and damage synergy data loading, source-aware active status detection, and cooldown state estimation.
+- `Plugin.PartyCooldownRendering.cs`
+  - Row-based party cooldown board rendering and tooltip handling.
 - `Plugin.OverlayControls.cs`
   - Floating overlay edit controls for role, display condition, name, and alignment.
 - `Plugin.OverlayPositions.cs`
   - Shared icon position normalization, resize normalization, and stale position cleanup.
 - `Plugin.SkillPositions.cs`
   - Skill icon position storage, auto placement, alignment, and tracked-action key matching.
+- `SkillPositionLayout.cs`
+  - Pure skill position restore, equivalent-key migration, row alignment, and level-sync layout helpers.
 - `Plugin.AuraPositions.cs`
   - Aura position storage, active-only compact placement, alignment, and stale aura position cleanup.
 - `Plugin.OverlayItems.cs`
@@ -148,6 +195,8 @@ Typical update workflow:
   - Buff/debuff tracking UI and aura search window.
 - `Plugin.AuraSearch.cs`
   - Recently/currently seen aura search and status candidate ordering.
+- `AuraSearchDisplayResult.cs`
+  - Pure aura search result merging, sorting, same-name counting, and display tags.
 - `Plugin.AuraStates.cs`
   - Player, target, and party aura state calculation.
 - `Plugin.AuraRendering.cs`
@@ -168,10 +217,22 @@ Typical update workflow:
   - Hotbar keybind lookup and display text.
 - `KeybindTextFormatter.cs`
   - Pure keybind label formatting and unsupported glyph filtering.
+- `Plugin.Performance.cs`
+  - Performance overlay UI and detailed profiler display.
+- `Plugin.PerformanceRecording.cs`
+  - Automatic CSV performance profile recording and file rotation.
+- `PerformanceProfileCsv.cs`
+  - CSV row formatting and escaping for recorded profiler samples.
+- `PerformanceProfiler.cs`
+  - Pure section and per-window timing aggregation.
+- `PerformanceProfileSection.cs`
+  - Performance profiler section and snapshot models.
 - `PluginConfig.cs`
   - Saved configuration model.
 - `AbilityDefinition.cs`
   - Ability metadata model.
+- `PartyCooldownDefinition.cs`
+  - Built-in party cooldown metadata and runtime display models.
 - `CooldownState.cs`
   - Runtime cooldown display state.
 - `AuraState.cs`
@@ -185,6 +246,8 @@ Typical update workflow:
 dotnet build -c Release --no-restore
 dotnet run --project .\tests\FFXIVAura.Tests\FFXIVAura.Tests.csproj -c Release
 ```
+
+Before treating a build as stable, also run through [the manual validation checklist](docs/manual-validation.md), especially after changes to overlay positioning, level sync behavior, tooltips, aura search, or profiling.
 
 ## Patch Notes for Maintainers
 

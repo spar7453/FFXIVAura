@@ -25,11 +25,19 @@ internal readonly record struct PluginConfigNormalizationOptions(
 
 internal static class PluginConfigNormalizer
 {
+    private const int MinPerformanceProfileRecordIntervalSeconds = 1;
+    private const int MaxPerformanceProfileRecordIntervalSeconds = 60;
+    private const int DefaultPerformanceProfileRecordIntervalSeconds = 1;
+    private const int MinPerformanceProfileMaxFileMegabytes = 1;
+    private const int MaxPerformanceProfileMaxFileMegabytes = 1024;
+    private const int DefaultPerformanceProfileMaxFileMegabytes = 64;
+
     public static bool Normalize(PluginConfigData config, PluginConfigNormalizationOptions options)
     {
         ArgumentNullException.ThrowIfNull(config);
 
         var changed = EnsureConfigCollections(config, options);
+        changed |= NormalizePerformanceProfileSettings(config);
         var fallbackPosition = ConfigValueNormalizer.NormalizePosition(
             config.OverlayPosition,
             options.DefaultOverlayPosition,
@@ -195,6 +203,48 @@ internal static class PluginConfigNormalizer
                 changed = true;
             }
 
+            if (!Enum.IsDefined(typeof(IconDisplayCondition), window.SkillDisplayCondition))
+            {
+                window.SkillDisplayCondition = IconDisplayCondition.Always;
+                changed = true;
+            }
+
+            if (!Enum.IsDefined(typeof(IconDisplayCondition), window.AuraDisplayCondition))
+            {
+                window.AuraDisplayCondition = IconDisplayCondition.Always;
+                changed = true;
+            }
+
+            if (!Enum.IsDefined(typeof(IconDisplayCondition), window.PartyCooldownDisplayCondition))
+            {
+                window.PartyCooldownDisplayCondition = IconDisplayCondition.Always;
+                changed = true;
+            }
+
+            if (window.Role == IconWindowRole.SkillCooldowns
+                && window.SkillDisplayCondition == IconDisplayCondition.Always
+                && window.DisplayCondition != IconDisplayCondition.Always)
+            {
+                window.SkillDisplayCondition = window.DisplayCondition;
+                changed = true;
+            }
+
+            if (IconWindowRoles.IsStandardAuraRole(window.Role)
+                && window.AuraDisplayCondition == IconDisplayCondition.Always
+                && window.DisplayCondition != IconDisplayCondition.Always)
+            {
+                window.AuraDisplayCondition = window.DisplayCondition;
+                changed = true;
+            }
+
+            if (IconWindowRoles.IsPartyCooldownRole(window.Role)
+                && window.PartyCooldownDisplayCondition == IconDisplayCondition.Always
+                && window.DisplayCondition != IconDisplayCondition.Always)
+            {
+                window.PartyCooldownDisplayCondition = window.DisplayCondition;
+                changed = true;
+            }
+
             if (!Enum.IsDefined(typeof(IconAlignment), window.Alignment))
             {
                 window.Alignment = IconAlignment.Center;
@@ -208,6 +258,10 @@ internal static class PluginConfigNormalizer
             }
 
             changed |= ConfigMapNormalizer.NormalizeStatusIds(window.TrackedStatusIds);
+            window.ExcludedPartyCooldownIds = ConfigMapNormalizer.NormalizeStringList(
+                window.ExcludedPartyCooldownIds,
+                out var excludedPartyCooldownIdsChanged);
+            changed |= excludedPartyCooldownIdsChanged;
             window.TrackedByJob = ConfigMapNormalizer.NormalizeStringListMap(window.TrackedByJob, out var trackedMapChanged);
             changed |= trackedMapChanged;
             window.ExcludedByJob = ConfigMapNormalizer.NormalizeStringListMap(window.ExcludedByJob, out var excludedMapChanged);
@@ -240,6 +294,36 @@ internal static class PluginConfigNormalizer
         if (config.WindowCounter != windowCounter)
         {
             config.WindowCounter = windowCounter;
+            changed = true;
+        }
+
+        return changed;
+    }
+
+    private static bool NormalizePerformanceProfileSettings(PluginConfigData config)
+    {
+        var changed = false;
+        var interval = config.PerformanceProfileRecordIntervalSeconds <= 0
+            ? DefaultPerformanceProfileRecordIntervalSeconds
+            : Math.Clamp(
+                config.PerformanceProfileRecordIntervalSeconds,
+                MinPerformanceProfileRecordIntervalSeconds,
+                MaxPerformanceProfileRecordIntervalSeconds);
+        if (config.PerformanceProfileRecordIntervalSeconds != interval)
+        {
+            config.PerformanceProfileRecordIntervalSeconds = interval;
+            changed = true;
+        }
+
+        var maxFileMegabytes = config.PerformanceProfileMaxFileMegabytes <= 0
+            ? DefaultPerformanceProfileMaxFileMegabytes
+            : Math.Clamp(
+                config.PerformanceProfileMaxFileMegabytes,
+                MinPerformanceProfileMaxFileMegabytes,
+                MaxPerformanceProfileMaxFileMegabytes);
+        if (config.PerformanceProfileMaxFileMegabytes != maxFileMegabytes)
+        {
+            config.PerformanceProfileMaxFileMegabytes = maxFileMegabytes;
             changed = true;
         }
 
@@ -326,6 +410,12 @@ internal static class PluginConfigNormalizer
         if (window.TrackedStatusIds is null)
         {
             window.TrackedStatusIds = [];
+            changed = true;
+        }
+
+        if (window.ExcludedPartyCooldownIds is null)
+        {
+            window.ExcludedPartyCooldownIds = [];
             changed = true;
         }
 

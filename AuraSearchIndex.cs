@@ -7,9 +7,19 @@ internal readonly record struct AuraSearchIndexEntry(
     string Name,
     uint IconId,
     string PrimarySearchText,
-    string SecondarySearchText)
+    string SecondarySearchText,
+    string AdditionalSearchText = "")
 {
     public AuraSearchResult Result => new(this.StatusId, this.Name, this.IconId);
+
+    public string SearchText { get; } = BuildSearchText(PrimarySearchText, SecondarySearchText, AdditionalSearchText);
+
+    private static string BuildSearchText(params string[] values)
+        => string.Join(
+            '\u001f',
+            values
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Select(value => value.Trim()));
 }
 
 internal static class AuraSearchIndex
@@ -26,8 +36,9 @@ internal static class AuraSearchIndex
 
     public static bool Matches(AuraSearchIndexEntry entry, string query)
     {
-        return entry.PrimarySearchText.Contains(query, StringComparison.CurrentCultureIgnoreCase)
-               || entry.SecondarySearchText.Contains(query, StringComparison.OrdinalIgnoreCase);
+        var normalizedQuery = query?.Trim() ?? string.Empty;
+        return normalizedQuery.Length == 0
+               || entry.SearchText.Contains(normalizedQuery, StringComparison.CurrentCultureIgnoreCase);
     }
 
     public static bool IsSearchableStatusName(string name)

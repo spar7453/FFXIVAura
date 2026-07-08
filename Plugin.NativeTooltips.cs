@@ -16,6 +16,7 @@ public sealed unsafe partial class Plugin
             return;
 
         this.overlayTooltipRequestedThisFrame = true;
+        this.SetBugDiagnosticEvent($"tooltipActionNative:{actionId}");
         this.nativeActionTooltipController.BeginHover(actionId, DateTime.UtcNow);
         this.ControlNativeActionTooltip(NativeActionTooltipController.AddonName, suppressSound: false);
         try
@@ -36,6 +37,7 @@ public sealed unsafe partial class Plugin
             return;
 
         this.overlayTooltipRequestedThisFrame = true;
+        this.SetBugDiagnosticEvent($"tooltipAura:{aura.StatusId}");
         this.HideNativeActionTooltip();
         var text = this.GetStatusTooltipText(aura.StatusId);
         ShowTextTooltipAtMouse(text);
@@ -166,9 +168,12 @@ public sealed unsafe partial class Plugin
         if (string.IsNullOrWhiteSpace(text))
             return;
 
-        ImGui.SetNextWindowPos(NativeActionTooltipController.GetPositionAtMouse(ImGui.GetMousePos(), ImGui.GetIO().DisplaySize, Vector2.Zero), ImGuiCond.Always);
+        var wrapWidth = ImGui.GetFontSize() * 30f;
+        var padding = ImGui.GetStyle().WindowPadding * 2f;
+        var tooltipSize = ImGui.CalcTextSize(text, false, wrapWidth) + padding;
+        ImGui.SetNextWindowPos(NativeActionTooltipController.GetPositionAtMouse(ImGui.GetMousePos(), ImGui.GetIO().DisplaySize, tooltipSize), ImGuiCond.Always);
         ImGui.BeginTooltip();
-        ImGui.PushTextWrapPos(ImGui.GetFontSize() * 30f);
+        ImGui.PushTextWrapPos(wrapWidth);
         ImGui.TextUnformatted(text);
         ImGui.PopTextWrapPos();
         ImGui.EndTooltip();
@@ -184,7 +189,15 @@ public sealed unsafe partial class Plugin
     private void ControlNativeActionTooltip(AtkUnitBase* addon, bool suppressSound)
     {
         this.performanceStats.CountNativeTooltipControl();
-        this.nativeActionTooltipController.Control(addon, suppressSound, ImGui.GetMousePos(), ImGui.GetIO().DisplaySize);
+        var profileStart = this.performanceProfiler.BeginSection(PerformanceProfileSection.TooltipControl);
+        try
+        {
+            this.nativeActionTooltipController.Control(addon, suppressSound, ImGui.GetMousePos(), ImGui.GetIO().DisplaySize);
+        }
+        finally
+        {
+            this.performanceProfiler.EndSection(PerformanceProfileSection.TooltipControl, profileStart);
+        }
     }
 
     private static AtkUnitBase* GetNativeTooltipAddon(string addonName)

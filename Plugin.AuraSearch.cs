@@ -4,51 +4,89 @@ public sealed unsafe partial class Plugin
 {
     private const int AuraSeenHistoryLimit = 512;
 
-    private IEnumerable<(uint StatusId, string Name, uint IconId)> SearchStatuses(string search, IconWindowConfig iconWindow)
+    private IReadOnlyList<AuraSearchDisplayResult> SearchStatuses(string search, IconWindowConfig iconWindow)
     {
         var query = search?.Trim() ?? string.Empty;
-        var currentStatusIds = this.GetCurrentStatusIds(iconWindow)
-            .Distinct()
-            .ToList();
-        this.UpdateAuraSeenTimes(iconWindow, currentStatusIds);
+        var currentStatusIds = this.UpdateCurrentAuraSeenTimes(iconWindow);
+        var currentStatusIdSet = currentStatusIds.ToHashSet();
+        var candidates = new List<AuraSearchDisplayResult>();
+        this.AddCurrentStatusSearchResults(candidates, query, iconWindow, currentStatusIds);
         if (iconWindow.AuraSearchActiveOnly)
-        {
-            foreach (var result in this.SearchCurrentStatuses(query, iconWindow, currentStatusIds))
-                yield return result;
+            return AuraSearchDisplayResults.MergeAndSort(candidates, query);
 
-            yield break;
-        }
-
-        var hasIdQuery = uint.TryParse(query, out var idQuery);
-        var results = this.SearchRecentStatuses(query, iconWindow);
+        this.AddRecentStatusSearchResults(candidates, query, iconWindow, currentStatusIdSet);
         if (query.Length > 0)
-            results = results
-                .Concat(this.SearchActionGrantedStatuses(query))
-                .Concat(this.SearchAllStatuses(query));
-
-        foreach (var result in results
-                     .GroupBy(result => result.StatusId)
-                     .Select(group => group.First())
-                     .OrderByDescending(row => hasIdQuery && row.StatusId == idQuery)
-                     .ThenByDescending(row => query.Length > 0 && row.Name.Equals(query, StringComparison.CurrentCultureIgnoreCase))
-                     .ThenByDescending(row => query.Length > 0 && row.Name.StartsWith(query, StringComparison.CurrentCultureIgnoreCase))
-                     .ThenByDescending(row => this.GetAuraSeenTime(iconWindow, row.StatusId))
-                     .ThenBy(row => row.StatusId))
         {
-            yield return result;
+            this.AddActionGrantedStatusSearchResults(candidates, query);
+            this.AddAllStatusSearchResults(candidates, query);
+        }
+
+        return AuraSearchDisplayResults.MergeAndSort(candidates, query);
+    }
+
+    private void AddCurrentStatusSearchResults(List<AuraSearchDisplayResult> results, string query, IconWindowConfig iconWindow, IReadOnlyList<uint> currentStatusIds)
+    {
+        foreach (var statusId in currentStatusIds)
+        {
+            var definition = this.GetStatusDefinition(statusId);
+            if (!this.IsSearchableStatusName(definition.Name))
+                continue;
+
+            var sourceActionNames = this.GetActionGrantedSourceNames(statusId, query);
+            if (query.Length > 0
+                && !this.MatchesStatusSearch(statusId, definition.Name, query)
+                && string.IsNullOrEmpty(sourceActionNames))
+            {
+                continue;
+            }
+
+            results.Add(new AuraSearchDisplayResult(
+                statusId,
+                definition.Name,
+                definition.IconId,
+                IsCurrent: true,
+                WasRecentlySeen: true,
+                FromAction: !string.IsNullOrEmpty(sourceActionNames),
+                FromStatusSheet: false,
+                SeenAtUtc: this.GetAuraSeenTime(iconWindow, statusId),
+                SourceActionNames: sourceActionNames));
         }
     }
 
-    private IEnumerable<(uint StatusId, string Name, uint IconId)> SearchActionGrantedStatuses(string query)
+    private void AddActionGrantedStatusSearchResults(List<AuraSearchDisplayResult> results, string query)
     {
-        foreach (var result in AuraSearchIndex.Search(this.GetActionGrantedStatusSearchIndex(), query))
-            yield return (result.StatusId, result.Name, result.IconId);
+        foreach (var entry in this.GetActionGrantedStatusSearchIndex())
+        {
+            if (!AuraSearchIndex.Matches(entry, query))
+                continue;
+
+            results.Add(new AuraSearchDisplayResult(
+                entry.StatusId,
+                entry.Name,
+                entry.IconId,
+                IsCurrent: false,
+                WasRecentlySeen: false,
+                FromAction: true,
+                FromStatusSheet: false,
+                SeenAtUtc: DateTime.MinValue,
+                SourceActionNames: entry.PrimarySearchText));
+        }
     }
 
-    private IEnumerable<(uint StatusId, string Name, uint IconId)> SearchAllStatuses(string query)
+    private void AddAllStatusSearchResults(List<AuraSearchDisplayResult> results, string query)
     {
         foreach (var result in AuraSearchIndex.Search(this.GetAllStatusSearchIndex(), query))
-            yield return (result.StatusId, result.Name, result.IconId);
+        {
+            results.Add(new AuraSearchDisplayResult(
+                result.StatusId,
+                result.Name,
+                result.IconId,
+                IsCurrent: false,
+                WasRecentlySeen: false,
+                FromAction: false,
+                FromStatusSheet: true,
+                SeenAtUtc: DateTime.MinValue));
+        }
     }
 
     private IReadOnlyList<AuraSearchIndexEntry> GetActionGrantedStatusSearchIndex()
@@ -83,7 +121,8 @@ public sealed unsafe partial class Plugin
                 definition.Name,
                 definition.IconId,
                 actionName,
-                action.RowId.ToString()));
+                action.RowId.ToString(),
+                $"{definition.Name} {statusId}"));
         }
 
         this.actionGrantedStatusSearchIndexBuilt = true;
@@ -125,43 +164,66 @@ public sealed unsafe partial class Plugin
         return this.allStatusSearchIndex;
     }
 
-    private IEnumerable<(uint StatusId, string Name, uint IconId)> SearchRecentStatuses(string query, IconWindowConfig iconWindow)
+    private void AddRecentStatusSearchResults(List<AuraSearchDisplayResult> results, string query, IconWindowConfig iconWindow, HashSet<uint> currentStatusIds)
     {
         if (!this.auraFirstSeenByScope.TryGetValue(RuntimeScopeKeys.AuraSeen(iconWindow), out var seenTimes))
-            yield break;
+            return;
 
-        foreach (var statusId in seenTimes.Keys)
+        foreach (var (statusId, seenAt) in seenTimes)
         {
+            if (currentStatusIds.Contains(statusId))
+                continue;
+
             var definition = this.GetStatusDefinition(statusId);
             if (!this.IsSearchableStatusName(definition.Name))
                 continue;
 
-            if (query.Length > 0 && !this.MatchesStatusSearch(statusId, definition.Name, query))
+            var sourceActionNames = this.GetActionGrantedSourceNames(statusId, query);
+            if (query.Length > 0
+                && !this.MatchesStatusSearch(statusId, definition.Name, query)
+                && string.IsNullOrEmpty(sourceActionNames))
+            {
                 continue;
+            }
 
-            yield return (statusId, definition.Name, definition.IconId);
+            results.Add(new AuraSearchDisplayResult(
+                statusId,
+                definition.Name,
+                definition.IconId,
+                IsCurrent: false,
+                WasRecentlySeen: true,
+                FromAction: !string.IsNullOrEmpty(sourceActionNames),
+                FromStatusSheet: false,
+                SeenAtUtc: seenAt,
+                SourceActionNames: sourceActionNames));
         }
     }
 
-    private IEnumerable<(uint StatusId, string Name, uint IconId)> SearchCurrentStatuses(string query, IconWindowConfig iconWindow, IReadOnlyCollection<uint>? currentStatusIds = null)
+    private IReadOnlyList<uint> UpdateCurrentAuraSeenTimes(IconWindowConfig iconWindow)
     {
-        currentStatusIds ??= this.GetCurrentStatusIds(iconWindow)
+        var currentStatusIds = this.GetCurrentStatusIds(iconWindow)
             .Distinct()
             .ToList();
         this.UpdateAuraSeenTimes(iconWindow, currentStatusIds);
+        return currentStatusIds;
+    }
 
-        return currentStatusIds
-            .Select(statusId =>
-            {
-                var definition = this.GetStatusDefinition(statusId);
-                return (StatusId: statusId, definition.Name, definition.IconId);
-            })
-            .Where(result => this.IsSearchableStatusName(result.Name))
-            .Where(result => query.Length == 0 || this.MatchesStatusSearch(result.StatusId, result.Name, query))
-            .OrderByDescending(result => result.Name.Equals(query, StringComparison.CurrentCultureIgnoreCase))
-            .ThenByDescending(result => result.Name.StartsWith(query, StringComparison.CurrentCultureIgnoreCase))
-            .ThenByDescending(result => this.GetAuraSeenTime(iconWindow, result.StatusId))
-            .ThenBy(result => result.StatusId);
+    private string GetActionGrantedSourceNames(uint statusId, string query)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+            return string.Empty;
+
+        var names = new List<string>();
+        foreach (var entry in this.GetActionGrantedStatusSearchIndex())
+        {
+            if (entry.StatusId != statusId || !AuraSearchIndex.Matches(entry, query))
+                continue;
+
+            if (!names.Contains(entry.PrimarySearchText, StringComparer.CurrentCultureIgnoreCase))
+                names.Add(entry.PrimarySearchText);
+        }
+
+        return string.Join(" / ", names);
     }
 
     private void UpdateAuraSeenTimes(IconWindowConfig iconWindow, IReadOnlyCollection<uint> currentStatusIds)

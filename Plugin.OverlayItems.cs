@@ -15,9 +15,12 @@ public sealed unsafe partial class Plugin
                 this.GetOverlayAbilities(iconWindow, job, level, visibility).ToList(),
                 Array.Empty<AuraState>());
 
-        return new OverlayItemSet(
+        if (IconWindowRoles.IsStandardAuraRole(iconWindow.Role))
+            return new OverlayItemSet(
                 Array.Empty<AbilityDefinition>(),
                 this.GetOverlayAuras(iconWindow, visibility).ToList());
+
+        return new OverlayItemSet(Array.Empty<AbilityDefinition>(), Array.Empty<AuraState>());
     }
 
     private OverlayFrameModel BuildOverlayFrameModel(IconWindowConfig iconWindow, string job, uint level)
@@ -36,6 +39,7 @@ public sealed unsafe partial class Plugin
                 new OverlayItemSet(layoutAbilities, Array.Empty<AuraState>()));
         }
 
+        this.UpdateCurrentAuraSeenTimes(iconWindow);
         var layoutAuras = this.GetLayoutAuras(iconWindow).ToList();
         var displayAuras = layoutAuras
             .Where(aura => this.ShouldDisplayAura(aura, iconWindow))

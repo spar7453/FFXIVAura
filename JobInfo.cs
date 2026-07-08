@@ -25,6 +25,16 @@ public static class JobInfo
         ["NIN"] = 29, // ROG
     };
 
+    private static readonly Dictionary<string, uint> JobIconIds = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["PLD"] = 62101, ["MNK"] = 62102, ["WAR"] = 62103, ["DRG"] = 62104,
+        ["BRD"] = 62105, ["WHM"] = 62106, ["BLM"] = 62107, ["SMN"] = 62109,
+        ["SCH"] = 62110, ["NIN"] = 62112, ["MCH"] = 62113, ["DRK"] = 62114,
+        ["AST"] = 62115, ["SAM"] = 62116, ["RDM"] = 62117, ["GNB"] = 62119,
+        ["DNC"] = 62120, ["RPR"] = 62121, ["SGE"] = 62122, ["VPR"] = 62123,
+        ["PCT"] = 62124,
+    };
+
     private static readonly HashSet<string> Tanks = new(StringComparer.OrdinalIgnoreCase) { "PLD", "WAR", "DRK", "GNB" };
     private static readonly HashSet<string> Healers = new(StringComparer.OrdinalIgnoreCase) { "WHM", "SCH", "AST", "SGE" };
     private static readonly HashSet<string> Melee = new(StringComparer.OrdinalIgnoreCase) { "MNK", "DRG", "NIN", "SAM", "RPR", "VPR" };
@@ -57,6 +67,12 @@ public static class JobInfo
     };
 
     public static string Code(uint classJobId) => JobIds.GetValueOrDefault(classJobId, "JOB");
+
+    public static uint IconId(string code)
+    {
+        var normalizedCode = code?.Trim() ?? string.Empty;
+        return JobIconIds.TryGetValue(normalizedCode, out var iconId) ? iconId : 0;
+    }
 
     public static uint Id(string code)
     {
