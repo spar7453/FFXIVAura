@@ -15,6 +15,7 @@ internal static class AbilityDataTests
         ("party_cooldowns.json ids are unique", PartyCooldownsJsonIdsAreUnique),
         ("party_cooldowns.json replacement groups are well formed", PartyCooldownsJsonReplacementGroupsAreWellFormed),
         ("party_cooldowns.json replacement groups select effective actions", PartyCooldownsJsonReplacementGroupsSelectEffectiveActions),
+        ("party_cooldowns.json durationed definitions have status ids", PartyCooldownsJsonDurationedDefinitionsHaveStatusIds),
         ("party_cooldowns.json durationless definitions are documented", PartyCooldownsJsonDurationlessDefinitionsAreDocumented),
         ("party_cooldowns.json references ability data", PartyCooldownsJsonReferencesAbilityData),
     ];
@@ -181,6 +182,17 @@ internal static class AbilityDataTests
             .ToArray();
 
         Sequence(expected, actual);
+    }
+
+    private static void PartyCooldownsJsonDurationedDefinitionsHaveStatusIds()
+    {
+        var missingStatusIds = LoadPartyCooldownData()
+            .Where(definition => definition.Duration > 0f)
+            .Where(definition => definition.StatusIds.Length == 0)
+            .Select(definition => definition.Id)
+            .ToArray();
+
+        True(missingStatusIds.Length == 0, $"durationed party cooldowns should define status ids: {string.Join(", ", missingStatusIds)}");
     }
 
     private static List<PartyCooldownDefinition> LoadPartyCooldownData()

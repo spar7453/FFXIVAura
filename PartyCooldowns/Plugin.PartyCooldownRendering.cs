@@ -174,7 +174,7 @@ public sealed unsafe partial class Plugin
 
                     ImGui.SetCursorScreenPos(iconPos);
                     this.DrawPartyCooldownIcon(row.Items[itemIndex], iconSize);
-                    this.HandlePartyCooldownIconInteraction(iconWindow, row.Items[itemIndex], iconPos, iconSize, drawnIconCount);
+                    this.HandlePartyCooldownIconInteraction(iconWindow, row.Member.Key, row.Items[itemIndex], iconPos, iconSize, drawnIconCount);
                 }
             }
 
@@ -236,7 +236,13 @@ public sealed unsafe partial class Plugin
         }
     }
 
-    private void HandlePartyCooldownIconInteraction(IconWindowConfig iconWindow, PartyCooldownDisplayItem item, Vector2 iconPos, float iconSize, int drawnIconCount)
+    private void HandlePartyCooldownIconInteraction(
+        IconWindowConfig iconWindow,
+        string memberKey,
+        PartyCooldownDisplayItem item,
+        Vector2 iconPos,
+        float iconSize,
+        int drawnIconCount)
     {
         var iconMax = iconPos + new Vector2(iconSize, iconSize);
         if (this.config.LockOverlay)
@@ -251,7 +257,9 @@ public sealed unsafe partial class Plugin
         }
 
         ImGui.SetCursorScreenPos(iconPos);
-        ImGui.InvisibleButton($"##party-cooldown-{item.Definition.Id}-{item.Definition.ActionId}", new Vector2(iconSize, iconSize));
+        ImGui.InvisibleButton(
+            PartyCooldownBoardLayout.BuildIconInteractionId(iconWindow.Id, memberKey, item.Definition.Id, item.Definition.ActionId),
+            new Vector2(iconSize, iconSize));
         var hovered = ImGui.IsItemHovered() && !ImGui.IsItemActive();
         if (hovered)
         {

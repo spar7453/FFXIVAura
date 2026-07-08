@@ -7,6 +7,13 @@ internal static class PartyCooldownBoardLayout
     public static bool HideEmptyRows(PartyCooldownCategory category)
         => category is PartyCooldownCategory.Healing or PartyCooldownCategory.Synergy;
 
+    public static string BuildIconInteractionId(
+        string windowId,
+        string memberKey,
+        string definitionId,
+        uint actionId)
+        => $"##party-cooldown-{windowId}-{memberKey}-{definitionId}-{actionId}";
+
     public static int GetIconLineCapacity(float availableWidth, float iconSize, float gap)
     {
         if (availableWidth <= 0f || iconSize <= 0f)

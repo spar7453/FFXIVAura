@@ -169,18 +169,22 @@ public sealed unsafe partial class Plugin
         if (this.partyCooldownFrameSnapshot is not null)
             return this.partyCooldownFrameSnapshot;
 
-        var members = this.GetPartyCooldownMembers();
+        var roster = this.GetPartyCooldownRoster();
+        var members = roster.Members;
         var displayMembers = this.GetPartyCooldownDisplayMembers(members);
         this.RebuildPartyCooldownActiveStatusIndex(displayMembers);
         this.partyCooldownFrameSnapshot = new PartyCooldownFrameSnapshot(
             members,
             displayMembers,
             PartyCooldownRoster.CreateDiagnostics(
-                PartyList.Length > 0 ? PartyCooldownRosterSource.PartyList : PartyCooldownRosterSource.SoloFallback,
-                PartyList.Length,
+                roster.Source,
+                roster.PartyListLength,
                 members,
                 displayMembers,
-                ObjectTable.LocalPlayer?.EntityId ?? 0),
+                ObjectTable.LocalPlayer?.EntityId ?? 0,
+                roster.AlliancePartyCount,
+                roster.AllianceMemberCount,
+                roster.HasAllianceSource),
             DateTime.UtcNow);
         return this.partyCooldownFrameSnapshot;
     }
@@ -501,53 +505,6 @@ public sealed unsafe partial class Plugin
         return remaining;
     }
 
-    private IReadOnlyList<PartyCooldownMemberSnapshot> GetPartyCooldownMembers()
-    {
-        var members = new List<PartyCooldownMemberSnapshot>(Math.Max(PartyList.Length, 1));
-        for (var i = 0; i < PartyList.Length; i++)
-        {
-            var member = PartyList[i];
-            if (member is null || member.EntityId == 0)
-                continue;
-
-            var classJobId = member.ClassJob.RowId;
-            var job = JobInfo.Code(classJobId);
-            members.Add(new PartyCooldownMemberSnapshot(
-                PartyCooldownMemberKey(member.ContentId, member.EntityId, member.Name.ToString(), job),
-                member.EntityId,
-                (ushort)member.World.RowId,
-                member.Name.ToString(),
-                ShortPartyMemberName(member.Name.ToString()),
-                job,
-                JobInfo.IconId(classJobId)));
-        }
-
-        if (members.Count == 0 && ObjectTable.LocalPlayer is IBattleChara player)
-        {
-            var classJobId = PlayerState.ClassJob.RowId;
-            var job = JobInfo.Code(classJobId);
-            var name = player.Name.ToString();
-            members.Add(new PartyCooldownMemberSnapshot(
-                PartyCooldownMemberKey(0, player.EntityId, name, job),
-                player.EntityId,
-                (ushort)PlayerState.HomeWorld.RowId,
-                name,
-                ShortPartyMemberName(name),
-                job,
-                JobInfo.IconId(classJobId)));
-        }
-
-        var localEntityId = ObjectTable.LocalPlayer?.EntityId ?? 0;
-        return PartyCooldownMemberOrdering.Sort(members, localEntityId);
-    }
-
-    private IReadOnlyList<PartyCooldownMemberSnapshot> GetPartyCooldownDisplayMembers(
-        IReadOnlyList<PartyCooldownMemberSnapshot> members)
-        => PartyCooldownRoster.CreateDisplayMembers(
-            members,
-            ObjectTable.LocalPlayer?.EntityId ?? 0,
-            excludeLocalPlayer: true);
-
     private void RebuildPartyCooldownActiveStatusIndex(IReadOnlyList<PartyCooldownMemberSnapshot> members)
     {
         this.partyCooldownActiveStatusFrameCache.Clear();
@@ -555,17 +512,16 @@ public sealed unsafe partial class Plugin
         foreach (var member in members)
             memberEntityIds.Add(member.EntityId);
 
-        for (var i = 0; i < PartyList.Length; i++)
+        this.AddPartyCooldownStatusSamplesFromPartyList(memberEntityIds);
+
+        if (PartyList.IsAlliance)
         {
-            var member = PartyList[i];
-            if (member is null)
-                continue;
-
-            if (!this.TryReadStatusSnapshots(member.Statuses, "partyCooldownPartyMember", member.EntityId))
-                continue;
-
-            foreach (var status in this.statusSnapshotBuffer)
-                this.AddPartyCooldownStatusSample(member.EntityId, status.SourceId, status.StatusId, status.RemainingTime, memberEntityIds);
+            for (var i = 0; i < AllianceMemberSlotCount; i++)
+            {
+                var member = this.TryCreateAllianceMemberReference(i);
+                if (member is not null)
+                    this.AddPartyCooldownStatusSamplesFromPartyMember(member, memberEntityIds, "partyCooldownAllianceMember");
+            }
         }
 
         if (ObjectTable.LocalPlayer is IBattleChara player && (PartyList.Length == 0 || memberEntityIds.Contains(player.EntityId)))

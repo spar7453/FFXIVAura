@@ -48,6 +48,7 @@ The goal is simple: show only the skills, buffs, debuffs, charges, cooldowns, an
 - Party cooldown boards show each party member in party-list order with job icon, short name, ready skills, active borders, and estimated cooldown timers after active effects end.
 - Party defensive, healing cooldown, and damage synergy boards are separated so healer cooldowns do not crowd the defensive board.
 - Party cooldown presets show all configured job skills by default, and each window can exclude unneeded preset entries from settings.
+- Party cooldown replacement groups hide lower-level actions after the current effective level unlocks their upgraded action.
 - Optional detailed performance profiling with section and per-window timings.
 - Optional automatic CSV performance recording for development builds.
 
@@ -95,6 +96,7 @@ Open the settings window with `/fa`.
 - Aura search results show where a status came from, including active, recent, action-granted skill names, full status list, and same-name ID hints. Action-granted statuses keep their skill source tag even when found by status name or status ID.
 - Buff/debuff windows set to the Active display condition continuously compact the currently active auras so expired or newly appeared statuses do not leave empty slots.
 - Party defensive, party healing cooldown, and party damage synergy windows use built-in job data instead of manual tracking lists. Skills above the current effective level are hidden for synced content.
+- Party cooldown boards read the current party roster and, when Dalamud reports an alliance, the additional alliance member roster as well.
 - In party cooldown windows, uncheck preset entries in the settings list to exclude skills you do not want that window to track.
 
 The most common per-window controls are available directly on the unlocked overlay:
@@ -133,7 +135,11 @@ When a game patch changes actions, this file is the first place to check.
 
 ### `Data/party_cooldowns.json`
 
-This file defines the built-in party defensive, healer cooldown, and damage synergy board entries. Each entry maps a job or role action to an action ID, category, and expected active duration. Runtime status detection is source-aware, so party cooldowns are attributed to the party member who applied the status. Entries are shown by default; user exclusions are stored per overlay window.
+This file defines the built-in party defensive, healer cooldown, and damage synergy board entries. Each entry maps a job or role action to an action ID, category, expected active duration, and any known active status IDs. Runtime status detection is source-aware, so party cooldowns are attributed to the party member who applied the status. Party and alliance rosters are sampled from Dalamud party APIs each frame before display. Entries are shown by default; user exclusions are stored per overlay window.
+
+Party cooldowns are intentionally data-driven instead of fully automatic. Dalamud `ActionManager` can resolve adjusted actions and cooldowns for the local player, but it cannot directly read another party member's personal cooldown state. The party boards therefore use curated action data, combat log observations, active status IDs, and cooldown estimation.
+
+Use `replacementGroup` for level-based upgrades that should occupy the same board slot. For example, Physis and Physis II share a replacement group, so synced content shows Physis before level 60 and Physis II at level 60 or above. These groups are checked by tests against verified `ReplaceAction.csv` / `Trait.csv` rows from the Korean datamining snapshot, so newly added groups should be backed by the same kind of source data.
 
 When this file changes, verify:
 
@@ -141,7 +147,10 @@ When this file changes, verify:
 2. The job or role action mapping is correct.
 3. The unlock level matches synced-content behavior.
 4. The active duration is close enough for cooldown estimation.
-5. In game, the active border appears on the user who cast the skill.
+5. Duration-based entries include the status IDs needed for active-border detection.
+6. Upgraded actions are grouped with `replacementGroup` only when backed by verified replacement data.
+7. In game, the active border appears on the user who cast the skill.
+8. In alliance content, roster count and source diagnostics in `performance-profile.csv` match the actual 24-player roster.
 
 Typical update workflow:
 
@@ -161,6 +170,10 @@ Typical update workflow:
   - Overlay window rendering and icon interaction.
 - `Plugin.PartyCooldowns.cs`
   - Built-in party defensive, healing cooldown, and damage synergy data loading, source-aware active status detection, and cooldown state estimation.
+- `PartyCooldownDefinitionSelector.cs`
+  - Effective-level selection for upgraded party cooldown definitions.
+- `PartyCooldownReplacementDataTests.cs`
+  - Test coverage that party cooldown replacement groups match verified `ReplaceAction` / trait unlock data.
 - `Plugin.PartyCooldownRendering.cs`
   - Row-based party cooldown board rendering and tooltip handling.
 - `Plugin.OverlayControls.cs`
@@ -247,6 +260,8 @@ dotnet build -c Release --no-restore
 dotnet run --project .\tests\FFXIVAura.Tests\FFXIVAura.Tests.csproj -c Release
 ```
 
+The test suite validates party cooldown data shape, status ID coverage for duration-based entries, synced-level replacement selection, and the currently curated `replacementGroup` mappings.
+
 Before treating a build as stable, also run through [the manual validation checklist](docs/manual-validation.md), especially after changes to overlay positioning, level sync behavior, tooltips, aura search, or profiling.
 
 ## Patch Notes for Maintainers
@@ -263,6 +278,7 @@ When FFXIV updates actions, check these areas:
 - Skills that upgrade automatically by level.
 - Skills that transform through `GetAdjustedActionId`.
 - Skills that are only usable with a proc, gauge, stance, or temporary state.
+- Party cooldown status IDs and level-based replacement groups.
 
 For new jobs, add or verify:
 
@@ -273,6 +289,7 @@ For new jobs, add or verify:
 - Charge skills.
 - Upgraded actions.
 - Adjusted/transformed actions.
+- Party defensive, healing cooldown, and damage synergy preset entries.
 - Keybind and cooldown behavior in game.
 
 ## Known Limitations
@@ -280,6 +297,7 @@ For new jobs, add or verify:
 - Korean action names depend on curated local action data.
 - Some job-specific gauge/proc states may still need explicit modeling.
 - Aura search is based on currently or recently observed statuses, not a full clean localized status database.
+- Alliance party cooldown tracking depends on Dalamud alliance roster/status data and should be manually verified in live 24-player content after game or Dalamud updates.
 - UI text is mainly Korean.
 
 ## Repository Policy

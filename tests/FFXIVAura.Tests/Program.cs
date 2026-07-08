@@ -21,6 +21,7 @@ tests.AddRange(PartyCooldownMemberOrderingTests.Cases);
 tests.AddRange(PartyCooldownRosterTests.Cases);
 tests.AddRange(PartyCooldownDefinitionSelectorTests.Cases);
 tests.AddRange(PartyCooldownDefinitionIdentityTests.Cases);
+tests.AddRange(PartyCooldownReplacementDataTests.Cases);
 tests.AddRange(PartyCooldownStatusResolverTests.Cases);
 tests.AddRange(PartyCooldownLogMatcherTests.Cases);
 tests.AddRange(PartyCooldownOwnerResolverTests.Cases);

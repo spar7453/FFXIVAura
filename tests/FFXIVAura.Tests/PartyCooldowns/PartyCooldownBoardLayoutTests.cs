@@ -13,6 +13,7 @@ internal static class PartyCooldownBoardLayoutTests
         ("PartyCooldownBoardLayout computes required board height", PartyCooldownBoardLayoutComputesRequiredBoardHeight),
         ("PartyCooldownBoardLayout expands short boards without shrinking", PartyCooldownBoardLayoutExpandsShortBoardsWithoutShrinking),
         ("PartyCooldownBoardLayout hides empty optional party rows", PartyCooldownBoardLayoutHidesEmptyOptionalPartyRows),
+        ("PartyCooldownBoardLayout builds member-scoped icon interaction ids", PartyCooldownBoardLayoutBuildsMemberScopedIconInteractionIds),
     ];
 
     private static void PartyCooldownBoardLayoutWrapsNineIconsIntoTwoLines()
@@ -54,5 +55,15 @@ internal static class PartyCooldownBoardLayoutTests
         True(PartyCooldownBoardLayout.HideEmptyRows(PartyCooldownCategory.Synergy), "synergy board should skip jobs without visible synergy icons");
         True(PartyCooldownBoardLayout.HideEmptyRows(PartyCooldownCategory.Healing), "healing board should skip jobs without visible healing icons");
         True(!PartyCooldownBoardLayout.HideEmptyRows(PartyCooldownCategory.Defensive), "defensive board should keep party-member rows");
+    }
+
+    private static void PartyCooldownBoardLayoutBuildsMemberScopedIconInteractionIds()
+    {
+        var first = PartyCooldownBoardLayout.BuildIconInteractionId("main", "content-1", "rampart", 7531);
+        var second = PartyCooldownBoardLayout.BuildIconInteractionId("main", "content-2", "rampart", 7531);
+        var otherWindow = PartyCooldownBoardLayout.BuildIconInteractionId("other", "content-1", "rampart", 7531);
+
+        True(!string.Equals(first, second, StringComparison.Ordinal), "same cooldown on different party members should not share an ImGui id");
+        True(!string.Equals(first, otherWindow, StringComparison.Ordinal), "same cooldown in different windows should not share an ImGui id");
     }
 }

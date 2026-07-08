@@ -7,13 +7,13 @@ internal static class PartyCooldownMemberOrderingTests
 {
     public static IReadOnlyList<(string Name, Action Run)> Cases { get; } =
     [
-        ("PartyCooldownMemberOrdering puts local player then tank healer dps", PutsLocalPlayerThenTankHealerDps),
-        ("PartyCooldownMemberOrdering preserves order inside role groups", PreservesOrderInsideRoleGroups),
+        ("PartyCooldownMemberOrdering preserves in-game party order", PreservesInGamePartyOrder),
+        ("PartyCooldownMemberOrdering removes only local player during display filtering", RemovesOnlyLocalPlayerDuringDisplayFiltering),
     ];
 
-    private static void PutsLocalPlayerThenTankHealerDps()
+    private static void PreservesInGamePartyOrder()
     {
-        var sorted = PartyCooldownMemberOrdering.Sort(
+        var sorted = PartyCooldownMemberOrdering.PreserveInGameOrder(
             [
                 Member(10, "DNC"),
                 Member(20, "WHM"),
@@ -21,15 +21,14 @@ internal static class PartyCooldownMemberOrderingTests
                 Member(40, "WAR"),
                 Member(50, "JOB"),
                 Member(60, "PLD"),
-            ],
-            localEntityId: 30);
+            ]);
 
-        Sequence([30u, 40u, 60u, 20u, 10u, 50u], sorted.Select(member => member.EntityId).ToList());
+        Sequence([10u, 20u, 30u, 40u, 50u, 60u], sorted.Select(member => member.EntityId).ToList());
     }
 
-    private static void PreservesOrderInsideRoleGroups()
+    private static void RemovesOnlyLocalPlayerDuringDisplayFiltering()
     {
-        var sorted = PartyCooldownMemberOrdering.Sort(
+        var sorted = PartyCooldownMemberOrdering.PreserveInGameOrder(
             [
                 Member(10, "GNB"),
                 Member(20, "PLD"),
@@ -37,10 +36,10 @@ internal static class PartyCooldownMemberOrderingTests
                 Member(40, "WHM"),
                 Member(50, "RPR"),
                 Member(60, "BLM"),
-            ],
-            localEntityId: 0);
+            ]);
+        var displayMembers = PartyCooldownRoster.CreateDisplayMembers(sorted, localEntityId: 30, excludeLocalPlayer: true);
 
-        Sequence([10u, 20u, 30u, 40u, 50u, 60u], sorted.Select(member => member.EntityId).ToList());
+        Sequence([10u, 20u, 40u, 50u, 60u], displayMembers.Select(member => member.EntityId).ToList());
     }
 
     private static PartyCooldownMemberSnapshot Member(uint entityId, string job)
