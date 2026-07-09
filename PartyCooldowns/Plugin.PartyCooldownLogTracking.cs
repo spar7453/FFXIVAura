@@ -40,7 +40,7 @@ public sealed unsafe partial class Plugin
 
         var sourceName = source.Name.ExtractText();
         var rosterSnapshot = this.GetPartyCooldownLogRosterSnapshot();
-        if (!this.TryFindPartyCooldownMemberByLogSource(source, rosterSnapshot.DisplayMembers, out var member, out var memberMatchDetail))
+        if (!this.TryFindPartyCooldownMemberByLogSource(source, rosterSnapshot.DisplayMembers, out var member, out var memberMatchDetail, out var ignoredReason))
         {
             this.RecordPartyCooldownLogObservation(
                 message.LogMessageId,
@@ -49,6 +49,7 @@ public sealed unsafe partial class Plugin
                 default,
                 observedAction,
                 "무시",
+                ignoredReason,
                 rosterSnapshot.Diagnostics,
                 memberMatchDetail);
             return;
@@ -61,6 +62,9 @@ public sealed unsafe partial class Plugin
                 ? "추적 대상 스킬이 아니거나 현재 직업에서 사용할 수 없습니다."
                 : $"추적 대상 후보를 찾지 못했습니다. {this.DescribeLogMessageParameters(message)}";
             detail = AppendPartyCooldownMemberMatchDetail(detail, memberMatchDetail);
+            ignoredReason = this.HasPartyCooldownCandidate(observedAction)
+                ? PartyCooldownIgnoredLogReason.NotUsableForJob
+                : PartyCooldownIgnoredLogReason.CandidateMissing;
             this.RecordPartyCooldownLogObservation(
                 message.LogMessageId,
                 sourceName,
@@ -68,6 +72,7 @@ public sealed unsafe partial class Plugin
                 member,
                 observedAction,
                 "무시",
+                ignoredReason,
                 rosterSnapshot.Diagnostics,
                 detail);
             return;
@@ -91,6 +96,7 @@ public sealed unsafe partial class Plugin
                     observedAction.MatchSource,
                     observedAction.ParameterIndex),
                 "무시",
+                PartyCooldownIgnoredLogReason.NotTrackedByWindow,
                 rosterSnapshot.Diagnostics,
                 detail);
             return;
@@ -113,6 +119,7 @@ public sealed unsafe partial class Plugin
                 observedAction.MatchSource,
                 observedAction.ParameterIndex),
             "추적",
+            PartyCooldownIgnoredLogReason.None,
             rosterSnapshot.Diagnostics,
             trackedDetail);
     }
@@ -148,16 +155,18 @@ public sealed unsafe partial class Plugin
         ILogMessageEntity source,
         IReadOnlyList<PartyCooldownMemberSnapshot> displayMembers,
         out PartyCooldownMemberSnapshot member,
-        out string detail)
+        out string detail,
+        out PartyCooldownIgnoredLogReason ignoredReason)
     {
+        ignoredReason = PartyCooldownIgnoredLogReason.OwnerNotFound;
         var sourceName = source.Name.ExtractText();
         if (source.IsPlayer
-            && this.TryFindPartyCooldownMemberByLogSourceName(sourceName, source.HomeWorldId, displayMembers, out member, out detail))
+            && this.TryFindPartyCooldownMemberByLogSourceName(sourceName, source.HomeWorldId, displayMembers, out member, out detail, out ignoredReason))
         {
             return true;
         }
 
-        if (this.TryFindPartyCooldownMemberByOwnedObjectName(sourceName, displayMembers, out member, out detail))
+        if (this.TryFindPartyCooldownMemberByOwnedObjectName(sourceName, displayMembers, out member, out detail, out ignoredReason))
         {
             return true;
         }
@@ -171,7 +180,7 @@ public sealed unsafe partial class Plugin
             return false;
         }
 
-        return this.TryFindPartyCooldownMemberByLogSourceName(sourceName, source.HomeWorldId, displayMembers, out member, out detail);
+        return this.TryFindPartyCooldownMemberByLogSourceName(sourceName, source.HomeWorldId, displayMembers, out member, out detail, out ignoredReason);
     }
 
     private bool TryFindPartyCooldownMemberByLogSourceName(
@@ -179,8 +188,10 @@ public sealed unsafe partial class Plugin
         ushort sourceWorldId,
         IReadOnlyList<PartyCooldownMemberSnapshot> displayMembers,
         out PartyCooldownMemberSnapshot member,
-        out string detail)
+        out string detail,
+        out PartyCooldownIgnoredLogReason ignoredReason)
     {
+        ignoredReason = PartyCooldownIgnoredLogReason.MemberNotFound;
         PartyCooldownMemberSnapshot? matchedMember = null;
         var matchCount = 0;
         foreach (var candidate in displayMembers)
@@ -195,6 +206,7 @@ public sealed unsafe partial class Plugin
         if (PartyCooldownLogMatcher.IsAmbiguousActorFallback(sourceWorldId, matchCount))
         {
             member = default;
+            ignoredReason = PartyCooldownIgnoredLogReason.Ambiguous;
             detail = "월드 정보 없는 동명이인 후보가 여러 명이라 추적하지 않았습니다.";
             return false;
         }
@@ -208,6 +220,7 @@ public sealed unsafe partial class Plugin
 
         member = matchedMember.Value;
         detail = string.Empty;
+        ignoredReason = PartyCooldownIgnoredLogReason.None;
         return true;
     }
 
@@ -215,8 +228,10 @@ public sealed unsafe partial class Plugin
         string sourceName,
         IReadOnlyList<PartyCooldownMemberSnapshot> displayMembers,
         out PartyCooldownMemberSnapshot member,
-        out string detail)
+        out string detail,
+        out PartyCooldownIgnoredLogReason ignoredReason)
     {
+        ignoredReason = PartyCooldownIgnoredLogReason.OwnerNotFound;
         var normalizedSourceName = PartyCooldownLogMatcher.NormalizeActorName(sourceName);
         if (normalizedSourceName.Length == 0)
         {
@@ -242,6 +257,7 @@ public sealed unsafe partial class Plugin
         if (matchedMembers.Count == 1)
         {
             member = matchedMembers.Values.First();
+            ignoredReason = PartyCooldownIgnoredLogReason.None;
             detail = "소환수/객체 소유자 매칭";
             return true;
         }
@@ -249,6 +265,7 @@ public sealed unsafe partial class Plugin
         if (matchedMembers.Count > 1)
         {
             member = default;
+            ignoredReason = PartyCooldownIgnoredLogReason.Ambiguous;
             detail = "같은 이름의 소환수/객체 소유 파티원이 여러 명이라 추적하지 않았습니다.";
             return false;
         }
@@ -405,6 +422,7 @@ public sealed unsafe partial class Plugin
         PartyCooldownMemberSnapshot member,
         PartyCooldownObservedAction observedAction,
         string result,
+        PartyCooldownIgnoredLogReason ignoredReason,
         PartyCooldownRosterDiagnostics rosterDiagnostics,
         string detail)
     {
@@ -424,6 +442,7 @@ public sealed unsafe partial class Plugin
             string.IsNullOrWhiteSpace(observedAction.MatchSource) ? "-" : observedAction.MatchSource,
             observedAction.ParameterIndex,
             result,
+            ignoredReason,
             rosterDiagnostics,
             detail));
 

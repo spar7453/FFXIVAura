@@ -14,6 +14,18 @@ internal enum PartyCooldownDisplayState
     Cooldown,
 }
 
+internal enum PartyCooldownIgnoredLogReason
+{
+    None,
+    Other,
+    MemberNotFound,
+    OwnerNotFound,
+    CandidateMissing,
+    NotUsableForJob,
+    NotTrackedByWindow,
+    Ambiguous,
+}
+
 internal sealed class PartyCooldownDefinition
 {
     public string Id { get; set; } = string.Empty;
@@ -62,6 +74,7 @@ internal sealed record PartyCooldownLogObservation(
     string MatchSource,
     int ParameterIndex,
     string Result,
+    PartyCooldownIgnoredLogReason IgnoredReason,
     PartyCooldownRosterDiagnostics RosterDiagnostics,
     string Detail);
 

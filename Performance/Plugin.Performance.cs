@@ -90,8 +90,11 @@ public sealed unsafe partial class Plugin
             var match = observation.ParameterIndex >= 0
                 ? $"{observation.MatchSource}@{observation.ParameterIndex}"
                 : observation.MatchSource;
+            var reason = observation.IgnoredReason == PartyCooldownIgnoredLogReason.None
+                ? string.Empty
+                : $" / {observation.IgnoredReason}";
             ImGui.TextUnformatted(
-                $"{FormatPerformanceProfileTime(observation.TimestampUtc)} [{observation.Result}] log:{observation.LogMessageId} {observation.SourceName} -> {observation.MemberName} / {action} / {match}");
+                $"{FormatPerformanceProfileTime(observation.TimestampUtc)} [{observation.Result}] log:{observation.LogMessageId} {observation.SourceName} -> {observation.MemberName} / {action} / {match}{reason}");
             ImGui.TextDisabled(
                 $"roster {observation.RosterDiagnostics.Source}/{observation.RosterDiagnostics.ReadMode} members {observation.RosterDiagnostics.MemberCount}/{observation.RosterDiagnostics.DisplayMemberCount} alliance {observation.RosterDiagnostics.AllianceGroupAMemberCount}/{observation.RosterDiagnostics.AllianceGroupBMemberCount}/{observation.RosterDiagnostics.AllianceGroupCMemberCount} empty {observation.RosterDiagnostics.AllianceEmptySlotCount}");
             if (!string.IsNullOrWhiteSpace(observation.Detail))

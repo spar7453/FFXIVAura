@@ -50,6 +50,9 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private const float MaxOrderEditorHeight = 520f;
     private const float OverlayWindowMargin = 4f;
     private static readonly TimeSpan LoginSkillAutoAlignSuppressionDuration = TimeSpan.FromSeconds(3);
+    private static readonly TimeSpan ConfigSaveDebounceDelay = TimeSpan.FromMilliseconds(400);
+    private static readonly TimeSpan ConfigSaveCombatRetryDelay = TimeSpan.FromSeconds(1);
+    private static readonly TimeSpan ConfigSaveMaxCombatDeferDuration = TimeSpan.FromMinutes(10);
 
     [PluginService] private static IDalamudPluginInterface PluginInterface { get; set; } = null!;
     [PluginService] private static ICommandManager CommandManager { get; set; } = null!;
@@ -136,6 +139,8 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private Vector2 draggedOverlayMouseStart;
     private Vector2 draggedOverlayPositionStart;
     private DateTime configSaveAfter = DateTime.MinValue;
+    private DateTime configSaveQueuedAtUtc = DateTime.MinValue;
+    private bool configSaveDeferredInCombat;
     private DateTime keybindCacheRefreshAfter = DateTime.MinValue;
     private DateTime performanceProfileNextRecordAtUtc = DateTime.MinValue;
     private DateTime performanceProfileNextErrorLogAtUtc = DateTime.MinValue;
@@ -374,8 +379,12 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
 
     private void QueueConfigSave()
     {
+        var nowUtc = DateTime.UtcNow;
+        if (!this.configSavePending)
+            this.configSaveQueuedAtUtc = nowUtc;
+
         this.configSavePending = true;
-        this.configSaveAfter = DateTime.UtcNow.AddMilliseconds(400);
+        this.configSaveAfter = nowUtc.Add(ConfigSaveDebounceDelay);
     }
 
     private void SaveConfigNow()
@@ -393,6 +402,8 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
         this.SetBugDiagnosticEvent("configSaved");
         this.configSavePending = false;
         this.configSaveAfter = DateTime.MinValue;
+        this.configSaveQueuedAtUtc = DateTime.MinValue;
+        this.configSaveDeferredInCombat = false;
     }
 
     private void FlushConfigSave(bool force)
@@ -400,10 +411,29 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
         if (!this.configSavePending)
             return;
 
-        if (!force && DateTime.UtcNow < this.configSaveAfter)
+        var nowUtc = DateTime.UtcNow;
+        if (!force && nowUtc < this.configSaveAfter)
             return;
 
+        if (!force && this.ShouldDeferConfigSaveInCombat(nowUtc))
+        {
+            this.configSaveDeferredInCombat = true;
+            this.configSaveAfter = nowUtc.Add(ConfigSaveCombatRetryDelay);
+            return;
+        }
+
         this.SaveConfigNow();
+    }
+
+    private bool ShouldDeferConfigSaveInCombat(DateTime nowUtc)
+    {
+        if (!ClientState.IsLoggedIn || !PlayerState.IsLoaded || !this.IsInCombat())
+            return false;
+
+        var queuedAtUtc = this.configSaveQueuedAtUtc == DateTime.MinValue
+            ? nowUtc
+            : this.configSaveQueuedAtUtc;
+        return nowUtc - queuedAtUtc < ConfigSaveMaxCombatDeferDuration;
     }
 
     private void InvalidateKeybindCache()
