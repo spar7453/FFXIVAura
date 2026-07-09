@@ -39,7 +39,8 @@ public sealed unsafe partial class Plugin
             return;
 
         var sourceName = source.Name.ExtractText();
-        if (!this.TryFindPartyCooldownMemberByLogSource(source, out var member, out var memberMatchDetail))
+        var rosterSnapshot = this.GetPartyCooldownLogRosterSnapshot();
+        if (!this.TryFindPartyCooldownMemberByLogSource(source, rosterSnapshot.DisplayMembers, out var member, out var memberMatchDetail))
         {
             this.RecordPartyCooldownLogObservation(
                 message.LogMessageId,
@@ -48,6 +49,7 @@ public sealed unsafe partial class Plugin
                 default,
                 observedAction,
                 "무시",
+                rosterSnapshot.Diagnostics,
                 memberMatchDetail);
             return;
         }
@@ -66,6 +68,7 @@ public sealed unsafe partial class Plugin
                 member,
                 observedAction,
                 "무시",
+                rosterSnapshot.Diagnostics,
                 detail);
             return;
         }
@@ -88,6 +91,7 @@ public sealed unsafe partial class Plugin
                     observedAction.MatchSource,
                     observedAction.ParameterIndex),
                 "무시",
+                rosterSnapshot.Diagnostics,
                 detail);
             return;
         }
@@ -109,7 +113,26 @@ public sealed unsafe partial class Plugin
                 observedAction.MatchSource,
                 observedAction.ParameterIndex),
             "추적",
+            rosterSnapshot.Diagnostics,
             trackedDetail);
+    }
+
+    private (IReadOnlyList<PartyCooldownMemberSnapshot> DisplayMembers, PartyCooldownRosterDiagnostics Diagnostics) GetPartyCooldownLogRosterSnapshot()
+    {
+        var roster = this.GetPartyCooldownRoster();
+        var displayMembers = this.GetPartyCooldownDisplayMembers(roster.Members);
+        var diagnostics = PartyCooldownRoster.CreateDiagnostics(
+            roster.Source,
+            roster.ReadMode,
+            roster.PartyListLength,
+            roster.Members,
+            displayMembers,
+            ObjectTable.LocalPlayer?.EntityId ?? 0,
+            roster.AlliancePartyCount,
+            roster.AllianceMemberCount,
+            roster.HasAllianceSource,
+            roster.UsedFlatAllianceFallback);
+        return (displayMembers, diagnostics);
     }
 
     private bool IsCompletedPartyCooldownActionUseLog(ILogMessage message)
@@ -123,17 +146,18 @@ public sealed unsafe partial class Plugin
 
     private bool TryFindPartyCooldownMemberByLogSource(
         ILogMessageEntity source,
+        IReadOnlyList<PartyCooldownMemberSnapshot> displayMembers,
         out PartyCooldownMemberSnapshot member,
         out string detail)
     {
         var sourceName = source.Name.ExtractText();
         if (source.IsPlayer
-            && this.TryFindPartyCooldownMemberByLogSourceName(sourceName, source.HomeWorldId, out member, out detail))
+            && this.TryFindPartyCooldownMemberByLogSourceName(sourceName, source.HomeWorldId, displayMembers, out member, out detail))
         {
             return true;
         }
 
-        if (this.TryFindPartyCooldownMemberByOwnedObjectName(sourceName, out member, out detail))
+        if (this.TryFindPartyCooldownMemberByOwnedObjectName(sourceName, displayMembers, out member, out detail))
         {
             return true;
         }
@@ -147,18 +171,19 @@ public sealed unsafe partial class Plugin
             return false;
         }
 
-        return this.TryFindPartyCooldownMemberByLogSourceName(sourceName, source.HomeWorldId, out member, out detail);
+        return this.TryFindPartyCooldownMemberByLogSourceName(sourceName, source.HomeWorldId, displayMembers, out member, out detail);
     }
 
     private bool TryFindPartyCooldownMemberByLogSourceName(
         string sourceName,
         ushort sourceWorldId,
+        IReadOnlyList<PartyCooldownMemberSnapshot> displayMembers,
         out PartyCooldownMemberSnapshot member,
         out string detail)
     {
         PartyCooldownMemberSnapshot? matchedMember = null;
         var matchCount = 0;
-        foreach (var candidate in this.GetPartyCooldownDisplayMembers(this.GetPartyCooldownMembers()))
+        foreach (var candidate in displayMembers)
         {
             if (!PartyCooldownLogMatcher.IsSameActor(sourceName, sourceWorldId, candidate.Name, candidate.WorldId))
                 continue;
@@ -188,6 +213,7 @@ public sealed unsafe partial class Plugin
 
     private bool TryFindPartyCooldownMemberByOwnedObjectName(
         string sourceName,
+        IReadOnlyList<PartyCooldownMemberSnapshot> displayMembers,
         out PartyCooldownMemberSnapshot member,
         out string detail)
     {
@@ -209,7 +235,7 @@ public sealed unsafe partial class Plugin
             if (!string.Equals(normalizedSourceName, objectName, StringComparison.Ordinal))
                 continue;
 
-            if (this.TryFindPartyCooldownMemberByEntityId(gameObject.OwnerId, out var ownerMember))
+            if (TryFindPartyCooldownMemberByEntityId(displayMembers, gameObject.OwnerId, out var ownerMember))
                 matchedMembers.TryAdd(ownerMember.Key, ownerMember);
         }
 
@@ -379,6 +405,7 @@ public sealed unsafe partial class Plugin
         PartyCooldownMemberSnapshot member,
         PartyCooldownObservedAction observedAction,
         string result,
+        PartyCooldownRosterDiagnostics rosterDiagnostics,
         string detail)
     {
         if (!this.ShouldObservePartyCooldownLogs())
@@ -397,6 +424,7 @@ public sealed unsafe partial class Plugin
             string.IsNullOrWhiteSpace(observedAction.MatchSource) ? "-" : observedAction.MatchSource,
             observedAction.ParameterIndex,
             result,
+            rosterDiagnostics,
             detail));
 
         while (this.partyCooldownLogObservations.Count > PartyCooldownLogObservationLimit)

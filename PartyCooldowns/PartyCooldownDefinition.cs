@@ -62,6 +62,7 @@ internal sealed record PartyCooldownLogObservation(
     string MatchSource,
     int ParameterIndex,
     string Result,
+    PartyCooldownRosterDiagnostics RosterDiagnostics,
     string Detail);
 
 internal readonly record struct PartyCooldownActiveStatus(

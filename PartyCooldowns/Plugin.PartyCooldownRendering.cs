@@ -9,8 +9,11 @@ public sealed unsafe partial class Plugin
         float LabelGap,
         float JobIconSize,
         float AllianceGroupWidth,
+        float AllianceColumnGap,
+        float AllianceColumnWidth,
         float LabelWidth,
         int IconsPerLine,
+        bool UseAllianceColumns,
         int DrawnIconCount);
 
     private void DrawPartyCooldownWindowContent(IconWindowConfig iconWindow, string job, uint level)
@@ -116,76 +119,179 @@ public sealed unsafe partial class Plugin
     {
         var draw = ImGui.GetWindowDrawList();
         var metrics = GetPartyCooldownBoardRenderMetrics(iconWindow, rows);
-        var iconSize = metrics.IconSize;
-        var gap = metrics.Gap;
+
+        draw.PushClipRect(areaOrigin, areaOrigin + areaSize, true);
+        if (metrics.UseAllianceColumns)
+            this.DrawPartyCooldownAllianceColumns(iconWindow, rows, draw, areaOrigin, areaSize, metrics);
+        else
+            this.DrawPartyCooldownLinearRows(iconWindow, rows, draw, areaOrigin, areaSize, metrics);
+
+        draw.PopClipRect();
+    }
+
+    private void DrawPartyCooldownLinearRows(
+        IconWindowConfig iconWindow,
+        IReadOnlyList<PartyCooldownMemberRow> rows,
+        ImDrawListPtr draw,
+        Vector2 areaOrigin,
+        Vector2 areaSize,
+        PartyCooldownBoardRenderMetrics metrics)
+    {
         var rowStartX = areaOrigin.X + metrics.Padding;
         var iconAreaStartX = rowStartX + metrics.LabelWidth;
         var rowY = areaOrigin.Y + metrics.Padding;
-
-        draw.PushClipRect(areaOrigin, areaOrigin + areaSize, true);
+        var areaMaxX = areaOrigin.X + areaSize.X;
         for (var rowIndex = 0; rowIndex < rows.Count; rowIndex++)
         {
             var row = rows[rowIndex];
-            var contentHeight = PartyCooldownBoardLayout.GetRowContentHeight(row.Items.Count, iconSize, gap, metrics.IconsPerLine);
             if (rowY > areaOrigin.Y + areaSize.Y)
                 break;
 
-            var cursor = new Vector2(rowStartX, rowY + Math.Max(0f, (contentHeight - metrics.JobIconSize) * 0.5f));
-            if (metrics.AllianceGroupWidth > 0f)
-            {
-                var groupTextSize = ImGui.CalcTextSize(row.Member.AllianceGroup);
-                var groupTextPos = new Vector2(
-                    cursor.X + Math.Max(0f, metrics.AllianceGroupWidth - metrics.LabelGap - groupTextSize.X) * 0.5f,
-                    rowY + Math.Max(0f, (contentHeight - ImGui.GetTextLineHeight()) * 0.5f));
-                this.DrawOutlinedText(
-                    draw,
-                    groupTextPos,
-                    row.Member.AllianceGroup,
-                    new Vector4(0.72f, 0.95f, 1f, 0.98f),
-                    new Vector4(0f, 0f, 0f, 0.9f),
-                    1f);
-                cursor.X += metrics.AllianceGroupWidth;
-            }
+            var contentHeight = this.DrawPartyCooldownRow(
+                iconWindow,
+                row,
+                draw,
+                rowStartX,
+                iconAreaStartX,
+                rowY,
+                areaMaxX,
+                showAllianceGroup: true,
+                metrics);
+            rowY += contentHeight + metrics.Gap;
+        }
+    }
 
-            this.DrawPartyCooldownJobBadge(draw, row.Member, cursor, metrics.JobIconSize);
+    private void DrawPartyCooldownAllianceColumns(
+        IconWindowConfig iconWindow,
+        IReadOnlyList<PartyCooldownMemberRow> rows,
+        ImDrawListPtr draw,
+        Vector2 areaOrigin,
+        Vector2 areaSize,
+        PartyCooldownBoardRenderMetrics metrics)
+    {
+        var columnIndex = 0;
+        var headerHeight = GetPartyCooldownAllianceColumnHeaderHeight(metrics);
+        for (var group = 0; group < PartyCooldownBoardLayout.AllianceColumnCount; group++)
+        {
+            var groupLabel = PartyCooldownAllianceGroups.GroupLabel(group);
+            if (!ContainsPartyCooldownAllianceGroup(rows, groupLabel))
+                continue;
 
-            cursor.X += metrics.JobIconSize + metrics.LabelGap;
-            var namePos = new Vector2(cursor.X, rowY + Math.Max(0f, (contentHeight - ImGui.GetTextLineHeight()) * 0.5f));
+            var columnX = areaOrigin.X
+                          + metrics.Padding
+                          + columnIndex * (metrics.AllianceColumnWidth + metrics.AllianceColumnGap);
+            var columnMaxX = columnX + metrics.AllianceColumnWidth;
+            var headerPos = new Vector2(columnX, areaOrigin.Y + metrics.Padding);
+            var headerMax = new Vector2(columnMaxX, headerPos.Y + headerHeight - Math.Max(1f, metrics.Gap));
+            draw.AddRectFilled(
+                headerPos,
+                headerMax,
+                ImGui.GetColorU32(new Vector4(0.02f, 0.06f, 0.07f, 0.58f)),
+                3f);
             this.DrawOutlinedText(
                 draw,
-                namePos,
-                row.Member.ShortName,
-                new Vector4(1f, 1f, 1f, 0.96f),
+                new Vector2(headerPos.X + metrics.LabelGap, headerPos.Y + Math.Max(0f, (headerHeight - ImGui.GetTextLineHeight()) * 0.5f)),
+                groupLabel,
+                new Vector4(0.72f, 0.95f, 1f, 0.98f),
                 new Vector4(0f, 0f, 0f, 0.9f),
                 1f);
 
-            var lineCount = PartyCooldownBoardLayout.GetLineCount(row.Items.Count, metrics.IconsPerLine);
-            for (var lineIndex = 0; lineIndex < lineCount; lineIndex++)
+            var rowStartX = columnX;
+            var iconAreaStartX = rowStartX + metrics.LabelWidth;
+            var rowY = areaOrigin.Y + metrics.Padding + headerHeight;
+            for (var rowIndex = 0; rowIndex < rows.Count; rowIndex++)
             {
-                var lineItemCount = PartyCooldownBoardLayout.GetLineItemCount(row.Items.Count, lineIndex, metrics.IconsPerLine);
-                var lineStartX = iconAreaStartX + PartyCooldownBoardLayout.GetLineStartOffset(iconWindow.Alignment, lineItemCount, iconSize, gap, metrics.IconsPerLine);
-                var lineY = rowY + lineIndex * (iconSize + gap);
+                var row = rows[rowIndex];
+                if (!string.Equals(row.Member.AllianceGroup, groupLabel, StringComparison.Ordinal))
+                    continue;
 
-                for (var column = 0; column < lineItemCount; column++)
-                {
-                    var itemIndex = PartyCooldownBoardLayout.GetLineStartIndex(lineIndex, metrics.IconsPerLine) + column;
-                    if (itemIndex >= row.Items.Count)
-                        break;
+                if (rowY > areaOrigin.Y + areaSize.Y)
+                    break;
 
-                    var iconPos = new Vector2(lineStartX + column * (iconSize + gap), lineY);
-                    if (iconPos.X + iconSize > areaOrigin.X + areaSize.X)
-                        break;
-
-                    ImGui.SetCursorScreenPos(iconPos);
-                    this.DrawPartyCooldownIcon(row.Items[itemIndex], iconSize);
-                    this.HandlePartyCooldownIconInteraction(iconWindow, row.Member.Key, row.Items[itemIndex], iconPos, iconSize, metrics.DrawnIconCount);
-                }
+                var contentHeight = this.DrawPartyCooldownRow(
+                    iconWindow,
+                    row,
+                    draw,
+                    rowStartX,
+                    iconAreaStartX,
+                    rowY,
+                    columnMaxX,
+                    showAllianceGroup: false,
+                    metrics);
+                rowY += contentHeight + metrics.Gap;
             }
 
-            rowY += contentHeight + gap;
+            columnIndex++;
+        }
+    }
+
+    private float DrawPartyCooldownRow(
+        IconWindowConfig iconWindow,
+        PartyCooldownMemberRow row,
+        ImDrawListPtr draw,
+        float rowStartX,
+        float iconAreaStartX,
+        float rowY,
+        float areaMaxX,
+        bool showAllianceGroup,
+        PartyCooldownBoardRenderMetrics metrics)
+    {
+        var iconSize = metrics.IconSize;
+        var gap = metrics.Gap;
+        var contentHeight = PartyCooldownBoardLayout.GetRowContentHeight(row.Items.Count, iconSize, gap, metrics.IconsPerLine);
+        var cursor = new Vector2(rowStartX, rowY + Math.Max(0f, (contentHeight - metrics.JobIconSize) * 0.5f));
+        if (showAllianceGroup && metrics.AllianceGroupWidth > 0f)
+        {
+            var groupTextSize = ImGui.CalcTextSize(row.Member.AllianceGroup);
+            var groupTextPos = new Vector2(
+                cursor.X + Math.Max(0f, metrics.AllianceGroupWidth - metrics.LabelGap - groupTextSize.X) * 0.5f,
+                rowY + Math.Max(0f, (contentHeight - ImGui.GetTextLineHeight()) * 0.5f));
+            this.DrawOutlinedText(
+                draw,
+                groupTextPos,
+                row.Member.AllianceGroup,
+                new Vector4(0.72f, 0.95f, 1f, 0.98f),
+                new Vector4(0f, 0f, 0f, 0.9f),
+                1f);
+            cursor.X += metrics.AllianceGroupWidth;
         }
 
-        draw.PopClipRect();
+        this.DrawPartyCooldownJobBadge(draw, row.Member, cursor, metrics.JobIconSize);
+
+        cursor.X += metrics.JobIconSize + metrics.LabelGap;
+        var namePos = new Vector2(cursor.X, rowY + Math.Max(0f, (contentHeight - ImGui.GetTextLineHeight()) * 0.5f));
+        this.DrawOutlinedText(
+            draw,
+            namePos,
+            row.Member.ShortName,
+            new Vector4(1f, 1f, 1f, 0.96f),
+            new Vector4(0f, 0f, 0f, 0.9f),
+            1f);
+
+        var lineCount = PartyCooldownBoardLayout.GetLineCount(row.Items.Count, metrics.IconsPerLine);
+        for (var lineIndex = 0; lineIndex < lineCount; lineIndex++)
+        {
+            var lineItemCount = PartyCooldownBoardLayout.GetLineItemCount(row.Items.Count, lineIndex, metrics.IconsPerLine);
+            var lineStartX = iconAreaStartX + PartyCooldownBoardLayout.GetLineStartOffset(iconWindow.Alignment, lineItemCount, iconSize, gap, metrics.IconsPerLine);
+            var lineY = rowY + lineIndex * (iconSize + gap);
+
+            for (var column = 0; column < lineItemCount; column++)
+            {
+                var itemIndex = PartyCooldownBoardLayout.GetLineStartIndex(lineIndex, metrics.IconsPerLine) + column;
+                if (itemIndex >= row.Items.Count)
+                    break;
+
+                var iconPos = new Vector2(lineStartX + column * (iconSize + gap), lineY);
+                if (iconPos.X + iconSize > areaMaxX)
+                    break;
+
+                ImGui.SetCursorScreenPos(iconPos);
+                this.DrawPartyCooldownIcon(row.Items[itemIndex], iconSize);
+                this.HandlePartyCooldownIconInteraction(iconWindow, row.Member.Key, row.Items[itemIndex], iconPos, iconSize, metrics.DrawnIconCount);
+            }
+        }
+
+        return contentHeight;
     }
 
     private static float GetPartyCooldownAllianceGroupWidth(
@@ -205,10 +311,32 @@ public sealed unsafe partial class Plugin
         var labelGap = Math.Max(4f, gap);
         var jobIconSize = Math.Clamp(iconSize * 0.72f, 20f, 32f);
         var nameWidth = Math.Clamp(iconSize * 1.05f, 34f, 54f);
-        var allianceGroupWidth = GetPartyCooldownAllianceGroupWidth(rows, labelGap);
-        var labelWidth = allianceGroupWidth + jobIconSize + labelGap + nameWidth + labelGap;
-        var iconAreaWidth = Math.Max(0f, iconWindow.Width - padding * 2f - labelWidth);
-        var iconsPerLine = PartyCooldownBoardLayout.GetIconLineCapacity(iconAreaWidth, iconSize, gap);
+        var regularAllianceGroupWidth = GetPartyCooldownAllianceGroupWidth(rows, labelGap);
+        var regularLabelWidth = regularAllianceGroupWidth + jobIconSize + labelGap + nameWidth + labelGap;
+        var regularIconAreaWidth = Math.Max(0f, iconWindow.Width - padding * 2f - regularLabelWidth);
+        var regularIconsPerLine = PartyCooldownBoardLayout.GetIconLineCapacity(regularIconAreaWidth, iconSize, gap);
+        var allianceGroupCount = GetPartyCooldownAllianceGroupCount(rows);
+        var allianceColumnGap = Math.Max(8f, gap * 2f);
+        var allianceAvailableWidth = Math.Max(0f, iconWindow.Width - padding * 2f);
+        var allianceColumnLabelWidth = jobIconSize + labelGap + nameWidth + labelGap;
+        var useAllianceColumns = PartyCooldownBoardLayout.ShouldUseAllianceColumns(
+            allianceGroupCount,
+            allianceAvailableWidth,
+            iconSize,
+            gap,
+            allianceColumnLabelWidth,
+            allianceColumnGap);
+        var allianceColumnCount = useAllianceColumns
+            ? Math.Clamp(allianceGroupCount, 2, PartyCooldownBoardLayout.AllianceColumnCount)
+            : 0;
+        var allianceColumnWidth = useAllianceColumns
+            ? PartyCooldownBoardLayout.GetAllianceColumnWidth(allianceAvailableWidth, allianceColumnGap, allianceColumnCount)
+            : 0f;
+        var allianceColumnIconAreaWidth = Math.Max(0f, allianceColumnWidth - allianceColumnLabelWidth);
+        var labelWidth = useAllianceColumns ? allianceColumnLabelWidth : regularLabelWidth;
+        var iconsPerLine = useAllianceColumns
+            ? PartyCooldownBoardLayout.GetIconLineCapacity(allianceColumnIconAreaWidth, iconSize, gap)
+            : regularIconsPerLine;
         var drawnIconCount = 0;
         foreach (var row in rows)
             drawnIconCount += row.Items.Count;
@@ -219,11 +347,45 @@ public sealed unsafe partial class Plugin
             padding,
             labelGap,
             jobIconSize,
-            allianceGroupWidth,
+            useAllianceColumns ? 0f : regularAllianceGroupWidth,
+            allianceColumnGap,
+            allianceColumnWidth,
             labelWidth,
             iconsPerLine,
+            useAllianceColumns,
             drawnIconCount);
     }
+
+    private static int GetPartyCooldownAllianceGroupCount(IReadOnlyList<PartyCooldownMemberRow> rows)
+    {
+        var count = 0;
+        for (var group = 0; group < PartyCooldownBoardLayout.AllianceColumnCount; group++)
+        {
+            if (ContainsPartyCooldownAllianceGroup(rows, PartyCooldownAllianceGroups.GroupLabel(group)))
+                count++;
+        }
+
+        return count;
+    }
+
+    private static bool ContainsPartyCooldownAllianceGroup(
+        IReadOnlyList<PartyCooldownMemberRow> rows,
+        string groupLabel)
+    {
+        if (string.IsNullOrWhiteSpace(groupLabel))
+            return false;
+
+        foreach (var row in rows)
+        {
+            if (string.Equals(row.Member.AllianceGroup, groupLabel, StringComparison.Ordinal))
+                return true;
+        }
+
+        return false;
+    }
+
+    private static float GetPartyCooldownAllianceColumnHeaderHeight(PartyCooldownBoardRenderMetrics metrics)
+        => ImGui.GetTextLineHeight() + Math.Max(4f, metrics.Gap);
 
     private static float GetPartyCooldownExpandedBoardHeight(
         float currentHeight,
@@ -238,6 +400,9 @@ public sealed unsafe partial class Plugin
         IReadOnlyList<PartyCooldownMemberRow> rows,
         PartyCooldownBoardRenderMetrics metrics)
     {
+        if (metrics.UseAllianceColumns)
+            return GetPartyCooldownAllianceBoardContentHeight(rows, metrics);
+
         var height = metrics.Padding * 2f;
         for (var i = 0; i < rows.Count; i++)
         {
@@ -252,6 +417,42 @@ public sealed unsafe partial class Plugin
         }
 
         return rows.Count == 0 ? 0f : height;
+    }
+
+    private static float GetPartyCooldownAllianceBoardContentHeight(
+        IReadOnlyList<PartyCooldownMemberRow> rows,
+        PartyCooldownBoardRenderMetrics metrics)
+    {
+        var maxColumnHeight = 0f;
+        var headerHeight = GetPartyCooldownAllianceColumnHeaderHeight(metrics);
+        for (var group = 0; group < PartyCooldownBoardLayout.AllianceColumnCount; group++)
+        {
+            var groupLabel = PartyCooldownAllianceGroups.GroupLabel(group);
+            if (!ContainsPartyCooldownAllianceGroup(rows, groupLabel))
+                continue;
+
+            var columnHeight = headerHeight;
+            var rowCount = 0;
+            foreach (var row in rows)
+            {
+                if (!string.Equals(row.Member.AllianceGroup, groupLabel, StringComparison.Ordinal))
+                    continue;
+
+                if (rowCount > 0)
+                    columnHeight += metrics.Gap;
+
+                columnHeight += PartyCooldownBoardLayout.GetRowContentHeight(
+                    row.Items.Count,
+                    metrics.IconSize,
+                    metrics.Gap,
+                    metrics.IconsPerLine);
+                rowCount++;
+            }
+
+            maxColumnHeight = Math.Max(maxColumnHeight, columnHeight);
+        }
+
+        return maxColumnHeight <= 0f ? 0f : metrics.Padding * 2f + maxColumnHeight;
     }
 
     private void DrawPartyCooldownJobBadge(ImDrawListPtr draw, PartyCooldownMemberSnapshot member, Vector2 pos, float size)

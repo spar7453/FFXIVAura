@@ -347,6 +347,16 @@ public sealed unsafe partial class Plugin
                 ("action", lastObservation.ActionName),
                 ("actionId", lastObservation.ActionId),
                 ("match", lastObservation.MatchSource),
+                ("rosterSource", lastObservation.RosterDiagnostics.Source),
+                ("rosterReadMode", lastObservation.RosterDiagnostics.ReadMode),
+                ("rosterMembers", lastObservation.RosterDiagnostics.MemberCount),
+                ("displayMembers", lastObservation.RosterDiagnostics.DisplayMemberCount),
+                ("allianceMembers", lastObservation.RosterDiagnostics.AllianceMemberCount),
+                ("allianceA", lastObservation.RosterDiagnostics.AllianceGroupAMemberCount),
+                ("allianceB", lastObservation.RosterDiagnostics.AllianceGroupBMemberCount),
+                ("allianceC", lastObservation.RosterDiagnostics.AllianceGroupCMemberCount),
+                ("allianceEmptySlots", lastObservation.RosterDiagnostics.AllianceEmptySlotCount),
+                ("usedFlatFallback", lastObservation.RosterDiagnostics.UsedFlatAllianceFallback),
                 ("detail", lastObservation.Detail)));
         }
 

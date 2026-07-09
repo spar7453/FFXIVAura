@@ -3,6 +3,8 @@ namespace FFXIVAura;
 internal static class PartyCooldownBoardLayout
 {
     public const int MaxIconsPerWrappedLine = 5;
+    public const int AllianceColumnCount = 3;
+    public const int MinAllianceColumnIconsPerLine = 3;
 
     public static bool HideEmptyRows(PartyCooldownCategory category)
         => category is PartyCooldownCategory.Healing or PartyCooldownCategory.Synergy;
@@ -58,6 +60,31 @@ internal static class PartyCooldownBoardLayout
             alignment,
             GetIconAreaWidth(iconSize, gap, iconsPerLine),
             GetLineWidth(lineItemCount, iconSize, gap));
+
+    public static float GetAllianceColumnWidth(float availableWidth, float columnGap, int columnCount)
+    {
+        var sanitizedColumnCount = Math.Clamp(columnCount, 1, AllianceColumnCount);
+        return Math.Max(
+            0f,
+            (availableWidth - Math.Max(0, sanitizedColumnCount - 1) * Math.Max(0f, columnGap)) / sanitizedColumnCount);
+    }
+
+    public static bool ShouldUseAllianceColumns(
+        int allianceGroupCount,
+        float availableWidth,
+        float iconSize,
+        float gap,
+        float labelWidth,
+        float columnGap)
+    {
+        if (allianceGroupCount < 2)
+            return false;
+
+        var columnCount = Math.Clamp(allianceGroupCount, 2, AllianceColumnCount);
+        var columnWidth = GetAllianceColumnWidth(availableWidth, columnGap, columnCount);
+        var iconAreaWidth = Math.Max(0f, columnWidth - Math.Max(0f, labelWidth));
+        return GetIconLineCapacity(iconAreaWidth, iconSize, gap) >= MinAllianceColumnIconsPerLine;
+    }
 
     public static float GetIconContentHeight(int itemCount, float iconSize, float gap, int iconsPerLine = MaxIconsPerWrappedLine)
     {

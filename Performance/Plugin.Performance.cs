@@ -92,6 +92,8 @@ public sealed unsafe partial class Plugin
                 : observation.MatchSource;
             ImGui.TextUnformatted(
                 $"{FormatPerformanceProfileTime(observation.TimestampUtc)} [{observation.Result}] log:{observation.LogMessageId} {observation.SourceName} -> {observation.MemberName} / {action} / {match}");
+            ImGui.TextDisabled(
+                $"roster {observation.RosterDiagnostics.Source}/{observation.RosterDiagnostics.ReadMode} members {observation.RosterDiagnostics.MemberCount}/{observation.RosterDiagnostics.DisplayMemberCount} alliance {observation.RosterDiagnostics.AllianceGroupAMemberCount}/{observation.RosterDiagnostics.AllianceGroupBMemberCount}/{observation.RosterDiagnostics.AllianceGroupCMemberCount} empty {observation.RosterDiagnostics.AllianceEmptySlotCount}");
             if (!string.IsNullOrWhiteSpace(observation.Detail))
                 ImGui.TextDisabled(observation.Detail);
         }

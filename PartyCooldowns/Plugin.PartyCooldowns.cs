@@ -390,11 +390,12 @@ public sealed unsafe partial class Plugin
         return $"{definition.Job}:{definition.Category}:{actionCategory}:{group}";
     }
 
-    private bool TryFindPartyCooldownMemberByEntityId(
+    private static bool TryFindPartyCooldownMemberByEntityId(
+        IReadOnlyList<PartyCooldownMemberSnapshot> displayMembers,
         uint entityId,
         out PartyCooldownMemberSnapshot member)
     {
-        foreach (var candidate in this.GetPartyCooldownDisplayMembers(this.GetPartyCooldownMembers()))
+        foreach (var candidate in displayMembers)
         {
             if (candidate.EntityId == entityId)
             {

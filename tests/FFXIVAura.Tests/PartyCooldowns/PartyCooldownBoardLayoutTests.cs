@@ -13,6 +13,7 @@ internal static class PartyCooldownBoardLayoutTests
         ("PartyCooldownBoardLayout computes required board height", PartyCooldownBoardLayoutComputesRequiredBoardHeight),
         ("PartyCooldownBoardLayout expands short boards without shrinking", PartyCooldownBoardLayoutExpandsShortBoardsWithoutShrinking),
         ("PartyCooldownBoardLayout hides empty optional party rows", PartyCooldownBoardLayoutHidesEmptyOptionalPartyRows),
+        ("PartyCooldownBoardLayout enables alliance columns only when wide enough", PartyCooldownBoardLayoutEnablesAllianceColumnsOnlyWhenWideEnough),
         ("PartyCooldownBoardLayout builds member-scoped icon interaction ids", PartyCooldownBoardLayoutBuildsMemberScopedIconInteractionIds),
     ];
 
@@ -55,6 +56,29 @@ internal static class PartyCooldownBoardLayoutTests
         True(PartyCooldownBoardLayout.HideEmptyRows(PartyCooldownCategory.Synergy), "synergy board should skip jobs without visible synergy icons");
         True(PartyCooldownBoardLayout.HideEmptyRows(PartyCooldownCategory.Healing), "healing board should skip jobs without visible healing icons");
         True(!PartyCooldownBoardLayout.HideEmptyRows(PartyCooldownCategory.Defensive), "defensive board should keep party-member rows");
+    }
+
+    private static void PartyCooldownBoardLayoutEnablesAllianceColumnsOnlyWhenWideEnough()
+    {
+        True(
+            PartyCooldownBoardLayout.ShouldUseAllianceColumns(
+                allianceGroupCount: 3,
+                availableWidth: 900,
+                iconSize: 40,
+                gap: 3,
+                labelWidth: 82,
+                columnGap: 8),
+            "wide alliance boards should use A/B/C columns");
+        True(
+            !PartyCooldownBoardLayout.ShouldUseAllianceColumns(
+                allianceGroupCount: 3,
+                availableWidth: 500,
+                iconSize: 40,
+                gap: 3,
+                labelWidth: 82,
+                columnGap: 8),
+            "narrow alliance boards should keep the linear fallback");
+        Near(294.67f, PartyCooldownBoardLayout.GetAllianceColumnWidth(900, 8, 3), tolerance: 0.01f);
     }
 
     private static void PartyCooldownBoardLayoutBuildsMemberScopedIconInteractionIds()
