@@ -25,4 +25,8 @@ internal readonly record struct OverlayWindowDebugSnapshot(
     int PartyReadyCount,
     int PartyActiveCount,
     int PartyCooldownCount,
-    int PartyStatuslessCandidateCount);
+    int PartyStatuslessCandidateCount,
+    string PartyLayoutMode,
+    int PartyIconsPerLine,
+    int PartyAllianceGroupCount,
+    int PartyAllianceColumnCount);

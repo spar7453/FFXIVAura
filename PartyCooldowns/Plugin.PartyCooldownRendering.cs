@@ -12,6 +12,8 @@ public sealed unsafe partial class Plugin
         float AllianceColumnGap,
         float AllianceColumnWidth,
         float LabelWidth,
+        int AllianceGroupCount,
+        int AllianceColumnCount,
         int IconsPerLine,
         bool UseAllianceColumns,
         int DrawnIconCount);
@@ -351,6 +353,8 @@ public sealed unsafe partial class Plugin
             allianceColumnGap,
             allianceColumnWidth,
             labelWidth,
+            allianceGroupCount,
+            allianceColumnCount,
             iconsPerLine,
             useAllianceColumns,
             drawnIconCount);

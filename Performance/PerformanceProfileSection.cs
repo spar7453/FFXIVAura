@@ -12,6 +12,7 @@ internal enum PerformanceProfileSection
     KeybindRebuild,
     TooltipControl,
     GrayscaleProcessing,
+    ConfigSave,
     Count,
 }
 

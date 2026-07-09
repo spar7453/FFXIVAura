@@ -14,6 +14,7 @@ internal static class PartyCooldownBoardLayoutTests
         ("PartyCooldownBoardLayout expands short boards without shrinking", PartyCooldownBoardLayoutExpandsShortBoardsWithoutShrinking),
         ("PartyCooldownBoardLayout hides empty optional party rows", PartyCooldownBoardLayoutHidesEmptyOptionalPartyRows),
         ("PartyCooldownBoardLayout enables alliance columns only when wide enough", PartyCooldownBoardLayoutEnablesAllianceColumnsOnlyWhenWideEnough),
+        ("PartyCooldownBoardLayout computes alliance column board height", PartyCooldownBoardLayoutComputesAllianceColumnBoardHeight),
         ("PartyCooldownBoardLayout builds member-scoped icon interaction ids", PartyCooldownBoardLayoutBuildsMemberScopedIconInteractionIds),
     ];
 
@@ -79,6 +80,21 @@ internal static class PartyCooldownBoardLayoutTests
                 columnGap: 8),
             "narrow alliance boards should keep the linear fallback");
         Near(294.67f, PartyCooldownBoardLayout.GetAllianceColumnWidth(900, 8, 3), tolerance: 0.01f);
+    }
+
+    private static void PartyCooldownBoardLayoutComputesAllianceColumnBoardHeight()
+    {
+        var rows = new (string AllianceGroup, int ItemCount)[]
+        {
+            ("A", 9),
+            ("A", 2),
+            ("B", 1),
+            ("C", 5),
+            ("C", 5),
+            ("C", 5),
+        };
+
+        Near(84, PartyCooldownBoardLayout.GetAllianceBoardContentHeight(rows, 20, 3, 4, 10, 5));
     }
 
     private static void PartyCooldownBoardLayoutBuildsMemberScopedIconInteractionIds()

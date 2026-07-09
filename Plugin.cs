@@ -380,7 +380,16 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
 
     private void SaveConfigNow()
     {
-        PluginInterface.SavePluginConfig(this.config);
+        var profileStart = this.performanceProfiler.BeginSection(PerformanceProfileSection.ConfigSave);
+        try
+        {
+            PluginInterface.SavePluginConfig(this.config);
+        }
+        finally
+        {
+            this.performanceProfiler.EndSection(PerformanceProfileSection.ConfigSave, profileStart);
+        }
+
         this.SetBugDiagnosticEvent("configSaved");
         this.configSavePending = false;
         this.configSaveAfter = DateTime.MinValue;

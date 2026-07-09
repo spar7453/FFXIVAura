@@ -18,6 +18,7 @@ internal sealed class PerformanceProfiler
         "키바인드 재구성",
         "툴팁 제어",
         "흑백 처리",
+        "\uC124\uC815 \uC800\uC7A5",
     ];
 
     private readonly SectionStats[] sections;

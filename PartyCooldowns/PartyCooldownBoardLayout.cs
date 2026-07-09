@@ -111,6 +111,40 @@ internal static class PartyCooldownBoardLayout
         return rowCount == 0 ? 0f : height;
     }
 
+    public static float GetAllianceBoardContentHeight(
+        IReadOnlyList<(string AllianceGroup, int ItemCount)> rows,
+        float iconSize,
+        float gap,
+        float padding,
+        float headerHeight,
+        int iconsPerLine = MaxIconsPerWrappedLine)
+    {
+        var maxColumnHeight = 0f;
+        for (var group = 0; group < AllianceColumnCount; group++)
+        {
+            var groupLabel = PartyCooldownAllianceGroups.GroupLabel(group);
+            var columnHeight = headerHeight;
+            var rowCount = 0;
+            for (var rowIndex = 0; rowIndex < rows.Count; rowIndex++)
+            {
+                var row = rows[rowIndex];
+                if (!string.Equals(row.AllianceGroup, groupLabel, StringComparison.Ordinal))
+                    continue;
+
+                if (rowCount > 0)
+                    columnHeight += gap;
+
+                columnHeight += GetRowContentHeight(row.ItemCount, iconSize, gap, iconsPerLine);
+                rowCount++;
+            }
+
+            if (rowCount > 0)
+                maxColumnHeight = Math.Max(maxColumnHeight, columnHeight);
+        }
+
+        return maxColumnHeight <= 0f ? 0f : padding * 2f + maxColumnHeight;
+    }
+
     public static float GetExpandedBoardHeight(
         float currentHeight,
         IEnumerable<int> rowItemCounts,

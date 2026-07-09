@@ -224,19 +224,60 @@ public sealed unsafe partial class Plugin
         var labelGap = Math.Max(4f, gap);
         var jobIconSize = Math.Clamp(iconSize * 0.72f, 20f, 32f);
         var nameWidth = Math.Clamp(iconSize * 1.05f, 34f, 54f);
-        var labelWidth = jobIconSize + labelGap + nameWidth + labelGap;
-        var iconAreaWidth = Math.Max(0f, iconWindow.Width - padding * 2f - labelWidth);
-        var iconsPerLine = PartyCooldownBoardLayout.GetIconLineCapacity(iconAreaWidth, iconSize, gap);
+        var allianceGroupWidth = members.Any(member => !string.IsNullOrWhiteSpace(member.AllianceGroup))
+            ? Math.Max(16f, ImGui.CalcTextSize("C").X + labelGap)
+            : 0f;
+        var regularLabelWidth = allianceGroupWidth + jobIconSize + labelGap + nameWidth + labelGap;
+        var regularIconAreaWidth = Math.Max(0f, iconWindow.Width - padding * 2f - regularLabelWidth);
+        var regularIconsPerLine = PartyCooldownBoardLayout.GetIconLineCapacity(regularIconAreaWidth, iconSize, gap);
+        var columnLabelWidth = jobIconSize + labelGap + nameWidth + labelGap;
+        var columnGap = Math.Max(8f, gap * 2f);
+        var availableWidth = Math.Max(0f, iconWindow.Width - padding * 2f);
         var rowItemCounts = new List<int>(members.Count);
+        var allianceRowItemCounts = new List<(string AllianceGroup, int ItemCount)>(members.Count);
+        var allianceGroupCount = 0;
 
         foreach (var member in members)
         {
             var itemCount = this.GetPartyCooldownDefinitionsForMember(category, member.Job, level, iconWindow).Count();
             if (itemCount > 0 || !PartyCooldownBoardLayout.HideEmptyRows(category))
+            {
                 rowItemCounts.Add(itemCount);
+                allianceRowItemCounts.Add((member.AllianceGroup, itemCount));
+            }
         }
 
-        return PartyCooldownBoardLayout.GetBoardContentHeight(rowItemCounts, iconSize, gap, padding, iconsPerLine);
+        for (var group = 0; group < PartyCooldownBoardLayout.AllianceColumnCount; group++)
+        {
+            var groupLabel = PartyCooldownAllianceGroups.GroupLabel(group);
+            if (allianceRowItemCounts.Any(row => string.Equals(row.AllianceGroup, groupLabel, StringComparison.Ordinal)))
+                allianceGroupCount++;
+        }
+
+        if (PartyCooldownBoardLayout.ShouldUseAllianceColumns(
+                allianceGroupCount,
+                availableWidth,
+                iconSize,
+                gap,
+                columnLabelWidth,
+                columnGap))
+        {
+            var columnCount = Math.Clamp(allianceGroupCount, 2, PartyCooldownBoardLayout.AllianceColumnCount);
+            var columnWidth = PartyCooldownBoardLayout.GetAllianceColumnWidth(availableWidth, columnGap, columnCount);
+            var columnIconsPerLine = PartyCooldownBoardLayout.GetIconLineCapacity(
+                Math.Max(0f, columnWidth - columnLabelWidth),
+                iconSize,
+                gap);
+            return PartyCooldownBoardLayout.GetAllianceBoardContentHeight(
+                allianceRowItemCounts,
+                iconSize,
+                gap,
+                padding,
+                ImGui.GetTextLineHeight() + Math.Max(4f, gap),
+                columnIconsPerLine);
+        }
+
+        return PartyCooldownBoardLayout.GetBoardContentHeight(rowItemCounts, iconSize, gap, padding, regularIconsPerLine);
     }
 
     private IEnumerable<PartyCooldownDefinition> GetPartyCooldownDefinitionsForMember(

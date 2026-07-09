@@ -59,6 +59,10 @@ public sealed unsafe partial class Plugin
             0,
             0,
             0,
+            0,
+            string.Empty,
+            0,
+            0,
             0);
     }
 
@@ -74,6 +78,7 @@ public sealed unsafe partial class Plugin
         var active = 0;
         var cooldown = 0;
         var emptyRows = 0;
+        var layoutMetrics = GetPartyCooldownBoardRenderMetrics(iconWindow, rows);
         foreach (var row in rows)
         {
             if (row.Items.Count == 0)
@@ -125,7 +130,11 @@ public sealed unsafe partial class Plugin
             ready,
             active,
             cooldown,
-            statuslessCandidateCount);
+            statuslessCandidateCount,
+            layoutMetrics.UseAllianceColumns ? "AllianceColumns" : "Linear",
+            layoutMetrics.IconsPerLine,
+            layoutMetrics.AllianceGroupCount,
+            layoutMetrics.AllianceColumnCount);
     }
 
     private bool TryGetCachedCooldown(AbilityDefinition ability, out CooldownState state)

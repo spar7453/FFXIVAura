@@ -297,16 +297,49 @@ public sealed unsafe partial class Plugin
         var partyLogTracked = 0;
         var partyLogIgnored = 0;
         var partyLogOther = 0;
+        var partyLogMemberNotFound = 0;
+        var partyLogOwnerNotFound = 0;
+        var partyLogCandidateMissing = 0;
+        var partyLogNotTrackedByWindow = 0;
+        var partyLogAmbiguous = 0;
+        var partyLogOtherIgnored = 0;
         PartyCooldownLogObservation? lastObservation = null;
         foreach (var observation in this.partyCooldownLogObservations)
         {
             lastObservation = observation;
             if (string.Equals(observation.Result, "추적", StringComparison.Ordinal))
+            {
                 partyLogTracked++;
+            }
             else if (string.Equals(observation.Result, "무시", StringComparison.Ordinal))
+            {
                 partyLogIgnored++;
+                switch (ClassifyPartyCooldownIgnoredLog(observation.Detail))
+                {
+                    case PartyCooldownIgnoredLogReason.MemberNotFound:
+                        partyLogMemberNotFound++;
+                        break;
+                    case PartyCooldownIgnoredLogReason.OwnerNotFound:
+                        partyLogOwnerNotFound++;
+                        break;
+                    case PartyCooldownIgnoredLogReason.CandidateMissing:
+                        partyLogCandidateMissing++;
+                        break;
+                    case PartyCooldownIgnoredLogReason.NotTrackedByWindow:
+                        partyLogNotTrackedByWindow++;
+                        break;
+                    case PartyCooldownIgnoredLogReason.Ambiguous:
+                        partyLogAmbiguous++;
+                        break;
+                    default:
+                        partyLogOtherIgnored++;
+                        break;
+                }
+            }
             else
+            {
                 partyLogOther++;
+            }
         }
 
         var partyCooldownRoster = this.partyCooldownFrameSnapshot?.RosterDiagnostics ?? default;
@@ -335,6 +368,12 @@ public sealed unsafe partial class Plugin
             ("logObservations", this.partyCooldownLogObservations.Count),
             ("logTracked", partyLogTracked),
             ("logIgnored", partyLogIgnored),
+            ("logMemberNotFound", partyLogMemberNotFound),
+            ("logOwnerNotFound", partyLogOwnerNotFound),
+            ("logCandidateMissing", partyLogCandidateMissing),
+            ("logNotTrackedByWindow", partyLogNotTrackedByWindow),
+            ("logAmbiguous", partyLogAmbiguous),
+            ("logOtherIgnored", partyLogOtherIgnored),
             ("logOther", partyLogOther)));
 
         if (lastObservation is not null)
@@ -481,7 +520,56 @@ public sealed unsafe partial class Plugin
             ("partyReady", debug.PartyReadyCount),
             ("partyActive", debug.PartyActiveCount),
             ("partyCooldown", debug.PartyCooldownCount),
-            ("partyStatuslessCandidates", debug.PartyStatuslessCandidateCount)));
+            ("partyStatuslessCandidates", debug.PartyStatuslessCandidateCount),
+            ("partyLayoutMode", debug.PartyLayoutMode),
+            ("partyIconsPerLine", debug.PartyIconsPerLine),
+            ("partyAllianceGroups", debug.PartyAllianceGroupCount),
+            ("partyAllianceColumns", debug.PartyAllianceColumnCount)));
+    }
+
+    private enum PartyCooldownIgnoredLogReason
+    {
+        Other,
+        MemberNotFound,
+        OwnerNotFound,
+        CandidateMissing,
+        NotTrackedByWindow,
+        Ambiguous,
+    }
+
+    private static PartyCooldownIgnoredLogReason ClassifyPartyCooldownIgnoredLog(string detail)
+    {
+        if (string.IsNullOrWhiteSpace(detail))
+            return PartyCooldownIgnoredLogReason.Other;
+
+        if (detail.Contains("동명이인", StringComparison.Ordinal)
+            || detail.Contains("같은 이름", StringComparison.Ordinal))
+        {
+            return PartyCooldownIgnoredLogReason.Ambiguous;
+        }
+
+        if (detail.Contains("파티원 목록", StringComparison.Ordinal)
+            || detail.Contains("시전자", StringComparison.Ordinal))
+        {
+            return PartyCooldownIgnoredLogReason.MemberNotFound;
+        }
+
+        if (detail.Contains("소유 파티원", StringComparison.Ordinal)
+            || detail.Contains("소환수/객체", StringComparison.Ordinal))
+        {
+            return PartyCooldownIgnoredLogReason.OwnerNotFound;
+        }
+
+        if (detail.Contains("추적 대상 후보", StringComparison.Ordinal))
+            return PartyCooldownIgnoredLogReason.CandidateMissing;
+
+        if (detail.Contains("모든 파티 쿨다운 창", StringComparison.Ordinal)
+            || detail.Contains("표시되지 않습니다", StringComparison.Ordinal))
+        {
+            return PartyCooldownIgnoredLogReason.NotTrackedByWindow;
+        }
+
+        return PartyCooldownIgnoredLogReason.Other;
     }
 
     private void AppendPerformanceProfileDiagnosticRow(
