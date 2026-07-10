@@ -76,3 +76,67 @@ jobs:
           name: FFXIVAura
           path: .\bin\Release\FFXIVAura\latest.zip
           if-no-files-found: error
+
+      - name: Check deployment secret
+        if: ${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/kr-custom' }}
+        shell: pwsh
+        env:
+          PLUGIN_REPO_TOKEN: ${{ secrets.PLUGIN_REPO_TOKEN }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:PLUGIN_REPO_TOKEN)) {
+            throw 'PLUGIN_REPO_TOKEN repository secret is required for automatic deployment.'
+          }
+
+      - name: Check out Dalamud plugin repository
+        if: ${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/kr-custom' }}
+        uses: actions/checkout@v7
+        with:
+          repository: spar7453/DalamudPlugins
+          ref: main
+          token: ${{ secrets.PLUGIN_REPO_TOKEN }}
+          path: plugin-repo
+
+      - name: Publish release package to DalamudPlugins
+        if: ${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/kr-custom' }}
+        shell: pwsh
+        run: |
+          $sourceManifest = Get-Content -Raw -Encoding UTF8 '.\FFXIVAura.json' | ConvertFrom-Json
+          $version = $sourceManifest.AssemblyVersion
+          if ([string]::IsNullOrWhiteSpace($version)) {
+            throw 'FFXIVAura.json does not contain an AssemblyVersion.'
+          }
+
+          $sourcePackage = '.\bin\Release\FFXIVAura\latest.zip'
+          $targetPackage = ".\plugin-repo\plugins\FFXIVAura\$version.zip"
+          New-Item -ItemType Directory -Force -Path (Split-Path -Parent $targetPackage) | Out-Null
+          Copy-Item -LiteralPath $sourcePackage -Destination $targetPackage -Force
+
+          $indexFiles = @(
+            '.\plugin-repo\pluginmaster.json',
+            '.\plugin-repo\repo.json',
+            '.\plugin-repo\repo-0.1.0.2.json'
+          )
+          foreach ($indexFile in $indexFiles) {
+            $content = Get-Content -Raw -Encoding UTF8 $indexFile
+            $entryMatch = [regex]::Match($content, '(?ms)\{\s*"Author"\s*:\s*"spark",\s*"Name"\s*:\s*"FFXIVAura".*?(?=\r?\n\s*\},)')
+            if (-not $entryMatch.Success) {
+              throw "FFXIVAura entry was not found in $indexFile."
+            }
+
+            $entry = $entryMatch.Value
+            $entry = [regex]::Replace($entry, '("AssemblyVersion"\s*:\s*)"[^"]+"', '${1}"' + $version + '"')
+            $entry = [regex]::Replace($entry, '("DownloadLink(?:Install|Update|Testing)"\s*:\s*"https://raw\.githubusercontent\.com/spar7453/DalamudPlugins/main/plugins/FFXIVAura/)[^"]+(\.zip")', '${1}' + $version + '${2}')
+            $updatedContent = $content.Substring(0, $entryMatch.Index) + $entry + $content.Substring($entryMatch.Index + $entryMatch.Length)
+            [System.IO.File]::WriteAllText($indexFile, $updatedContent, [System.Text.UTF8Encoding]::new($false))
+          }
+
+          git -C .\plugin-repo config user.name 'github-actions[bot]'
+          git -C .\plugin-repo config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git -C .\plugin-repo add -- pluginmaster.json repo.json repo-0.1.0.2.json "plugins/FFXIVAura/$version.zip"
+          git -C .\plugin-repo diff --cached --quiet
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "DalamudPlugins is already up to date with FFXIVAura $version."
+            exit 0
+          }
+          git -C .\plugin-repo commit -m "Update FFXIVAura to $version"
+          git -C .\plugin-repo push origin main
