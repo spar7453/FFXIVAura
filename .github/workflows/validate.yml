@@ -139,4 +139,9 @@ jobs:
             exit 0
           }
           git -C .\plugin-repo commit -m "Update FFXIVAura to $version"
-          git -C .\plugin-repo push origin main
+          for ($attempt = 1; $attempt -le 3; $attempt++) {
+            git -C .\plugin-repo push origin main
+            if ($LASTEXITCODE -eq 0) { exit 0 }
+            if ($attempt -eq 3) { throw 'Unable to push DalamudPlugins after three attempts.' }
+            git -C .\plugin-repo pull --rebase origin main
+          }
