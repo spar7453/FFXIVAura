@@ -8,6 +8,7 @@ internal static class PartyCooldownMemberOrderingTests
     public static IReadOnlyList<(string Name, Action Run)> Cases { get; } =
     [
         ("PartyCooldownMemberOrdering preserves in-game party order", PreservesInGamePartyOrder),
+        ("PartyCooldownMemberOrdering preserves local and alliance HUD order", PreservesLocalAndAllianceHudOrder),
         ("PartyCooldownMemberOrdering removes only local player during display filtering", RemovesOnlyLocalPlayerDuringDisplayFiltering),
     ];
 
@@ -27,6 +28,22 @@ internal static class PartyCooldownMemberOrderingTests
         Sequence([40u, 20u, 10u, 30u, 50u, 60u], sorted.Select(member => member.EntityId).ToList());
     }
 
+    private static void PreservesLocalAndAllianceHudOrder()
+    {
+        var sorted = PartyCooldownMemberOrdering.PreserveInGameOrder(
+            [
+                Member(201, "PCT", "B"),
+                Member(101, "PLD", "A"),
+                Member(302, "WHM", "C"),
+                Member(202, "SGE", "B"),
+                Member(102, "SAM", "A"),
+                Member(301, "WAR", "C"),
+            ],
+            [102, 101, 202, 201, 301, 302]);
+
+        Sequence([102u, 101u, 202u, 201u, 301u, 302u], sorted.Select(member => member.EntityId).ToList());
+    }
+
     private static void RemovesOnlyLocalPlayerDuringDisplayFiltering()
     {
         var sorted = PartyCooldownMemberOrdering.PreserveInGameOrder(
@@ -43,6 +60,6 @@ internal static class PartyCooldownMemberOrderingTests
         Sequence([10u, 20u, 40u, 50u, 60u], displayMembers.Select(member => member.EntityId).ToList());
     }
 
-    private static PartyCooldownMemberSnapshot Member(uint entityId, string job)
-        => new($"key-{entityId}", entityId, 0, $"member-{entityId}", $"m{entityId}", job, 0, string.Empty);
+    private static PartyCooldownMemberSnapshot Member(uint entityId, string job, string allianceGroup = "")
+        => new($"key-{entityId}", entityId, 0, $"member-{entityId}", $"m{entityId}", job, 0, allianceGroup);
 }

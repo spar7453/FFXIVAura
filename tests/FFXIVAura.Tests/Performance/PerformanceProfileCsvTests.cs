@@ -44,10 +44,14 @@ internal static class PerformanceProfileCsvTests
             9,
             10,
             11,
-            12));
+            12,
+            13,
+            14.5,
+            15,
+            16));
 
         var columns = builder.ToString().TrimEnd().Split(',');
-        Equal(20, columns.Length);
+        Equal(24, columns.Length);
         Equal("2026-01-02T03:04:05.0000000Z", columns[0]);
         Equal("frame", columns[1]);
         Equal("plugin", columns[2]);
@@ -59,5 +63,9 @@ internal static class PerformanceProfileCsvTests
         Equal("2.75", columns[8]);
         Equal(string.Empty, columns[9]);
         Equal("12", columns[19]);
+        Equal("13", columns[20]);
+        Equal("14.5", columns[21]);
+        Equal("15", columns[22]);
+        Equal("16", columns[23]);
     }
 }

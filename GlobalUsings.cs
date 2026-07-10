@@ -1,8 +1,6 @@
 global using System.Numerics;
 global using System.Text.Json;
 global using Dalamud.Bindings.ImGui;
-global using Dalamud.Game.Addon.Lifecycle;
-global using Dalamud.Game.Addon.Lifecycle.AddonArgTypes;
 global using Dalamud.Game.ClientState.Party;
 global using Dalamud.Game.ClientState;
 global using Dalamud.Game.ClientState.Conditions;
@@ -21,4 +19,5 @@ global using Dalamud.Plugin.Services;
 global using FFXIVClientStructs.FFXIV.Client.Game;
 global using Lumina.Data.Files;
 global using GameAction = Lumina.Excel.Sheets.Action;
+global using GameActionTransient = Lumina.Excel.Sheets.ActionTransient;
 global using GameStatus = Lumina.Excel.Sheets.Status;

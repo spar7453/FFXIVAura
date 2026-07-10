@@ -35,6 +35,7 @@ The goal is simple: show only the skills, buffs, debuffs, charges, cooldowns, an
 - Unavailable/proc-gated action desaturation.
 - Ready and adjusted-action highlight options.
 - Keybind label display for tracked hotbar actions.
+- Overlay-top action tooltips with game-evaluated localized Lumina details, including embedded potency, duration, transformed-action, and charge text.
 - Hide overlay during zone load.
 - Optional display conditions:
   - Always
@@ -45,7 +46,7 @@ The goal is simple: show only the skills, buffs, debuffs, charges, cooldowns, an
 - Aura search and tracking for recently seen buffs/debuffs.
 - Aura search by status name, status ID, action name, or action ID, with result tags for active, recently seen, action-granted skill names, status-list, and same-name status IDs.
 - Party aura options for own-only filtering and party member count display.
-- Party cooldown boards show each party member in the in-game party-list order with job icon, short name, ready skills, active borders, and estimated cooldown timers after active effects end. Alliance boards use stacked A/B/C sections with a four-member by two-row grid for each alliance party.
+- Party cooldown boards show each party member in the in-game party-list order with job icon, short name, ready skills, active borders, and estimated cooldown timers after active effects end. Alliance boards use A/B/C columns with up to eight members stacked vertically in each party column.
 - Party defensive, healing cooldown, and damage synergy boards are separated so healer cooldowns do not crowd the defensive board.
 - Party cooldown presets show all configured job skills by default, and each window can exclude unneeded preset entries from settings.
 - Party cooldown replacement groups hide lower-level actions after the current effective level unlocks their upgraded action.
@@ -71,6 +72,7 @@ Open the settings window with `/fa`.
 - Enable or disable the plugin.
 - Lock overlay movement.
 - Hide overlays during zone loading.
+- Show or hide action and aura tooltips above FFXIVAura windows.
 - Check current job, effective level, loaded action count, and command name.
 - Highlight ready actions.
 - Highlight adjusted/transformed actions.
@@ -97,6 +99,8 @@ Open the settings window with `/fa`.
 - Buff/debuff windows set to the Active display condition continuously compact the currently active auras so expired or newly appeared statuses do not leave empty slots.
 - Party defensive, party healing cooldown, and party damage synergy windows use built-in job data instead of manual tracking lists. Skills above the current effective level are hidden for synced content.
 - Party cooldown boards read the current party roster and use the game's cross-realm alliance UI data for the authoritative A/B/C group and member order. Party/flat alliance slots remain a compatibility fallback while that data is loading.
+- Alliance boards stack A, B, and C vertically with up to eight member rows per group. If the full board would exceed the overlay height limit, rendering temporarily compacts icon size, spacing, and labels without changing the saved window settings.
+- Multi-charge party cooldowns are estimated per charge. A skill remains usable while at least one charge is available, and its current charge count is shown on the icon.
 - In party cooldown windows, uncheck preset entries in the settings list to exclude skills you do not want that window to track.
 
 The most common per-window controls are available directly on the unlocked overlay:
@@ -114,16 +118,16 @@ Each window stores its own display settings and manual icon positions. When a wi
 
 The general settings include a detailed profiling option for local debugging. When enabled, the performance overlay shows:
 
-- Total plugin frame time.
-- Section timings for overlay rendering, frame model creation, positioning, cooldowns, icon rendering, aura scans, keybind rebuilds, tooltip control, and grayscale processing.
+- Total plugin frame time, per-frame managed allocation, and Gen0 collection count.
+- Section timings for overlay rendering, frame model creation, positioning, cooldowns, icon rendering, aura scans, keybind rebuilds, tooltip rendering, and grayscale processing.
 - Current, average, maximum, recent 5-second average, and maximum timestamp values. The recent average keeps a larger bounded sample window so high-FPS clients do not shorten the displayed 5-second view too aggressively.
 - Per-window timings by overlay window name.
 
 Use this only while diagnosing performance. Keep it disabled for normal play unless you are actively checking a problem.
 
-For longer development sessions, enable `프로파일 자동 기록` in the general settings. The plugin writes `performance-profile.csv` to the Dalamud plugin config directory once per configured interval. File writes and configuration saves run through bounded background queues so disk latency does not stall overlay rendering. Queue depth, dropped work, completion/failure counts, and write duration are included in diagnostics. Rows are stored in long format with `frame`, `section`, `window`, and `diagnostic` scopes, so the same file can be filtered by total frame time, profiler section, overlay window, or runtime state. Diagnostic rows include player level/combat/loading state, overlay/window settings, cache sizes, aura cache state, party cooldown log/runtime counts, grayscale queue state, tooltip activity, per-window display decision counts, and the last notable debug event. When the file reaches the configured size limit, the previous file is rotated to `performance-profile.previous.csv`.
+For longer development sessions, enable `프로파일 자동 기록` in the general settings. The plugin writes `performance-profile.csv` to the Dalamud plugin config directory once per configured interval. File writes and configuration saves run through bounded background queues so disk latency does not stall overlay rendering. Queue depth, dropped work, completion/failure counts, and write duration are included in diagnostics. Rows are stored in long format with `frame`, `section`, `window`, and `diagnostic` scopes, so the same file can be filtered by total frame time, profiler section, overlay window, runtime state, frame allocation, or Gen0 activity. Diagnostic rows include player level/combat/loading state, overlay/window settings, cache sizes, aura cache state, party cooldown log/runtime counts, party status-scan/cache-hit counts, grayscale queue state, tooltip activity, per-window display decision counts, and the last notable debug event. When the file reaches the configured size limit, the previous file is rotated to `performance-profile.previous.csv`.
 
-When automatic recording is enabled, party cooldown log observations are kept even if the on-screen log observer is hidden. This keeps the CSV useful for bugs where an action use was logged but ignored, excluded, level-filtered, or matched to the wrong source. Tooltip retry/forced-show counts, temporary skill layout count, and cross-realm alliance group diagnostics are recorded so these runtime fixes can be verified in game.
+When automatic recording is enabled, party cooldown log observations are kept even if the on-screen log observer is hidden. Tracked actions and actionable errors use a separate bounded history from ordinary unrecognized action samples, so normal combat traffic cannot evict the records needed for debugging. Tooltip hover/render counts, temporary skill layout count, and cross-realm alliance group diagnostics are recorded so these runtime fixes can be verified in game.
 
 ## Data Files
 
@@ -176,11 +180,11 @@ Typical update workflow:
 - `Overlay/`
   - Overlay frame models, edit controls, layout geometry, icon positions, resizing, and shared icon rendering.
 - `PartyCooldowns/`
-  - Party/alliance roster snapshots, curated definitions, combat-log matching, active-status attribution, board layout, and rendering.
+  - Party/alliance roster snapshots, curated definitions, charge-aware runtime tracking, combat-log matching, active-status attribution, board layout, and rendering.
 - `Performance/`
   - Frame/section profiling, diagnostic CSV formatting, bounded background recording, and profiler UI.
 - `Tooltips/`
-  - Native game tooltip requests, hover resolution, lifecycle control, and diagnostics.
+  - Overlay-top action and aura tooltip rendering, hover resolution, positioning, and diagnostics.
 - `tests/FFXIVAura.Tests/`
   - Pure-logic and regression tests grouped by the same feature boundaries.
 

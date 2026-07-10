@@ -10,6 +10,8 @@ internal static class TooltipDiagnosticsTests
     [
         ("TooltipDiagnostics records interval counters and last geometry", RecordsIntervalCountersAndLastGeometry),
         ("TooltipDiagnostics resets counters but keeps last event", ResetsCountersButKeepsLastEvent),
+        ("Overlay action tooltip formatting handles instant and timed actions", FormatsOverlayActionTooltipValues),
+        ("Overlay tooltip positioning stays inside the display", PositionsOverlayTooltipInsideDisplay),
     ];
 
     private static void RecordsIntervalCountersAndLastGeometry()
@@ -28,26 +30,13 @@ internal static class TooltipDiagnosticsTests
             containsMouse: true,
             imguiHovered: true);
         diagnostics.RecordTooltipRequest(TooltipDiagnosticKind.Ability, "jump", 92);
-        diagnostics.RecordNativeActionRequest(92);
-        diagnostics.RecordNativeAgentIds(92, 91);
-        diagnostics.RecordNativeControl(new NativeActionTooltipControlResult(
-            AddonVisible: true,
-            AddonSize: new Vector2(120, 64),
-            MousePosition: new Vector2(20, 30),
-            Position: new Vector2(38, 48)));
-        diagnostics.RecordNativeHoverDispatch();
-        diagnostics.RecordNativeForcedShow();
-        diagnostics.RecordAddonMissingSkip();
+        diagnostics.RecordOverlayActionRender(92);
 
         var snapshot = diagnostics.CreateSnapshot();
 
         Equal(1, snapshot.HoverHits);
         Equal(1, snapshot.AbilityRequests);
-        Equal(1, snapshot.NativeActionRequests);
-        Equal(1, snapshot.NativeControls);
-        Equal(1, snapshot.NativeHoverDispatches);
-        Equal(1, snapshot.NativeForcedShows);
-        Equal(1, snapshot.AddonMissingSkips);
+        Equal(1, snapshot.OverlayActionRenders);
         Equal("Ability", snapshot.LastKind);
         Equal("jump", snapshot.LastId);
         Equal("win1", snapshot.LastWindowId);
@@ -55,43 +44,60 @@ internal static class TooltipDiagnosticsTests
         Equal(92u, snapshot.LastActionId);
         Equal(12, snapshot.LastDrawnIconCount);
         True(snapshot.LastHitboxExpanded, "hitbox expansion should be preserved");
-        Equal("addonMissing", snapshot.LastSkipReason);
+        Equal(string.Empty, snapshot.LastSkipReason);
         True(snapshot.HasLastGeometry, "hover geometry should be captured");
         Vector(new Vector2(10, 11), snapshot.LastMouse);
         Vector(new Vector2(1, 2), snapshot.LastRectMin);
         Vector(new Vector2(43, 44), snapshot.LastRectMax);
         True(snapshot.LastContainsMouse, "mouse should be marked inside the rect");
         True(snapshot.LastImGuiHovered, "imgui hover should be preserved");
-        Equal(92u, snapshot.LastAgentActionId);
-        Equal(91u, snapshot.LastAgentOriginalId);
-        True(snapshot.HasLastNativeAddon, "native addon state should be captured");
-        True(snapshot.LastAddonVisible, "addon visibility should be preserved");
-        Vector(new Vector2(120, 64), snapshot.LastAddonSize);
-        Vector(new Vector2(20, 30), snapshot.LastControlMouse);
-        Vector(new Vector2(38, 48), snapshot.LastControlPosition);
     }
 
     private static void ResetsCountersButKeepsLastEvent()
     {
         var diagnostics = new TooltipDiagnostics();
         diagnostics.RecordDisabledSkip(TooltipDiagnosticKind.PartyCooldown, "reprisal", 7535);
-        diagnostics.RecordNativeActionRequest(0);
+        diagnostics.RecordOverlayActionRender(0);
         diagnostics.RecordZeroActionSkip();
-        diagnostics.RecordNativeHoverDispatch();
-        diagnostics.RecordNativeForcedShow();
 
         diagnostics.ResetIntervalCounters();
         var snapshot = diagnostics.CreateSnapshot();
 
         Equal(0, snapshot.PartyCooldownRequests);
-        Equal(0, snapshot.NativeActionRequests);
+        Equal(0, snapshot.OverlayActionRenders);
         Equal(0, snapshot.DisabledSkips);
         Equal(0, snapshot.ZeroActionSkips);
-        Equal(0, snapshot.NativeHoverDispatches);
-        Equal(0, snapshot.NativeForcedShows);
         Equal("PartyCooldown", snapshot.LastKind);
         Equal("reprisal", snapshot.LastId);
         Equal(0u, snapshot.LastActionId);
         Equal("zeroActionId", snapshot.LastSkipReason);
+    }
+
+    private static void FormatsOverlayActionTooltipValues()
+    {
+        Equal("즉시 발동", OverlayActionTooltipFormatting.FormatCastTime(0));
+        Equal("2.50초", OverlayActionTooltipFormatting.FormatCastTime(25));
+        Equal("-", OverlayActionTooltipFormatting.FormatRecastTime(0));
+        Equal("90.00초", OverlayActionTooltipFormatting.FormatRecastTime(900));
+        Equal("0m", OverlayActionTooltipFormatting.FormatDistance(-1));
+        Equal("25m", OverlayActionTooltipFormatting.FormatDistance(25));
+        True(OverlayActionTooltipFormatting.ShouldShowMaxCharges(3, "즉시 이동합니다."), "missing charge text should use the structured fallback");
+        True(!OverlayActionTooltipFormatting.ShouldShowMaxCharges(3, "최대 누적수: 3"), "evaluated descriptions should not duplicate charge text");
+        True(!OverlayActionTooltipFormatting.ShouldShowMaxCharges(1, string.Empty), "single-charge actions should not show a charge row");
+    }
+
+    private static void PositionsOverlayTooltipInsideDisplay()
+    {
+        var position = OverlayTooltipPositioning.GetPositionAtMouse(
+            new Vector2(95, 95),
+            new Vector2(100, 100),
+            new Vector2(20, 20));
+        Vector(new Vector2(57, 57), position);
+
+        var oversized = OverlayTooltipPositioning.GetPositionAtMouse(
+            new Vector2(95, 95),
+            new Vector2(100, 100),
+            new Vector2(200, 200));
+        Vector(Vector2.Zero, oversized);
     }
 }

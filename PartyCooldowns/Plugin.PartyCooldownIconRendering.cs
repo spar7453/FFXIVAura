@@ -28,13 +28,14 @@ public sealed unsafe partial class Plugin
             var pos = ImGui.GetCursorScreenPos();
             var draw = ImGui.GetWindowDrawList();
             var max = pos + new Vector2(size, size);
-            var grayscaleTexture = item.State == PartyCooldownDisplayState.Cooldown ? this.GetGrayscaleIconTexture(iconId) : null;
+            var unavailable = item.State == PartyCooldownDisplayState.Cooldown;
+            var grayscaleTexture = unavailable ? this.GetGrayscaleIconTexture(iconId) : null;
 
             ImGui.Image((grayscaleTexture ?? texture).Handle, new Vector2(size, size));
-            if (item.State == PartyCooldownDisplayState.Cooldown && grayscaleTexture is null)
+            if (unavailable && grayscaleTexture is null)
                 this.DrawUnavailableIconTint(draw, pos, max);
 
-            if (item.State == PartyCooldownDisplayState.Cooldown)
+            if (item.State != PartyCooldownDisplayState.Active && item.CooldownRemaining > 0.05f)
             {
                 var elapsedRatio = item.CooldownTotal <= 0f ? 1f : 1f - (item.CooldownRemaining / item.CooldownTotal);
                 this.DrawCooldownCover(draw, pos, max, elapsedRatio);
@@ -45,6 +46,9 @@ public sealed unsafe partial class Plugin
                 draw.AddRect(pos - new Vector2(1f, 1f), max + new Vector2(1f, 1f), ImGui.GetColorU32(new Vector4(0.3f, 0.95f, 1f, 1f)), 4f, ImDrawFlags.None, 2.4f);
                 this.DrawTimerText(draw, pos, max, item.ActiveRemaining);
             }
+
+            if (item.MaxCharges > 1)
+                this.DrawChargeText(draw, pos, max, item.CurrentCharges);
 
             draw.AddRect(pos, max, ImGui.GetColorU32(new Vector4(0f, 0f, 0f, 0.62f)), 3f, ImDrawFlags.None, 1f);
         }
@@ -63,15 +67,12 @@ public sealed unsafe partial class Plugin
         int drawnIconCount)
     {
         var iconMax = iconPos + new Vector2(iconSize, iconSize);
-        if (this.IsMouseOverNativeTooltip())
-            return;
-
         if (this.config.LockOverlay)
         {
             if (IsMouseInRect(iconPos, iconMax))
             {
                 this.RecordTooltipHover(TooltipDiagnosticKind.PartyCooldown, iconWindow.Id, item.Definition.Id, item.Definition.ActionId, drawnIconCount, hitboxExpanded: false, iconPos, iconMax, imguiHovered: false);
-                this.ShowPartyCooldownTooltip(item);
+                this.RegisterPartyCooldownTooltipCandidate(item.Definition);
             }
 
             return;
@@ -85,20 +86,20 @@ public sealed unsafe partial class Plugin
         if (hovered)
         {
             this.RecordTooltipHover(TooltipDiagnosticKind.PartyCooldown, iconWindow.Id, item.Definition.Id, item.Definition.ActionId, drawnIconCount, hitboxExpanded: false, iconPos, iconMax, imguiHovered: true);
-            this.ShowPartyCooldownTooltip(item);
+            this.RegisterPartyCooldownTooltipCandidate(item.Definition);
         }
     }
 
-    private void ShowPartyCooldownTooltip(PartyCooldownDisplayItem item)
+    private void ShowPartyCooldownTooltip(PartyCooldownDefinition definition)
     {
         if (!this.config.ShowTooltips)
         {
-            this.tooltipDiagnostics.RecordDisabledSkip(TooltipDiagnosticKind.PartyCooldown, item.Definition.Id, item.Definition.ActionId);
+            this.tooltipDiagnostics.RecordDisabledSkip(TooltipDiagnosticKind.PartyCooldown, definition.Id, definition.ActionId);
             return;
         }
 
-        this.tooltipDiagnostics.RecordTooltipRequest(TooltipDiagnosticKind.PartyCooldown, item.Definition.Id, item.Definition.ActionId);
-        this.SetBugDiagnosticEvent($"tooltipPartyCooldown:{item.Definition.Id}:{item.Definition.ActionId}");
-        this.ShowNativeActionTooltip(item.Definition.ActionId);
+        this.tooltipDiagnostics.RecordTooltipRequest(TooltipDiagnosticKind.PartyCooldown, definition.Id, definition.ActionId);
+        this.SetBugDiagnosticEvent($"tooltipPartyCooldown:{definition.Id}:{definition.ActionId}");
+        this.ShowOverlayActionTooltip(definition.ActionId, definition.Name, definition.IconId, definition.Category);
     }
 }

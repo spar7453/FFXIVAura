@@ -8,7 +8,7 @@ internal static class PerformanceProfileCsv
     public const string FileName = "performance-profile.csv";
     public const string PreviousFileName = "performance-profile.previous.csv";
     public const string Header =
-        "timestampUtc,scope,id,label,detail,currentMs,recentAvgMs,averageMs,maxMs,maxOccurredLocal,lastCallCount,totalCallCount,sampleFrameCount,windowCount,skillIconCount,auraIconCount,cooldownCalculationCount,keybindCount,nativeTooltipControlCount,grayscaleIconProcessCount";
+        "timestampUtc,scope,id,label,detail,currentMs,recentAvgMs,averageMs,maxMs,maxOccurredLocal,lastCallCount,totalCallCount,sampleFrameCount,windowCount,skillIconCount,auraIconCount,cooldownCalculationCount,keybindCount,tooltipRenderCount,grayscaleIconProcessCount,allocatedBytes,averageAllocatedBytes,maxAllocatedBytes,gen0CollectionCount";
 
     public static void AppendRow(StringBuilder builder, PerformanceProfileCsvRow row)
     {
@@ -31,8 +31,12 @@ internal static class PerformanceProfileCsv
             .Append(row.AuraIconCount.ToString(CultureInfo.InvariantCulture)).Append(',')
             .Append(row.CooldownCalculationCount.ToString(CultureInfo.InvariantCulture)).Append(',')
             .Append(row.KeybindCount.ToString(CultureInfo.InvariantCulture)).Append(',')
-            .Append(row.NativeTooltipControlCount.ToString(CultureInfo.InvariantCulture)).Append(',')
-            .Append(row.GrayscaleIconProcessCount.ToString(CultureInfo.InvariantCulture))
+            .Append(row.TooltipRenderCount.ToString(CultureInfo.InvariantCulture)).Append(',')
+            .Append(row.GrayscaleIconProcessCount.ToString(CultureInfo.InvariantCulture)).Append(',')
+            .Append(row.AllocatedBytes.ToString(CultureInfo.InvariantCulture)).Append(',')
+            .Append(FormatNumber(row.AverageAllocatedBytes)).Append(',')
+            .Append(row.MaxAllocatedBytes.ToString(CultureInfo.InvariantCulture)).Append(',')
+            .Append(row.Gen0CollectionCount.ToString(CultureInfo.InvariantCulture))
             .AppendLine();
     }
 
@@ -75,5 +79,9 @@ internal readonly record struct PerformanceProfileCsvRow(
     int AuraIconCount,
     int CooldownCalculationCount,
     int KeybindCount,
-    int NativeTooltipControlCount,
-    int GrayscaleIconProcessCount);
+    int TooltipRenderCount,
+    int GrayscaleIconProcessCount,
+    long AllocatedBytes = 0,
+    double AverageAllocatedBytes = 0,
+    long MaxAllocatedBytes = 0,
+    int Gen0CollectionCount = 0);

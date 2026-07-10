@@ -122,14 +122,14 @@ internal static class PerformanceProfilerTests
         var now = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
         profiler.BeginFrame(enabled: true);
-        profiler.Record(PerformanceProfileSection.TooltipControl, TimeSpan.FromMilliseconds(5));
+        profiler.Record(PerformanceProfileSection.TooltipRendering, TimeSpan.FromMilliseconds(5));
         profiler.FinishFrame(now);
-        Near(5, profiler.GetSnapshot(PerformanceProfileSection.TooltipControl).RecentAverageMilliseconds);
+        Near(5, profiler.GetSnapshot(PerformanceProfileSection.TooltipRendering).RecentAverageMilliseconds);
 
         profiler.BeginFrame(enabled: true);
         profiler.FinishFrame(now.AddSeconds(6));
 
-        var snapshot = profiler.GetSnapshot(PerformanceProfileSection.TooltipControl);
+        var snapshot = profiler.GetSnapshot(PerformanceProfileSection.TooltipRendering);
         Equal(0, snapshot.LastCallCount);
         Near(0, snapshot.LastMilliseconds);
         Near(0, snapshot.RecentAverageMilliseconds);

@@ -10,7 +10,7 @@ internal enum PerformanceProfileSection
     AuraIcon,
     AuraScan,
     KeybindRebuild,
-    TooltipControl,
+    TooltipRendering,
     GrayscaleProcessing,
     ConfigSave,
     Count,

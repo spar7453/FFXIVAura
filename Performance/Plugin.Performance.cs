@@ -4,21 +4,34 @@ namespace FFXIVAura;
 
 public sealed unsafe partial class Plugin
 {
-    private long BeginPerformanceFrame()
+    private readonly record struct PerformanceFrameStart(
+        long Timestamp,
+        long AllocatedBytes,
+        int Gen0CollectionCount);
+
+    private PerformanceFrameStart BeginPerformanceFrame()
     {
         var collect = this.ShouldCollectPerformanceProfile();
         this.performanceStats.Begin(collect);
         this.performanceProfiler.BeginFrame(this.config.ShowDetailedPerformanceProfile || this.config.RecordPerformanceProfile);
-        return collect ? Stopwatch.GetTimestamp() : 0;
+        return collect
+            ? new PerformanceFrameStart(
+                Stopwatch.GetTimestamp(),
+                GC.GetAllocatedBytesForCurrentThread(),
+                GC.CollectionCount(0))
+            : default;
     }
 
-    private void FinishPerformanceFrame(long frameStart)
+    private void FinishPerformanceFrame(PerformanceFrameStart frameStart)
     {
         this.performanceProfiler.FinishFrame();
         if (!this.performanceStats.Enabled)
             return;
 
-        this.performanceStats.Finish(Stopwatch.GetElapsedTime(frameStart));
+        this.performanceStats.Finish(
+            Stopwatch.GetElapsedTime(frameStart.Timestamp),
+            GC.GetAllocatedBytesForCurrentThread() - frameStart.AllocatedBytes,
+            GC.CollectionCount(0) - frameStart.Gen0CollectionCount);
         this.RecordPerformanceProfileIfNeeded();
         if (this.ShouldShowPerformanceOverlay())
             this.DrawPerformanceOverlay();
@@ -51,13 +64,15 @@ public sealed unsafe partial class Plugin
         ImGui.TextUnformatted($"플러그인 처리: {this.performanceStats.FrameMilliseconds:0.00} ms");
         ImGui.TextUnformatted($"평균: {this.performanceStats.AverageFrameMilliseconds:0.00} ms");
         ImGui.TextUnformatted($"최대: {this.performanceStats.MaxFrameMilliseconds:0.00} ms");
+        ImGui.TextUnformatted($"프레임 할당: {this.performanceStats.FrameAllocatedBytes / 1024.0:0.0} KiB (평균 {this.performanceStats.AverageFrameAllocatedBytes / 1024.0:0.0} KiB)");
+        ImGui.TextUnformatted($"Gen0 수집: {this.performanceStats.Gen0CollectionCount}");
         ImGui.Separator();
         ImGui.TextUnformatted($"창: {this.performanceStats.WindowCount}");
         ImGui.TextUnformatted($"스킬 아이콘: {this.performanceStats.SkillIconCount}");
         ImGui.TextUnformatted($"오라 아이콘: {this.performanceStats.AuraIconCount}");
         ImGui.TextUnformatted($"쿨다운 계산: {this.performanceStats.CooldownCalculationCount}");
         ImGui.TextUnformatted($"키바인드 항목: {this.actionKeybindIndex.Count}");
-        ImGui.TextUnformatted($"툴팁 제어: {this.performanceStats.NativeTooltipControlCount}");
+        ImGui.TextUnformatted($"툴팁 렌더링: {this.performanceStats.TooltipRenderCount}");
         ImGui.TextUnformatted($"흑백 처리: {this.performanceStats.GrayscaleIconProcessCount}");
         ImGui.TextUnformatted($"프로파일 기록: {this.performanceProfileWriter.LastWriteMilliseconds:0.00} ms / 대기 {this.performanceProfileWriter.PendingCount} / 실패 {this.performanceProfileWriter.FailedCount}");
         ImGui.TextUnformatted($"설정 저장: {this.configSaveWorker.LastSaveMilliseconds:0.00} ms / 대기 {this.configSaveWorker.PendingCount} / 성공 {this.configSaveWorker.CompletedCount} / 실패 {this.configSaveWorker.FailedCount}");
@@ -85,13 +100,16 @@ public sealed unsafe partial class Plugin
 
         ImGui.TextDisabled($"후보 없음 {this.partyCooldownCandidateMissingLogCount} / 표본 {this.partyCooldownCandidateMissingObservationCount}");
 
-        if (this.partyCooldownLogObservations.Count == 0)
+        if (this.partyCooldownLogObservations.LastCandidate is { } candidateSample)
+            ImGui.TextDisabled($"후보 없음 최근 표본: log {candidateSample.LogMessageId} / {candidateSample.SourceName}");
+
+        if (this.partyCooldownLogObservations.ActionableCount == 0)
         {
             ImGui.TextDisabled("최근 감지 로그 없음");
             return;
         }
 
-        foreach (var observation in this.partyCooldownLogObservations.Reverse())
+        foreach (var observation in this.partyCooldownLogObservations.EnumerateActionableNewestFirst())
         {
             var action = observation.ActionId > 0
                 ? $"{observation.ActionName} ({observation.ActionId})"

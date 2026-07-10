@@ -9,7 +9,20 @@ internal static class PartyCooldownRosterTests
     [
         ("PartyCooldownRoster excludes local player from display members", ExcludesLocalPlayerFromDisplayMembers),
         ("PartyCooldownRoster records alliance-ready diagnostics", RecordsAllianceReadyDiagnostics),
+        ("PartyCooldownRoster hashes stable member identities", HashesStableMemberIdentities),
     ];
+
+    private static void HashesStableMemberIdentities()
+    {
+        var first = new[] { Member(1, "PLD", "A"), Member(2, "WHM", "A") };
+        var same = new[] { Member(1, "PLD", "A"), Member(2, "WHM", "A") };
+        var changed = new[] { Member(1, "PLD", "A"), Member(3, "WHM", "A") };
+
+        Equal(PartyCooldownRoster.ComputeMemberIdentityHash(first), PartyCooldownRoster.ComputeMemberIdentityHash(same));
+        True(
+            PartyCooldownRoster.ComputeMemberIdentityHash(first) != PartyCooldownRoster.ComputeMemberIdentityHash(changed),
+            "member changes should invalidate the status cache");
+    }
 
     private static void ExcludesLocalPlayerFromDisplayMembers()
     {
@@ -47,7 +60,10 @@ internal static class PartyCooldownRosterTests
             hasAllianceSource: true,
             usedFlatAllianceFallback: true,
             localAllianceGroupIndex: 1,
-            crossRealmGroupCount: 3);
+            rawLocalAllianceGroupIndex: 0,
+            hudLocalAllianceGroupIndex: 1,
+            crossRealmGroupCount: 3,
+            hudAllianceOrderCount: 16);
 
         Equal(PartyCooldownRosterSource.Alliance, diagnostics.Source);
         Equal(PartyCooldownRosterReadMode.CrossRealmAllianceWithFlatFallback, diagnostics.ReadMode);
@@ -63,7 +79,10 @@ internal static class PartyCooldownRosterTests
         Equal(21, diagnostics.AllianceEmptySlotCount);
         True(diagnostics.UsedFlatAllianceFallback, "flat alliance fallback should be captured");
         Equal(1, diagnostics.LocalAllianceGroupIndex);
+        Equal(0, diagnostics.RawLocalAllianceGroupIndex);
+        Equal(1, diagnostics.HudLocalAllianceGroupIndex);
         Equal(3, diagnostics.CrossRealmGroupCount);
+        Equal(16, diagnostics.HudAllianceOrderCount);
     }
 
     private static PartyCooldownMemberSnapshot Member(uint entityId, string job)

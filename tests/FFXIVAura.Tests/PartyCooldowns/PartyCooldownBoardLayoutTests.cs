@@ -15,8 +15,9 @@ internal static class PartyCooldownBoardLayoutTests
         ("PartyCooldownBoardLayout hides empty optional party rows", PartyCooldownBoardLayoutHidesEmptyOptionalPartyRows),
         ("PartyCooldownBoardLayout enables dedicated alliance grid", PartyCooldownBoardLayoutEnablesDedicatedAllianceGrid),
         ("PartyCooldownBoardLayout computes alliance grid board height", PartyCooldownBoardLayoutComputesAllianceGridBoardHeight),
-        ("PartyCooldownBoardLayout computes four-member alliance grid width", PartyCooldownBoardLayoutComputesAllianceGridWidth),
-        ("PartyCooldownBoardLayout fits a full alliance board at minimum icon size", PartyCooldownBoardLayoutFitsFullAllianceAtMinimumIconSize),
+        ("PartyCooldownBoardLayout computes one vertical alliance stack width", PartyCooldownBoardLayoutComputesAllianceGridWidth),
+        ("PartyCooldownBoardLayout accounts for every vertical alliance row", PartyCooldownBoardLayoutAccountsForFullAllianceHeight),
+        ("PartyCooldownBoardLayout compacts oversized alliance spacing", PartyCooldownBoardLayoutCompactsAllianceSpacing),
         ("PartyCooldownBoardLayout builds member-scoped icon interaction ids", PartyCooldownBoardLayoutBuildsMemberScopedIconInteractionIds),
     ];
 
@@ -29,11 +30,11 @@ internal static class PartyCooldownBoardLayoutTests
             cellGap: 8f,
             padding: 4f);
 
-        Near(1196f, width);
+        Near(299f, width);
         Near(291f, PartyCooldownBoardLayout.GetAllianceMemberCellWidth(width - 8f, 8f));
     }
 
-    private static void PartyCooldownBoardLayoutFitsFullAllianceAtMinimumIconSize()
+    private static void PartyCooldownBoardLayoutAccountsForFullAllianceHeight()
     {
         var rows = new List<(string AllianceGroup, int ItemCount)>();
         foreach (var group in new[] { "A", "B", "C" })
@@ -50,7 +51,7 @@ internal static class PartyCooldownBoardLayoutTests
             headerHeight: 42,
             iconsPerLine: 5);
 
-        True(height <= 900, $"minimum-size alliance board should fit the overlay height limit, got {height}");
+        Near(2094, height);
     }
 
     private static void PartyCooldownBoardLayoutWrapsNineIconsIntoTwoLines()
@@ -59,6 +60,26 @@ internal static class PartyCooldownBoardLayoutTests
         Equal(5, PartyCooldownBoardLayout.GetLineItemCount(9, 0));
         Equal(4, PartyCooldownBoardLayout.GetLineItemCount(9, 1));
         Near(42 * 2 + 5, PartyCooldownBoardLayout.GetIconContentHeight(9, 42, 5));
+    }
+
+    private static void PartyCooldownBoardLayoutCompactsAllianceSpacing()
+    {
+        Near(1.25f, PartyCooldownBoardLayout.GetCompactAllianceGap(16, 40, 16));
+        Near(0.7f, PartyCooldownBoardLayout.GetCompactAllianceFontScale(2, 40, 16));
+        Near(0.75f, PartyCooldownBoardLayout.GetCompactAllianceGap(0, 40, 16));
+        Near(0.65f, PartyCooldownBoardLayout.GetCompactAllianceFontScale(0, 40, 16));
+
+        var worstCaseRows = Enumerable.Range(0, 3)
+            .SelectMany(group => Enumerable.Repeat((PartyCooldownAllianceGroups.GroupLabel(group), 9), 8))
+            .ToList();
+        var compactHeight = PartyCooldownBoardLayout.GetAllianceGridBoardContentHeight(
+            worstCaseRows,
+            PartyCooldownBoardLayout.MinAllianceIconSize,
+            1.25f,
+            2f,
+            18f,
+            PartyCooldownBoardLayout.MaxIconsPerWrappedLine);
+        True(compactHeight <= 900f, $"compact worst-case board should fit, got {compactHeight}");
     }
 
     private static void PartyCooldownBoardLayoutFallsBackWhenTheBoardIsNarrow()
@@ -113,7 +134,7 @@ internal static class PartyCooldownBoardLayoutTests
             ("C", 5),
         };
 
-        Near(137, PartyCooldownBoardLayout.GetAllianceGridBoardContentHeight(rows, 20, 3, 4, 10, 5));
+        Near(206, PartyCooldownBoardLayout.GetAllianceGridBoardContentHeight(rows, 20, 3, 4, 10, 5));
     }
 
     private static void PartyCooldownBoardLayoutBuildsMemberScopedIconInteractionIds()

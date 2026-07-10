@@ -12,14 +12,9 @@ internal readonly record struct TooltipDiagnosticSnapshot(
     int AbilityRequests,
     int AuraRequests,
     int PartyCooldownRequests,
-    int NativeActionRequests,
+    int OverlayActionRenders,
     int DisabledSkips,
     int ZeroActionSkips,
-    int AgentMissingSkips,
-    int AddonMissingSkips,
-    int NativeControls,
-    int NativeHoverDispatches,
-    int NativeForcedShows,
     string LastKind,
     string LastId,
     string LastWindowId,
@@ -34,14 +29,7 @@ internal readonly record struct TooltipDiagnosticSnapshot(
     Vector2 LastRectMin,
     Vector2 LastRectMax,
     bool LastContainsMouse,
-    bool LastImGuiHovered,
-    uint LastAgentActionId,
-    uint LastAgentOriginalId,
-    bool HasLastNativeAddon,
-    bool LastAddonVisible,
-    Vector2 LastAddonSize,
-    Vector2 LastControlMouse,
-    Vector2 LastControlPosition);
+    bool LastImGuiHovered);
 
 internal sealed class TooltipDiagnostics
 {
@@ -49,14 +37,9 @@ internal sealed class TooltipDiagnostics
     private int abilityRequests;
     private int auraRequests;
     private int partyCooldownRequests;
-    private int nativeActionRequests;
+    private int overlayActionRenders;
     private int disabledSkips;
     private int zeroActionSkips;
-    private int agentMissingSkips;
-    private int addonMissingSkips;
-    private int nativeControls;
-    private int nativeHoverDispatches;
-    private int nativeForcedShows;
     private string lastKind = string.Empty;
     private string lastId = string.Empty;
     private string lastWindowId = string.Empty;
@@ -72,13 +55,6 @@ internal sealed class TooltipDiagnostics
     private Vector2 lastRectMax;
     private bool lastContainsMouse;
     private bool lastImGuiHovered;
-    private uint lastAgentActionId;
-    private uint lastAgentOriginalId;
-    private bool hasLastNativeAddon;
-    private bool lastAddonVisible;
-    private Vector2 lastAddonSize;
-    private Vector2 lastControlMouse;
-    private Vector2 lastControlPosition;
 
     public void RecordHover(
         TooltipDiagnosticKind kind,
@@ -129,61 +105,21 @@ internal sealed class TooltipDiagnostics
     public void RecordDisabledSkip(TooltipDiagnosticKind kind, string id, uint actionId)
     {
         this.disabledSkips++;
-        this.RememberSkip(kind, id, actionId, "disabled");
+        this.RememberLast(kind, id, actionId);
+        this.lastSkipReason = "disabled";
     }
 
-    public void RecordNativeActionRequest(uint actionId)
+    public void RecordOverlayActionRender(uint actionId)
     {
-        this.nativeActionRequests++;
+        this.overlayActionRenders++;
         this.lastActionId = actionId;
-        this.lastEventUtc = DateTime.UtcNow;
-    }
-
-    public void RecordNativeAgentIds(uint actionId, uint originalId)
-    {
-        this.lastAgentActionId = actionId;
-        this.lastAgentOriginalId = originalId;
         this.lastEventUtc = DateTime.UtcNow;
     }
 
     public void RecordZeroActionSkip()
     {
         this.zeroActionSkips++;
-        this.RememberNativeSkip("zeroActionId");
-    }
-
-    public void RecordAgentMissingSkip()
-    {
-        this.agentMissingSkips++;
-        this.RememberNativeSkip("agentMissing");
-    }
-
-    public void RecordAddonMissingSkip()
-    {
-        this.addonMissingSkips++;
-        this.RememberNativeSkip("addonMissing");
-    }
-
-    public void RecordNativeControl(NativeActionTooltipControlResult control)
-    {
-        this.nativeControls++;
-        this.hasLastNativeAddon = true;
-        this.lastAddonVisible = control.AddonVisible;
-        this.lastAddonSize = control.AddonSize;
-        this.lastControlMouse = control.MousePosition;
-        this.lastControlPosition = control.Position;
-        this.lastEventUtc = DateTime.UtcNow;
-    }
-
-    public void RecordNativeHoverDispatch()
-    {
-        this.nativeHoverDispatches++;
-        this.lastEventUtc = DateTime.UtcNow;
-    }
-
-    public void RecordNativeForcedShow()
-    {
-        this.nativeForcedShows++;
+        this.lastSkipReason = "zeroActionId";
         this.lastEventUtc = DateTime.UtcNow;
     }
 
@@ -193,14 +129,9 @@ internal sealed class TooltipDiagnostics
             this.abilityRequests,
             this.auraRequests,
             this.partyCooldownRequests,
-            this.nativeActionRequests,
+            this.overlayActionRenders,
             this.disabledSkips,
             this.zeroActionSkips,
-            this.agentMissingSkips,
-            this.addonMissingSkips,
-            this.nativeControls,
-            this.nativeHoverDispatches,
-            this.nativeForcedShows,
             this.lastKind,
             this.lastId,
             this.lastWindowId,
@@ -215,14 +146,7 @@ internal sealed class TooltipDiagnostics
             this.lastRectMin,
             this.lastRectMax,
             this.lastContainsMouse,
-            this.lastImGuiHovered,
-            this.lastAgentActionId,
-            this.lastAgentOriginalId,
-            this.hasLastNativeAddon,
-            this.lastAddonVisible,
-            this.lastAddonSize,
-            this.lastControlMouse,
-            this.lastControlPosition);
+            this.lastImGuiHovered);
 
     public void ResetIntervalCounters()
     {
@@ -230,26 +154,9 @@ internal sealed class TooltipDiagnostics
         this.abilityRequests = 0;
         this.auraRequests = 0;
         this.partyCooldownRequests = 0;
-        this.nativeActionRequests = 0;
+        this.overlayActionRenders = 0;
         this.disabledSkips = 0;
         this.zeroActionSkips = 0;
-        this.agentMissingSkips = 0;
-        this.addonMissingSkips = 0;
-        this.nativeControls = 0;
-        this.nativeHoverDispatches = 0;
-        this.nativeForcedShows = 0;
-    }
-
-    private void RememberSkip(TooltipDiagnosticKind kind, string id, uint actionId, string reason)
-    {
-        this.RememberLast(kind, id, actionId);
-        this.lastSkipReason = reason;
-    }
-
-    private void RememberNativeSkip(string reason)
-    {
-        this.lastSkipReason = reason;
-        this.lastEventUtc = DateTime.UtcNow;
     }
 
     private void RememberLast(TooltipDiagnosticKind kind, string id, uint actionId)

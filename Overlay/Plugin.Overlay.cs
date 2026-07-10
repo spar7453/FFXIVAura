@@ -100,8 +100,6 @@ public sealed unsafe partial class Plugin
         var iconSize = iconWindow.IconSize;
         var gap = iconWindow.Gap;
         var areaOrigin = ImGui.GetCursorScreenPos();
-        this.RegisterNativeTooltipAvoidanceRect(areaOrigin, areaOrigin + areaSize);
-
         if (!this.config.LockOverlay)
             this.DrawOverlayEditStage(ImGui.GetWindowDrawList(), areaOrigin, areaOrigin + areaSize);
 
@@ -215,9 +213,6 @@ public sealed unsafe partial class Plugin
     private void HandleOverlayIconInteraction(IconWindowConfig iconWindow, string job, uint level, AbilityDefinition ability, Vector2 localPos, Vector2 iconPos, Vector2 areaSize, float iconSize, int drawnIconCount)
     {
         var iconMax = iconPos + new Vector2(iconSize, iconSize);
-        if (this.IsMouseOverNativeTooltip())
-            return;
-
         if (this.config.LockOverlay)
         {
             if (IsMouseInRect(iconPos, iconMax))
@@ -236,7 +231,7 @@ public sealed unsafe partial class Plugin
         if (hovered)
         {
             this.RecordTooltipHover(TooltipDiagnosticKind.Ability, iconWindow.Id, ability.Id, ability.ActionId, drawnIconCount, hitboxExpanded: false, iconPos, iconMax, imguiHovered: true);
-            this.ShowAbilityTooltip(ability);
+            this.RegisterAbilityTooltipCandidate(ability);
         }
 
         if (ImGui.IsItemHovered() && ImGui.IsMouseClicked(ImGuiMouseButton.Right) && ImGui.GetIO().KeyCtrl)
@@ -283,7 +278,7 @@ public sealed unsafe partial class Plugin
         var actionId = state.DisplayActionId > 0 ? state.DisplayActionId : ability.ActionId;
         this.tooltipDiagnostics.RecordTooltipRequest(TooltipDiagnosticKind.Ability, ability.Id, actionId);
         this.SetBugDiagnosticEvent($"tooltipAction:{ability.Id}:{state.DisplayActionId}");
-        ShowNativeActionTooltip(actionId);
+        this.ShowOverlayActionTooltip(actionId, ability.Name, ability.IconId, string.Empty);
     }
 
     private static bool IsMouseInRect(Vector2 min, Vector2 max)
@@ -298,9 +293,6 @@ public sealed unsafe partial class Plugin
     private void HandleAuraIconInteraction(IconWindowConfig iconWindow, AuraState aura, Vector2 localPos, Vector2 iconPos, Vector2 areaSize, float iconSize, int drawnIconCount)
     {
         var iconMax = iconPos + new Vector2(iconSize, iconSize);
-        if (this.IsMouseOverNativeTooltip())
-            return;
-
         if (this.config.LockOverlay || UsesCompactAuraLayout(iconWindow))
         {
             if (IsMouseInRect(iconPos, iconMax))
@@ -320,7 +312,7 @@ public sealed unsafe partial class Plugin
         if (hovered)
         {
             this.RecordTooltipHover(TooltipDiagnosticKind.Aura, iconWindow.Id, aura.StatusId.ToString(), 0, drawnIconCount, hitboxExpanded: false, iconPos, iconMax, imguiHovered: true);
-            this.ShowAuraTooltip(aura);
+            this.RegisterAuraTooltipCandidate(aura);
         }
 
         if (ImGui.IsItemActive() && ImGui.IsMouseDragging(ImGuiMouseButton.Left, 2f))
@@ -358,6 +350,11 @@ public sealed unsafe partial class Plugin
         this.overlayTooltipResolver.Register(OverlayTooltipCandidate.ForAura(aura));
     }
 
+    private void RegisterPartyCooldownTooltipCandidate(PartyCooldownDefinition definition)
+    {
+        this.overlayTooltipResolver.Register(OverlayTooltipCandidate.ForPartyCooldown(definition));
+    }
+
     private void RecordTooltipHover(
         TooltipDiagnosticKind kind,
         string windowId,
@@ -388,14 +385,25 @@ public sealed unsafe partial class Plugin
         if (!this.overlayTooltipResolver.TryConsume(out var candidate))
             return;
 
-        switch (candidate.Kind)
+        var profileStart = this.performanceProfiler.BeginSection(PerformanceProfileSection.TooltipRendering);
+        try
         {
-            case OverlayTooltipCandidateKind.Ability when candidate.Ability is not null:
-                this.ShowAbilityTooltip(candidate.Ability);
-                break;
-            case OverlayTooltipCandidateKind.Aura:
-                this.ShowAuraTooltip(candidate.Aura);
-                break;
+            switch (candidate.Kind)
+            {
+                case OverlayTooltipCandidateKind.Ability when candidate.Ability is not null:
+                    this.ShowAbilityTooltip(candidate.Ability);
+                    break;
+                case OverlayTooltipCandidateKind.Aura:
+                    this.ShowAuraTooltip(candidate.Aura);
+                    break;
+                case OverlayTooltipCandidateKind.PartyCooldown when candidate.PartyCooldown is not null:
+                    this.ShowPartyCooldownTooltip(candidate.PartyCooldown);
+                    break;
+            }
+        }
+        finally
+        {
+            this.performanceProfiler.EndSection(PerformanceProfileSection.TooltipRendering, profileStart);
         }
     }
 

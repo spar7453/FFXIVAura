@@ -106,8 +106,12 @@ public sealed unsafe partial class Plugin
             this.performanceStats.AuraIconCount,
             this.performanceStats.CooldownCalculationCount,
             this.actionKeybindIndex.Count,
-            this.performanceStats.NativeTooltipControlCount,
-            this.performanceStats.GrayscaleIconProcessCount));
+            this.performanceStats.TooltipRenderCount,
+            this.performanceStats.GrayscaleIconProcessCount,
+            this.performanceStats.FrameAllocatedBytes,
+            this.performanceStats.AverageFrameAllocatedBytes,
+            this.performanceStats.MaxFrameAllocatedBytes,
+            this.performanceStats.Gen0CollectionCount));
     }
 
     private void AppendPerformanceProfileSectionRow(
@@ -134,7 +138,7 @@ public sealed unsafe partial class Plugin
             this.performanceStats.AuraIconCount,
             this.performanceStats.CooldownCalculationCount,
             this.actionKeybindIndex.Count,
-            this.performanceStats.NativeTooltipControlCount,
+            this.performanceStats.TooltipRenderCount,
             this.performanceStats.GrayscaleIconProcessCount));
     }
 
@@ -162,7 +166,7 @@ public sealed unsafe partial class Plugin
             this.performanceStats.AuraIconCount,
             this.performanceStats.CooldownCalculationCount,
             this.actionKeybindIndex.Count,
-            this.performanceStats.NativeTooltipControlCount,
+            this.performanceStats.TooltipRenderCount,
             this.performanceStats.GrayscaleIconProcessCount));
     }
 
@@ -272,15 +276,14 @@ public sealed unsafe partial class Plugin
         var partyLogOther = 0;
         var partyLogMemberNotFound = 0;
         var partyLogOwnerNotFound = 0;
-        var partyLogCandidateMissing = 0;
+        var partyLogCandidateMissing = this.partyCooldownLogObservations.CandidateCount;
         var partyLogNotUsableForJob = 0;
         var partyLogNotTrackedByWindow = 0;
         var partyLogAmbiguous = 0;
         var partyLogOtherIgnored = 0;
-        PartyCooldownLogObservation? lastObservation = null;
-        foreach (var observation in this.partyCooldownLogObservations)
+        var lastObservation = this.partyCooldownLogObservations.LastActionable;
+        foreach (var observation in this.partyCooldownLogObservations.Actionable)
         {
-            lastObservation = observation;
             if (string.Equals(observation.Result, "추적", StringComparison.Ordinal))
             {
                 partyLogTracked++;
@@ -326,12 +329,17 @@ public sealed unsafe partial class Plugin
             ("partyId", partyListHeader.PartyId),
             ("localAllianceGroup", PartyCooldownAllianceGroups.OwnPartyLabel(partyListHeader.IsAlliance, partyCooldownRoster.LocalAllianceGroupIndex)),
             ("localAllianceGroupIndex", partyCooldownRoster.LocalAllianceGroupIndex),
+            ("rawLocalAllianceGroupIndex", partyCooldownRoster.RawLocalAllianceGroupIndex),
+            ("hudLocalAllianceGroupIndex", partyCooldownRoster.HudLocalAllianceGroupIndex),
+            ("hudAllianceOrderCount", partyCooldownRoster.HudAllianceOrderCount),
             ("crossRealmGroupCount", partyCooldownRoster.CrossRealmGroupCount),
             ("rosterSource", partyCooldownRoster.Source),
             ("rosterReadMode", partyCooldownRoster.ReadMode),
             ("definitions", this.partyCooldownDefinitions.Count),
             ("runtimeStates", this.partyCooldownRuntimeStates.Count),
             ("activeStatuses", this.partyCooldownActiveStatusFrameCache.Count),
+            ("statusScansThisFrame", this.performanceStats.PartyStatusScanCount),
+            ("statusCacheHitsThisFrame", this.performanceStats.PartyStatusCacheHitCount),
             ("frameSnapshot", this.partyCooldownFrameSnapshot is not null),
             ("frameMembers", this.partyCooldownFrameSnapshot?.Members.Count ?? 0),
             ("displayMembers", this.partyCooldownFrameSnapshot?.DisplayMembers.Count ?? 0),
@@ -345,7 +353,8 @@ public sealed unsafe partial class Plugin
             ("allianceEmptySlots", partyCooldownRoster.AllianceEmptySlotCount),
             ("usedFlatFallback", partyCooldownRoster.UsedFlatAllianceFallback),
             ("liveRuntimeKeys", this.partyCooldownLiveRuntimeKeysFrameCache?.Count ?? 0),
-            ("logObservations", this.partyCooldownLogObservations.Count),
+            ("logObservations", this.partyCooldownLogObservations.ActionableCount),
+            ("candidateObservations", this.partyCooldownLogObservations.CandidateCount),
             ("candidateMissingTotal", this.partyCooldownCandidateMissingLogCount),
             ("candidateMissingSamples", this.partyCooldownCandidateMissingObservationCount),
             ("logTracked", partyLogTracked),
@@ -380,9 +389,22 @@ public sealed unsafe partial class Plugin
                 ("allianceC", lastObservation.RosterDiagnostics.AllianceGroupCMemberCount),
                 ("allianceEmptySlots", lastObservation.RosterDiagnostics.AllianceEmptySlotCount),
                 ("localAllianceGroupIndex", lastObservation.RosterDiagnostics.LocalAllianceGroupIndex),
+                ("rawLocalAllianceGroupIndex", lastObservation.RosterDiagnostics.RawLocalAllianceGroupIndex),
+                ("hudLocalAllianceGroupIndex", lastObservation.RosterDiagnostics.HudLocalAllianceGroupIndex),
+                ("hudAllianceOrderCount", lastObservation.RosterDiagnostics.HudAllianceOrderCount),
                 ("crossRealmGroupCount", lastObservation.RosterDiagnostics.CrossRealmGroupCount),
                 ("usedFlatFallback", lastObservation.RosterDiagnostics.UsedFlatAllianceFallback),
                 ("detail", lastObservation.Detail)));
+        }
+
+        var lastCandidateObservation = this.partyCooldownLogObservations.LastCandidate;
+        if (lastCandidateObservation is not null)
+        {
+            this.AppendPerformanceProfileDiagnosticRow(builder, timestampUtc, "partyCooldownLastUnknownLog", "Party Cooldown Last Unknown Log", FormatDiagnosticPairs(
+                ("timeLocal", lastCandidateObservation.TimestampUtc.ToLocalTime()),
+                ("logMessageId", lastCandidateObservation.LogMessageId),
+                ("source", lastCandidateObservation.SourceName),
+                ("detail", lastCandidateObservation.Detail)));
         }
 
         var grayscaleQueueCount = 0;
@@ -405,20 +427,14 @@ public sealed unsafe partial class Plugin
         this.AppendPerformanceProfileDiagnosticRow(builder, timestampUtc, "tooltip", "Tooltip", FormatDiagnosticPairs(
             ("showTooltips", this.config.ShowTooltips),
             ("requestedThisFrame", this.overlayTooltipRequestedThisFrame),
-            ("graceFramesRemaining", this.overlayTooltipGraceFramesRemaining),
-            ("nativeControlsThisFrame", this.performanceStats.NativeTooltipControlCount),
+            ("rendersThisFrame", this.performanceStats.TooltipRenderCount),
             ("hoverHits", tooltipDiagnostics.HoverHits),
             ("abilityRequests", tooltipDiagnostics.AbilityRequests),
             ("auraRequests", tooltipDiagnostics.AuraRequests),
             ("partyCooldownRequests", tooltipDiagnostics.PartyCooldownRequests),
-            ("nativeActionRequests", tooltipDiagnostics.NativeActionRequests),
+            ("overlayActionRenders", tooltipDiagnostics.OverlayActionRenders),
             ("disabledSkips", tooltipDiagnostics.DisabledSkips),
             ("zeroActionSkips", tooltipDiagnostics.ZeroActionSkips),
-            ("agentMissingSkips", tooltipDiagnostics.AgentMissingSkips),
-            ("addonMissingSkips", tooltipDiagnostics.AddonMissingSkips),
-            ("nativeControls", tooltipDiagnostics.NativeControls),
-            ("nativeHoverDispatches", tooltipDiagnostics.NativeHoverDispatches),
-            ("nativeForcedShows", tooltipDiagnostics.NativeForcedShows),
             ("lastKind", tooltipDiagnostics.LastKind),
             ("lastId", tooltipDiagnostics.LastId),
             ("lastWindowId", tooltipDiagnostics.LastWindowId),
@@ -431,14 +447,7 @@ public sealed unsafe partial class Plugin
             ("lastMouse", tooltipDiagnostics.HasLastGeometry ? FormatDiagnosticVector(tooltipDiagnostics.LastMouse) : string.Empty),
             ("lastRect", tooltipDiagnostics.HasLastGeometry ? FormatDiagnosticRect(tooltipDiagnostics.LastRectMin, tooltipDiagnostics.LastRectMax) : string.Empty),
             ("lastContainsMouse", tooltipDiagnostics.HasLastGeometry && tooltipDiagnostics.LastContainsMouse),
-            ("lastImGuiHovered", tooltipDiagnostics.HasLastGeometry && tooltipDiagnostics.LastImGuiHovered),
-            ("agentActionId", tooltipDiagnostics.LastAgentActionId),
-            ("agentOriginalId", tooltipDiagnostics.LastAgentOriginalId),
-            ("addonCaptured", tooltipDiagnostics.HasLastNativeAddon),
-            ("addonVisible", tooltipDiagnostics.HasLastNativeAddon && tooltipDiagnostics.LastAddonVisible),
-            ("addonSize", tooltipDiagnostics.HasLastNativeAddon ? FormatDiagnosticVector(tooltipDiagnostics.LastAddonSize) : string.Empty),
-            ("lastControlMouse", tooltipDiagnostics.HasLastNativeAddon ? FormatDiagnosticVector(tooltipDiagnostics.LastControlMouse) : string.Empty),
-            ("lastControlPosition", tooltipDiagnostics.HasLastNativeAddon ? FormatDiagnosticVector(tooltipDiagnostics.LastControlPosition) : string.Empty)));
+            ("lastImGuiHovered", tooltipDiagnostics.HasLastGeometry && tooltipDiagnostics.LastImGuiHovered)));
 
         this.AppendPerformanceProfileDiagnosticRow(builder, timestampUtc, "lastEvent", "Last Event", FormatDiagnosticPairs(
             ("timeLocal", this.lastBugDiagnosticEventAtUtc == DateTime.MinValue ? string.Empty : this.lastBugDiagnosticEventAtUtc.ToLocalTime()),
@@ -544,7 +553,7 @@ public sealed unsafe partial class Plugin
             this.performanceStats.AuraIconCount,
             this.performanceStats.CooldownCalculationCount,
             this.actionKeybindIndex.Count,
-            this.performanceStats.NativeTooltipControlCount,
+            this.performanceStats.TooltipRenderCount,
             this.performanceStats.GrayscaleIconProcessCount));
     }
 

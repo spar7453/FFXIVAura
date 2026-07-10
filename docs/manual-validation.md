@@ -8,6 +8,9 @@ Use this checklist before pushing a build that changes overlay positioning, auto
 - Confirm the skill icons keep their saved positions after login finishes.
 - Log out to the character select screen, log back in, and confirm the same positions are restored.
 - Toggle overlay lock on and off, then confirm locked overlays do not move while tooltips still work.
+- Enable `툴팁 표시`, then confirm action tooltips appear above every FFXIVAura window without a tooltip sound or a first-frame position flash.
+- Confirm evaluated action descriptions retain maximum charges, full transformed-action lists, potency values, and duration values.
+- Disable `툴팁 표시`, then confirm action and aura tooltips no longer appear.
 
 ## Level Sync
 
@@ -47,6 +50,8 @@ Use this checklist before pushing a build that changes overlay positioning, auto
 - Create one Party Defensives window, one Party Healing Cooldowns window, and one Party Damage Synergies window.
 - Join a party and confirm rows follow the in-game party list order.
 - Join 24-player alliance content and confirm rows follow the in-game alliance list order with A/B/C labels on the correct parties.
+- Confirm the local party label matches the in-game party-list title (for example, `연합 파티 B` must appear under B).
+- Confirm A/B/C are three vertically stacked party sections and each party contains up to eight member rows in party-list slot order.
 - With a narrow saved board and large icon/gap settings, confirm the alliance board temporarily expands or scales its rendered icons so every member row remains visible. Leave alliance content and confirm the saved board size is unchanged.
 - Confirm each row shows a job icon, the first two characters of the party member name, and the expected ready cooldown icons.
 - In settings, uncheck one preset entry and confirm it disappears from the matching party cooldown window only.
@@ -54,7 +59,8 @@ Use this checklist before pushing a build that changes overlay positioning, auto
 - Enter synced content and confirm skills above the current effective level disappear.
 - Have a party member use a defensive, healer cooldown, or damage synergy skill and confirm the active border appears on that member's row.
 - After the active effect expires, confirm the same icon turns grayscale and shows an estimated cooldown timer.
-- Hover board icons with tooltips enabled and confirm the game action tooltip appears near the cursor.
+- Have a Dark Knight use Oblation or a Gunbreaker use Aurora once and confirm the icon shows one remaining charge without turning grayscale. Use the second charge and confirm the icon then enters grayscale cooldown state.
+- Hover board icons with tooltips enabled and confirm the selected action tooltip mode appears near the cursor.
 - Enable the party cooldown log observer, then have a Scholar use fairy actions such as Whispering Dawn, Fey Illumination, or Fey Blessing.
 - Confirm the observer records the action as tracked on the Scholar row, not as an ignored pet source. The detail should mention owned summon/object matching when the log source is the fairy.
 - If two same-named pets or owned objects are present, confirm ambiguous ownership is ignored instead of starting cooldowns on the wrong party member.
@@ -67,6 +73,8 @@ Use this checklist before pushing a build that changes overlay positioning, auto
 - Confirm the window profile lists each visible overlay by window name.
 - Reset the profiler and confirm section and window samples clear.
 - During combat or a duty pull, watch for repeated spikes above the expected frame budget.
+- Confirm frame allocation, average allocation, and Gen0 collection values are shown and written to the CSV frame row.
+- With party cooldown boards visible, confirm `statusScansThisFrame` occurs periodically while intervening frames report `statusCacheHitsThisFrame`.
 - If running above 120 FPS, confirm the recent average remains stable instead of changing abruptly from sample capping.
 - Enable automatic CSV recording, change several settings, and confirm profile/config queue depth returns to zero with no failed or dropped work.
 - Reload the plugin after a queued settings change and confirm the latest settings were persisted.

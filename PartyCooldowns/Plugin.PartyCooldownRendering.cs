@@ -57,10 +57,9 @@ public sealed unsafe partial class Plugin
             iconWindow.Position = windowPosition;
         }
 
-        ImGui.SetWindowFontScale(iconWindow.FontScale);
+        ImGui.SetWindowFontScale(displayLayout.Metrics.FontScale);
 
         var areaOrigin = ImGui.GetCursorScreenPos();
-        this.RegisterNativeTooltipAvoidanceRect(areaOrigin, areaOrigin + areaSize);
         if (!this.config.LockOverlay)
             this.DrawOverlayEditStage(ImGui.GetWindowDrawList(), areaOrigin, areaOrigin + areaSize);
 
@@ -93,7 +92,7 @@ public sealed unsafe partial class Plugin
 
         draw.PushClipRect(areaOrigin, areaOrigin + areaSize, true);
         if (metrics.UseAllianceGrid)
-            this.DrawPartyCooldownAllianceColumns(iconWindow, rows, draw, areaOrigin, areaSize, metrics);
+            this.DrawPartyCooldownAllianceStack(iconWindow, rows, draw, areaOrigin, areaSize, metrics);
         else
             this.DrawPartyCooldownLinearRows(iconWindow, rows, draw, areaOrigin, areaSize, metrics);
 
@@ -132,7 +131,7 @@ public sealed unsafe partial class Plugin
         }
     }
 
-    private void DrawPartyCooldownAllianceColumns(
+    private void DrawPartyCooldownAllianceStack(
         IconWindowConfig iconWindow,
         IReadOnlyList<PartyCooldownMemberRow> rows,
         ImDrawListPtr draw,
@@ -142,6 +141,7 @@ public sealed unsafe partial class Plugin
     {
         var headerHeight = GetPartyCooldownAllianceColumnHeaderHeight(metrics);
         var groupY = areaOrigin.Y + metrics.Padding;
+        var groupX = areaOrigin.X + metrics.Padding;
         var groupGap = Math.Max(8f, metrics.Gap * 2f);
         Span<int> groupRowIndices = stackalloc int[AllianceGroupMemberSlotCount];
         for (var group = 0; group < PartyCooldownBoardLayout.AllianceColumnCount; group++)
@@ -153,9 +153,9 @@ public sealed unsafe partial class Plugin
             if (groupY >= areaOrigin.Y + areaSize.Y)
                 break;
 
-            var headerPos = new Vector2(areaOrigin.X + metrics.Padding, groupY);
+            var headerPos = new Vector2(groupX, groupY);
             var headerMax = new Vector2(
-                areaOrigin.X + areaSize.X - metrics.Padding,
+                Math.Min(areaOrigin.X + areaSize.X - metrics.Padding, groupX + metrics.AllianceCellWidth),
                 headerPos.Y + headerHeight - Math.Max(1f, metrics.Gap));
             draw.AddRectFilled(
                 headerPos,
@@ -177,39 +177,27 @@ public sealed unsafe partial class Plugin
                     groupRowIndices[groupRowCount++] = rowIndex;
             }
 
-            var gridRowY = groupY + headerHeight;
-            for (var rowStart = 0; rowStart < groupRowCount; rowStart += PartyCooldownBoardLayout.AllianceMemberColumnCount)
+            var rowY = groupY + headerHeight;
+            for (var rowIndex = 0; rowIndex < groupRowCount; rowIndex++)
             {
-                if (gridRowY > areaOrigin.Y + areaSize.Y)
+                if (rowY > areaOrigin.Y + areaSize.Y)
                     break;
 
-                var rowEnd = Math.Min(groupRowCount, rowStart + PartyCooldownBoardLayout.AllianceMemberColumnCount);
-                var gridRowHeight = 0f;
-                for (var rowIndex = rowStart; rowIndex < rowEnd; rowIndex++)
-                    gridRowHeight = Math.Max(gridRowHeight, GetPartyCooldownRowContentHeight(rows[groupRowIndices[rowIndex]].Items.Count, metrics));
-
-                for (var rowIndex = rowStart; rowIndex < rowEnd; rowIndex++)
-                {
-                    var memberColumn = rowIndex - rowStart;
-                    var cellX = areaOrigin.X
-                                + metrics.Padding
-                                + memberColumn * (metrics.AllianceCellWidth + metrics.AllianceCellGap);
-                    this.DrawPartyCooldownRow(
-                        iconWindow,
-                        rows[groupRowIndices[rowIndex]],
-                        draw,
-                        cellX,
-                        cellX + metrics.LabelWidth,
-                        gridRowY,
-                        cellX + metrics.AllianceCellWidth,
-                        showAllianceGroup: false,
-                        metrics);
-                }
-
-                gridRowY += gridRowHeight + metrics.Gap;
+                var row = rows[groupRowIndices[rowIndex]];
+                var contentHeight = this.DrawPartyCooldownRow(
+                    iconWindow,
+                    row,
+                    draw,
+                    groupX,
+                    groupX + metrics.LabelWidth,
+                    rowY,
+                    groupX + metrics.AllianceCellWidth,
+                    showAllianceGroup: false,
+                    metrics);
+                rowY += contentHeight + metrics.Gap;
             }
 
-            groupY = gridRowY - metrics.Gap + groupGap;
+            groupY = rowY - metrics.Gap + groupGap;
         }
     }
 

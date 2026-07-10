@@ -145,7 +145,13 @@ public sealed unsafe partial class Plugin
 
         this.overlayWindowDebugSnapshots[iconWindow.Id] = snapshot with
         {
-            PartyLayoutMode = metrics.UseAllianceGrid ? "AllianceGrid4x2" : "Linear",
+            PartyLayoutMode = metrics.UseAllianceGrid
+                ? metrics.HasOverflow
+                    ? "AllianceStack8x3Overflow"
+                    : metrics.IsCompact
+                        ? "AllianceStack8x3Compact"
+                        : "AllianceStack8x3"
+                : "Linear",
             PartyIconsPerLine = metrics.IconsPerLine,
             PartyAllianceGroupCount = metrics.AllianceGroupCount,
             PartyAllianceMemberColumnCount = metrics.AllianceMemberColumnCount,

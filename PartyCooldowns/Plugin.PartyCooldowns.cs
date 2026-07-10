@@ -62,6 +62,10 @@ public sealed unsafe partial class Plugin
         if (definition.Cooldown <= 0f)
             definition.Cooldown = ability?.Cooldown ?? ((action?.Recast100ms ?? 0) / 10f);
 
+        definition.Charges = Math.Max(
+            definition.Charges,
+            Math.Max(ability?.Charges ?? (byte)1, action?.MaxCharges ?? (byte)1));
+
         if (definition.IconId == 0)
             definition.IconId = ability?.IconId ?? action?.Icon ?? 0;
 
@@ -141,7 +145,7 @@ public sealed unsafe partial class Plugin
                 if (!this.HasPartyCooldownStatusTracking(definition))
                     statuslessCandidateCount++;
 
-                var item = this.BuildPartyCooldownDisplayItem(member, definition, frameSnapshot.TimestampUtc);
+                var item = this.BuildPartyCooldownDisplayItem(member, definition, level, frameSnapshot.TimestampUtc);
 
                 var visibleItem = this.FilterPartyCooldownDisplayCondition(iconWindow, item);
                 if (visibleItem is not null)
@@ -479,6 +483,7 @@ public sealed unsafe partial class Plugin
     private PartyCooldownDisplayItem BuildPartyCooldownDisplayItem(
         PartyCooldownMemberSnapshot member,
         PartyCooldownDefinition definition,
+        uint level,
         DateTime now)
     {
         var runtimeKey = this.PartyCooldownRuntimeKey(member.Key, definition);
@@ -488,23 +493,34 @@ public sealed unsafe partial class Plugin
             this.partyCooldownRuntimeStates[runtimeKey] = runtime;
         }
 
-        var activeRemaining = this.GetPartyCooldownActiveRemaining(member.EntityId, definition);
-        if (activeRemaining > 0f)
-        {
-            var cooldownRemaining = EstimatePartyCooldownRemaining(definition, activeRemaining);
-            runtime.CooldownEndsAtUtc = now.AddSeconds(cooldownRemaining);
-            return new PartyCooldownDisplayItem(
-                definition,
-                PartyCooldownDisplayState.Active,
-                activeRemaining,
-                cooldownRemaining,
-                Math.Max(definition.Cooldown, cooldownRemaining));
-        }
-
-        var remaining = Math.Max(0f, (float)(runtime.CooldownEndsAtUtc - now).TotalSeconds);
-        return remaining > 0.05f
-            ? new PartyCooldownDisplayItem(definition, PartyCooldownDisplayState.Cooldown, 0f, remaining, Math.Max(definition.Cooldown, remaining))
-            : new PartyCooldownDisplayItem(definition, PartyCooldownDisplayState.Ready, 0f, 0f, Math.Max(definition.Cooldown, 0f));
+        var maxCharges = this.GetPartyCooldownMaxCharges(definition, level);
+        var activeRemaining = this.GetPartyCooldownActiveRemaining(member.EntityId, definition, now);
+        PartyCooldownChargeTracker.ObserveActiveStatus(
+            runtime,
+            now,
+            activeRemaining,
+            definition.Duration,
+            definition.Cooldown,
+            maxCharges,
+            PartyCooldownLogDedupeWindow);
+        var chargeSnapshot = PartyCooldownChargeTracker.GetSnapshot(
+            runtime,
+            now,
+            definition.Cooldown,
+            maxCharges);
+        var state = activeRemaining > 0f
+            ? PartyCooldownDisplayState.Active
+            : chargeSnapshot.CurrentCharges == 0 && chargeSnapshot.NextChargeRemaining > 0.05f
+                ? PartyCooldownDisplayState.Cooldown
+                : PartyCooldownDisplayState.Ready;
+        return new PartyCooldownDisplayItem(
+            definition,
+            state,
+            activeRemaining,
+            chargeSnapshot.NextChargeRemaining,
+            chargeSnapshot.ChargeCooldownTotal,
+            chargeSnapshot.CurrentCharges,
+            chargeSnapshot.MaxCharges);
     }
 
     private PartyCooldownDisplayItem? FilterPartyCooldownDisplayCondition(IconWindowConfig iconWindow, PartyCooldownDisplayItem item)
@@ -513,20 +529,29 @@ public sealed unsafe partial class Plugin
         {
             IconDisplayCondition.InCombat => this.IsInCombat() ? item : null,
             IconDisplayCondition.OutOfCombat => !this.IsInCombat() ? item : null,
-            IconDisplayCondition.CoolingOnly => item.State is PartyCooldownDisplayState.Active or PartyCooldownDisplayState.Cooldown ? item : null,
+            IconDisplayCondition.CoolingOnly => item.State is PartyCooldownDisplayState.Active or PartyCooldownDisplayState.Cooldown
+                                                || item.CooldownRemaining > 0.05f
+                ? item
+                : null,
             IconDisplayCondition.ReadyOnly => item.State == PartyCooldownDisplayState.Ready ? item : null,
             _ => item,
         };
     }
 
-    private float GetPartyCooldownActiveRemaining(uint sourceEntityId, PartyCooldownDefinition definition)
+    private float GetPartyCooldownActiveRemaining(
+        uint sourceEntityId,
+        PartyCooldownDefinition definition,
+        DateTime nowUtc)
     {
         var remaining = 0f;
+        var cacheAgeSeconds = this.partyCooldownActiveStatusIndexBuiltAtUtc == DateTime.MinValue
+            ? 0f
+            : Math.Max(0f, (float)(nowUtc - this.partyCooldownActiveStatusIndexBuiltAtUtc).TotalSeconds);
         foreach (var statusId in this.ResolvePartyCooldownStatusIds(definition))
         {
             var key = PartyCooldownStatusKey(sourceEntityId, statusId);
             if (this.partyCooldownActiveStatusFrameCache.TryGetValue(key, out var status))
-                remaining = Math.Max(remaining, status.Remaining);
+                remaining = Math.Max(remaining, status.Remaining - cacheAgeSeconds);
         }
 
         return remaining;
@@ -534,6 +559,19 @@ public sealed unsafe partial class Plugin
 
     private void RebuildPartyCooldownActiveStatusIndex(IReadOnlyList<PartyCooldownMemberSnapshot> members)
     {
+        var nowUtc = DateTime.UtcNow;
+        var rosterHash = PartyCooldownRoster.ComputeMemberIdentityHash(members);
+        if (rosterHash == this.partyCooldownActiveStatusRosterHash
+            && this.partyCooldownActiveStatusIndexBuiltAtUtc != DateTime.MinValue
+            && nowUtc - this.partyCooldownActiveStatusIndexBuiltAtUtc < PartyCooldownStatusCacheDuration)
+        {
+            this.performanceStats.CountPartyStatusCacheHit();
+            return;
+        }
+
+        this.partyCooldownActiveStatusRosterHash = rosterHash;
+        this.partyCooldownActiveStatusIndexBuiltAtUtc = nowUtc;
+        this.performanceStats.CountPartyStatusScan();
         this.partyCooldownActiveStatusFrameCache.Clear();
         var memberEntityIds = new HashSet<uint>(members.Count);
         foreach (var member in members)
@@ -625,16 +663,20 @@ public sealed unsafe partial class Plugin
         return cached;
     }
 
-    private static float EstimatePartyCooldownRemaining(PartyCooldownDefinition definition, float activeRemaining)
+    private uint GetPartyCooldownMaxCharges(PartyCooldownDefinition definition, uint level)
     {
-        if (definition.Cooldown <= 0f)
-            return 0f;
+        try
+        {
+            var maxCharges = (uint)ActionManager.GetMaxCharges(definition.ActionId, Math.Max(1u, level));
+            if (maxCharges > 0)
+                return maxCharges;
+        }
+        catch (Exception ex)
+        {
+            Log.Debug(ex, $"Failed to read party cooldown charges for {definition.ActionId} at level {level}.");
+        }
 
-        if (definition.Duration <= 0f)
-            return definition.Cooldown;
-
-        var elapsedSinceUse = Math.Clamp(definition.Duration - activeRemaining, 0f, definition.Duration);
-        return Math.Max(0f, definition.Cooldown - elapsedSinceUse);
+        return Math.Max(1u, definition.Charges);
     }
 
     private void PrunePartyCooldownRuntime(HashSet<string> liveRuntimeKeys)

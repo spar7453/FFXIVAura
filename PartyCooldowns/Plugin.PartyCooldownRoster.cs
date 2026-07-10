@@ -1,5 +1,6 @@
 using FFXIVClientStructs.FFXIV.Client.UI.Agent;
 using FFXIVClientStructs.FFXIV.Client.UI.Info;
+using FFXIVClientStructs.FFXIV.Client.UI;
 
 namespace FFXIVAura;
 
@@ -19,9 +20,25 @@ public sealed unsafe partial class Plugin
         bool HasAllianceSource,
         bool UsedFlatAllianceFallback,
         int LocalAllianceGroupIndex,
-        int CrossRealmGroupCount);
+        int RawLocalAllianceGroupIndex,
+        int HudLocalAllianceGroupIndex,
+        int CrossRealmGroupCount,
+        int HudAllianceOrderCount);
 
-    private readonly record struct CrossRealmAllianceHeader(int LocalGroupIndex, int GroupCount);
+    private readonly record struct CrossRealmAllianceHeader(
+        int LocalGroupIndex,
+        int RawLocalGroupIndex,
+        int HudLocalGroupIndex,
+        int GroupCount);
+
+    private readonly record struct HudRosterEntityOrder(
+        IReadOnlyList<uint> EntityIds,
+        int LocalPartyCount,
+        int AllianceMemberCount);
+
+    private static readonly TimeSpan PartyCooldownHudAllianceOrderRetention = TimeSpan.FromSeconds(3);
+    private uint[] partyCooldownLastCompleteHudAllianceOrder = [];
+    private DateTime partyCooldownHudAllianceOrderExpiresAtUtc = DateTime.MinValue;
 
     private IReadOnlyList<PartyCooldownMemberSnapshot> GetPartyCooldownMembers()
         => this.GetPartyCooldownRoster().Members;
@@ -33,7 +50,7 @@ public sealed unsafe partial class Plugin
         var hasAllianceSource = partyListHeader.IsAlliance;
         var crossRealmHeader = hasAllianceSource
             ? this.GetCrossRealmAllianceHeader()
-            : new CrossRealmAllianceHeader(-1, 0);
+            : new CrossRealmAllianceHeader(-1, -1, -1, 0);
         var localAllianceGroupIndex = crossRealmHeader.LocalGroupIndex;
         var capacity = Math.Max(hasAllianceSource ? AllianceGroupCount * AllianceGroupMemberSlotCount : partyListLength, 1);
         var members = new List<PartyCooldownMemberSnapshot>(capacity);
@@ -47,7 +64,11 @@ public sealed unsafe partial class Plugin
         var readMode = PartyCooldownRosterReadMode.Unknown;
         if (hasAllianceSource)
         {
-            groupedAllianceMemberCount = this.AddPartyCooldownCrossRealmMembers(members, seenKeys, seenEntityIds);
+            groupedAllianceMemberCount = this.AddPartyCooldownCrossRealmMembers(
+                members,
+                seenKeys,
+                seenEntityIds,
+                crossRealmHeader);
             if (groupedAllianceMemberCount < AllianceGroupCount * AllianceGroupMemberSlotCount)
             {
                 partySlotMemberCount = this.AddPartyCooldownPartySlotMembers(
@@ -91,9 +112,8 @@ public sealed unsafe partial class Plugin
             readMode = PartyCooldownRosterReadMode.SoloFallback;
         }
 
-        var orderedMembers = hasAllianceSource
-            ? PartyCooldownMemberOrdering.PreserveInGameOrder(members)
-            : PartyCooldownMemberOrdering.PreserveInGameOrder(members, this.GetHudPartyMemberEntityOrder());
+        var hudRosterOrder = this.GetHudRosterEntityOrder();
+        var orderedMembers = PartyCooldownMemberOrdering.PreserveInGameOrder(members, hudRosterOrder.EntityIds);
         var allianceMemberCount = CountPartyCooldownAllianceMembers(orderedMembers);
         var hasUsableAllianceSource = hasAllianceSource
                                       && (groupedAllianceMemberCount > 0 || flatAllianceMemberCount > 0 || partySlotMemberCount > 0);
@@ -135,7 +155,10 @@ public sealed unsafe partial class Plugin
             hasAllianceSource,
             usedFlatAllianceFallback,
             localAllianceGroupIndex,
-            crossRealmHeader.GroupCount);
+            crossRealmHeader.RawLocalGroupIndex,
+            crossRealmHeader.HudLocalGroupIndex,
+            crossRealmHeader.GroupCount,
+            hudRosterOrder.AllianceMemberCount);
     }
 
     private static int CountPartyCooldownAllianceMembers(IReadOnlyList<PartyCooldownMemberSnapshot> members)
@@ -180,28 +203,92 @@ public sealed unsafe partial class Plugin
         {
             var proxy = InfoProxyCrossRealm.Instance();
             if (proxy is null)
-                return new CrossRealmAllianceHeader(-1, 0);
+                return new CrossRealmAllianceHeader(-1, -1, -1, 0);
 
             var groupCount = Math.Clamp((int)proxy->GroupCount, 0, AllianceGroupCount);
             if (groupCount < 2)
-                return new CrossRealmAllianceHeader(-1, groupCount);
+                return new CrossRealmAllianceHeader(-1, -1, -1, groupCount);
 
-            var localGroupIndex = proxy->LocalPlayerGroupIndex < AllianceGroupCount
+            var rawLocalGroupIndex = proxy->LocalPlayerGroupIndex < AllianceGroupCount
                 ? proxy->LocalPlayerGroupIndex
                 : -1;
-            return new CrossRealmAllianceHeader(localGroupIndex, groupCount);
+            var hudLocalGroupIndex = this.GetHudAllianceGroupIndex();
+            var memberLocalGroupIndex = GetCrossRealmLocalMemberGroupIndex(
+                proxy,
+                ObjectTable.LocalPlayer?.EntityId ?? 0,
+                PlayerState.ContentId);
+            var localGroupIndex = hudLocalGroupIndex >= 0
+                ? hudLocalGroupIndex
+                : memberLocalGroupIndex >= 0
+                    ? memberLocalGroupIndex
+                    : rawLocalGroupIndex;
+            return new CrossRealmAllianceHeader(
+                localGroupIndex,
+                rawLocalGroupIndex,
+                hudLocalGroupIndex,
+                groupCount);
         }
         catch (Exception ex)
         {
             this.SetBugDiagnosticEvent($"partyCooldownCrossRealmHeaderReadFailed:{ex.GetType().Name}");
-            return new CrossRealmAllianceHeader(-1, 0);
+            return new CrossRealmAllianceHeader(-1, -1, -1, 0);
         }
+    }
+
+    private int GetHudAllianceGroupIndex()
+    {
+        try
+        {
+            var addon = GameGui.GetAddonByName<AddonPartyList>("_PartyList");
+            if (addon is null || addon->PartyTypeTextNode is null)
+                return -1;
+
+            return PartyCooldownAllianceGroups.ParseGroupIndexFromPartyTypeText(
+                addon->PartyTypeTextNode->NodeText.ToString());
+        }
+        catch (Exception ex)
+        {
+            this.SetBugDiagnosticEvent($"partyCooldownHudAllianceGroupReadFailed:{ex.GetType().Name}");
+            return -1;
+        }
+    }
+
+    private static int GetCrossRealmLocalMemberGroupIndex(
+        InfoProxyCrossRealm* proxy,
+        uint localEntityId,
+        ulong localContentId)
+    {
+        if (proxy is null || (localEntityId == 0 && localContentId == 0))
+            return -1;
+
+        var groupCount = Math.Clamp((int)proxy->GroupCount, 0, AllianceGroupCount);
+        for (var groupIndex = 0; groupIndex < groupCount; groupIndex++)
+        {
+            var group = proxy->CrossRealmGroups[groupIndex];
+            var memberCount = Math.Clamp((int)group.GroupMemberCount, 0, AllianceGroupMemberSlotCount);
+            for (var memberIndex = 0; memberIndex < memberCount; memberIndex++)
+            {
+                var member = group.GroupMembers[memberIndex];
+                if (PartyCooldownAllianceGroups.IsLocalMember(
+                        member.EntityId,
+                        member.ContentId,
+                        localEntityId,
+                        localContentId)
+                    && member.GroupIndex < AllianceGroupCount)
+                {
+                    return member.GroupIndex;
+                }
+            }
+        }
+
+        return -1;
     }
 
     private int AddPartyCooldownCrossRealmMembers(
         List<PartyCooldownMemberSnapshot> members,
         HashSet<string> seenKeys,
-        HashSet<uint> seenEntityIds)
+        HashSet<uint> seenEntityIds,
+        CrossRealmAllianceHeader header)
     {
         try
         {
@@ -214,28 +301,17 @@ public sealed unsafe partial class Plugin
             if (groupCount < 2)
                 return 0;
 
-            Span<int> memberOrder = stackalloc int[AllianceGroupMemberSlotCount];
             for (var groupIndex = 0; groupIndex < groupCount; groupIndex++)
             {
                 var group = proxy->CrossRealmGroups[groupIndex];
                 var memberCount = Math.Clamp((int)group.GroupMemberCount, 0, AllianceGroupMemberSlotCount);
-                var label = PartyCooldownAllianceGroups.GroupLabel(groupIndex);
+                var label = PartyCooldownAllianceGroups.ContainerGroupLabel(
+                    groupIndex,
+                    header.RawLocalGroupIndex,
+                    header.LocalGroupIndex);
                 for (var memberIndex = 0; memberIndex < memberCount; memberIndex++)
                 {
-                    memberOrder[memberIndex] = memberIndex;
-                    var insertIndex = memberIndex;
-                    while (insertIndex > 0
-                           && group.GroupMembers[memberOrder[insertIndex - 1]].MemberIndex
-                           > group.GroupMembers[memberOrder[insertIndex]].MemberIndex)
-                    {
-                        (memberOrder[insertIndex - 1], memberOrder[insertIndex]) = (memberOrder[insertIndex], memberOrder[insertIndex - 1]);
-                        insertIndex--;
-                    }
-                }
-
-                for (var orderedIndex = 0; orderedIndex < memberCount; orderedIndex++)
-                {
-                    var member = group.GroupMembers[memberOrder[orderedIndex]];
+                    var member = group.GroupMembers[memberIndex];
                     if (this.TryAddPartyCooldownCrossRealmMemberSnapshot(members, seenKeys, seenEntityIds, member, label))
                         added++;
                 }
@@ -424,20 +500,20 @@ public sealed unsafe partial class Plugin
             roster.HasAllianceSource,
             roster.UsedFlatAllianceFallback,
             roster.LocalAllianceGroupIndex,
-            roster.CrossRealmGroupCount);
+            roster.RawLocalAllianceGroupIndex,
+            roster.HudLocalAllianceGroupIndex,
+            roster.CrossRealmGroupCount,
+            roster.HudAllianceOrderCount);
 
-    private IReadOnlyList<uint> GetHudPartyMemberEntityOrder()
+    private HudRosterEntityOrder GetHudRosterEntityOrder()
     {
         try
         {
             var agent = AgentHUD.Instance();
             if (agent is null)
-                return Array.Empty<uint>();
+                return new HudRosterEntityOrder(Array.Empty<uint>(), 0, 0);
 
             var count = Math.Clamp(agent->PartyMemberCount, 0, agent->PartyMembers.Length);
-            if (count == 0)
-                return Array.Empty<uint>();
-
             Span<(byte DisplayIndex, uint EntityId)> orderedMembers = stackalloc (byte, uint)[10];
             var orderedMemberCount = 0;
             for (var index = 0; index < count; index++)
@@ -458,17 +534,62 @@ public sealed unsafe partial class Plugin
                 orderedMemberCount++;
             }
 
-            var result = new uint[orderedMemberCount];
+            Span<uint> entityOrder = stackalloc uint[50];
+            var entityOrderCount = 0;
             for (var index = 0; index < orderedMemberCount; index++)
-                result[index] = orderedMembers[index].EntityId;
+                AppendUniqueHudEntityId(entityOrder, ref entityOrderCount, orderedMembers[index].EntityId);
 
-            return result;
+            var localPartyCount = entityOrderCount;
+            // RaidMemberIds follows the display slots used by _AllianceList1 and _AllianceList2.
+            foreach (var entityId in agent->RaidMemberIds)
+                AppendUniqueHudEntityId(entityOrder, ref entityOrderCount, entityId);
+
+            var allianceMemberCount = entityOrderCount - localPartyCount;
+            var nowUtc = DateTime.UtcNow;
+            if (allianceMemberCount >= AllianceGroupMemberSlotCount * (AllianceGroupCount - 1))
+            {
+                this.partyCooldownLastCompleteHudAllianceOrder = entityOrder[localPartyCount..entityOrderCount].ToArray();
+                this.partyCooldownHudAllianceOrderExpiresAtUtc = nowUtc.Add(PartyCooldownHudAllianceOrderRetention);
+            }
+            else if (this.GetPartyListHeader().IsAlliance
+                     && nowUtc < this.partyCooldownHudAllianceOrderExpiresAtUtc
+                     && this.partyCooldownLastCompleteHudAllianceOrder.Length > 0)
+            {
+                foreach (var entityId in this.partyCooldownLastCompleteHudAllianceOrder)
+                    AppendUniqueHudEntityId(entityOrder, ref entityOrderCount, entityId);
+
+                allianceMemberCount = entityOrderCount - localPartyCount;
+            }
+            else if (!this.GetPartyListHeader().IsAlliance)
+            {
+                this.partyCooldownLastCompleteHudAllianceOrder = [];
+                this.partyCooldownHudAllianceOrderExpiresAtUtc = DateTime.MinValue;
+            }
+
+            return new HudRosterEntityOrder(
+                entityOrder[..entityOrderCount].ToArray(),
+                localPartyCount,
+                allianceMemberCount);
         }
         catch (Exception ex)
         {
-            this.SetBugDiagnosticEvent($"partyCooldownHudPartyOrderReadFailed:{ex.GetType().Name}");
-            return Array.Empty<uint>();
+            this.SetBugDiagnosticEvent($"partyCooldownHudRosterOrderReadFailed:{ex.GetType().Name}");
+            return new HudRosterEntityOrder(Array.Empty<uint>(), 0, 0);
         }
+    }
+
+    private static void AppendUniqueHudEntityId(Span<uint> destination, ref int count, uint entityId)
+    {
+        if (entityId is 0 or 0xE0000000 || count >= destination.Length)
+            return;
+
+        for (var index = 0; index < count; index++)
+        {
+            if (destination[index] == entityId)
+                return;
+        }
+
+        destination[count++] = entityId;
     }
 
     private void AddPartyCooldownStatusSamplesFromPartyList(HashSet<uint> partyEntityIds)

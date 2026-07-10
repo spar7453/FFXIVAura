@@ -37,14 +37,19 @@ internal sealed class PartyCooldownDefinition
     public byte Level { get; set; }
     public float Cooldown { get; set; }
     public float Duration { get; set; }
+    public byte Charges { get; set; } = 1;
     public string Name { get; set; } = string.Empty;
     public uint IconId { get; set; }
 }
 
 internal sealed class PartyCooldownRuntimeState
 {
-    public DateTime CooldownEndsAtUtc { get; set; } = DateTime.MinValue;
+    public Queue<DateTime> ChargeRecoveryEndsAtUtc { get; } = new();
+    public uint MaxCharges { get; set; }
+    public DateTime LastChargeRecoveryEndsAtUtc { get; set; } = DateTime.MinValue;
+    public DateTime LastObservedUseAtUtc { get; set; } = DateTime.MinValue;
     public DateTime LastLogTrackedAtUtc { get; set; } = DateTime.MinValue;
+    public bool ActiveObservedLastFrame { get; set; }
 }
 
 internal readonly record struct PartyCooldownMemberSnapshot(
@@ -87,7 +92,9 @@ internal sealed record PartyCooldownDisplayItem(
     PartyCooldownDisplayState State,
     float ActiveRemaining,
     float CooldownRemaining,
-    float CooldownTotal);
+    float CooldownTotal,
+    uint CurrentCharges,
+    uint MaxCharges);
 
 internal sealed record PartyCooldownMemberRow(
     PartyCooldownMemberSnapshot Member,

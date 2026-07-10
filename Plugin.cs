@@ -3,23 +3,6 @@ namespace FFXIVAura;
 public sealed unsafe partial class Plugin : IDalamudPlugin
 {
     private static readonly string[] CommandNames = ["/fa"];
-    private static readonly AddonEvent[] ActionDetailTooltipEvents =
-    [
-        AddonEvent.PreSetup,
-        AddonEvent.PostSetup,
-        AddonEvent.PreOpen,
-        AddonEvent.PostOpen,
-        AddonEvent.PreShow,
-        AddonEvent.PostShow,
-        AddonEvent.PreRequestedUpdate,
-        AddonEvent.PostRequestedUpdate,
-        AddonEvent.PreRefresh,
-        AddonEvent.PostRefresh,
-        AddonEvent.PreUpdate,
-        AddonEvent.PostUpdate,
-        AddonEvent.PreDraw,
-        AddonEvent.PostDraw,
-    ];
 
     private const float DefaultOverlayPositionX = 520f;
     private const float DefaultOverlayPositionY = 280f;
@@ -30,7 +13,6 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private const float MinOverlayHeight = 40f;
     private const float MaxOverlayHeight = 900f;
     private const int AbilityCandidateCacheLimit = 512;
-    private const int PartyCooldownLogObservationLimit = 64;
     private const int MinPerformanceProfileRecordIntervalSeconds = 1;
     private const int MaxPerformanceProfileRecordIntervalSeconds = 60;
     private const int MinPerformanceProfileMaxFileMegabytes = 1;
@@ -44,7 +26,6 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private const float DefaultFontScale = 1f;
     private const float MinFontScale = 0.75f;
     private const float MaxFontScale = 1.5f;
-    private const int OverlayTooltipGraceFrameCount = 1;
     private const float DefaultOrderEditorHeight = 180f;
     private const float MinOrderEditorHeight = 90f;
     private const float MaxOrderEditorHeight = 520f;
@@ -53,7 +34,8 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private static readonly TimeSpan ConfigSaveDebounceDelay = TimeSpan.FromMilliseconds(400);
     private static readonly TimeSpan ConfigSaveCombatRetryDelay = TimeSpan.FromSeconds(1);
     private static readonly TimeSpan ConfigSaveMaxCombatDeferDuration = TimeSpan.FromMinutes(10);
-    private static readonly TimeSpan PartyCooldownCandidateMissingSampleInterval = TimeSpan.FromSeconds(1);
+    private static readonly TimeSpan PartyCooldownCandidateMissingSampleInterval = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan PartyCooldownStatusCacheDuration = TimeSpan.FromMilliseconds(100);
 
     [PluginService] private static IDalamudPluginInterface PluginInterface { get; set; } = null!;
     [PluginService] private static ICommandManager CommandManager { get; set; } = null!;
@@ -67,7 +49,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     [PluginService] private static IPartyList PartyList { get; set; } = null!;
     [PluginService] private static IGameGui GameGui { get; set; } = null!;
     [PluginService] private static IChatGui ChatGui { get; set; } = null!;
-    [PluginService] private static IAddonLifecycle AddonLifecycle { get; set; } = null!;
+    [PluginService] private static ISeStringEvaluator SeStringEvaluator { get; set; } = null!;
     [PluginService] private static IPluginLog Log { get; set; } = null!;
 
     private static readonly (string Id, string Label)[] TrackedEditorTabs =
@@ -82,6 +64,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private readonly Dictionary<uint, (uint RowId, string Name)> actionCategoryCache = new();
     private readonly Dictionary<uint, byte> actionEquivalenceGroupCache = new();
     private readonly Dictionary<uint, GameAction> actionRowCache = new();
+    private readonly Dictionary<uint, OverlayActionTooltipModel> actionTooltipModelCache = new();
     private readonly Dictionary<uint, (string Name, uint IconId)> statusDefinitionCache = new();
     private readonly Dictionary<uint, string> statusTooltipTextCache = new();
     private readonly Dictionary<string, Dictionary<uint, DateTime>> auraFirstSeenByScope = new(StringComparer.OrdinalIgnoreCase);
@@ -101,7 +84,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private readonly Dictionary<string, IReadOnlyList<PartyCooldownDefinition>> partyCooldownEffectiveDefinitionsByCategoryAndLevel = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> partyCooldownCanonicalDefinitionIdById = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<uint, int> partyCooldownLogActionParamIndexByLogMessageId = new();
-    private readonly Queue<PartyCooldownLogObservation> partyCooldownLogObservations = new();
+    private readonly PartyCooldownLogObservationBuffer partyCooldownLogObservations = new(64, 8);
     private readonly List<string> partyCooldownRuntimePruneBuffer = [];
     private readonly Dictionary<uint, CharacterAuraAggregate> playerAuraFrameCache = new();
     private readonly Dictionary<uint, CharacterAuraAggregate> targetAuraFrameCache = new();
@@ -136,7 +119,6 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private PartyCooldownFrameSnapshot? partyCooldownFrameSnapshot;
     private HashSet<string>? partyCooldownLiveRuntimeKeysFrameCache;
     private bool overlayTooltipRequestedThisFrame;
-    private int overlayTooltipGraceFramesRemaining;
     private int pendingStatusId;
     private Vector2 draggedOverlayMouseStart;
     private Vector2 draggedOverlayPositionStart;
@@ -149,6 +131,8 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private DateTime performanceProfileNextErrorLogAtUtc = DateTime.MinValue;
     private DateTime lastBugDiagnosticEventAtUtc = DateTime.MinValue;
     private DateTime partyCooldownNextCandidateMissingObservationAtUtc = DateTime.MinValue;
+    private DateTime partyCooldownActiveStatusIndexBuiltAtUtc = DateTime.MinValue;
+    private ulong partyCooldownActiveStatusRosterHash;
     private long partyCooldownCandidateMissingLogCount;
     private long partyCooldownCandidateMissingObservationCount;
     private string lastBugDiagnosticEvent = string.Empty;
@@ -156,8 +140,6 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private bool configVisible;
     private bool zoneLoadActive;
     private DateTime zoneLoadHiddenUntil = DateTime.MinValue;
-    private readonly NativeActionTooltipController nativeActionTooltipController = new();
-    private readonly List<NativeTooltipAvoidanceRect> nativeTooltipAvoidanceRects = [];
     private readonly OverlayTooltipResolver overlayTooltipResolver = new();
     private readonly TooltipDiagnostics tooltipDiagnostics = new();
     private readonly PerformanceFrameStats performanceStats = new();
@@ -219,17 +201,12 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
         ChatGui.LogMessage += this.OnLogMessage;
         Condition.ConditionChange += this.OnConditionChange;
         ClientState.ZoneInit += this.OnZoneInit;
-        foreach (var eventType in ActionDetailTooltipEvents)
-            AddonLifecycle.RegisterListener(eventType, "ActionDetail", this.OnActionDetailTooltipLifecycle);
     }
 
     public void Dispose()
     {
         this.FlushConfigSave(force: true);
         this.configSaveWorker.Dispose();
-        this.HideNativeActionTooltip();
-        foreach (var eventType in ActionDetailTooltipEvents)
-            AddonLifecycle.UnregisterListener(eventType, "ActionDetail", this.OnActionDetailTooltipLifecycle);
         PluginInterface.UiBuilder.Draw -= this.Draw;
         PluginInterface.UiBuilder.OpenMainUi -= this.OpenConfig;
         PluginInterface.UiBuilder.OpenConfigUi -= this.OpenConfig;
@@ -370,7 +347,6 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
         }
         finally
         {
-            this.FinishOverlayTooltipFrame();
             this.FinishPerformanceFrame(performanceFrameStart);
         }
     }
@@ -382,7 +358,6 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
 
         this.overlayTooltipRequestedThisFrame = false;
         this.overlayTooltipResolver.Clear();
-        this.nativeTooltipAvoidanceRects.Clear();
         this.cooldownFrameCache.Clear();
         this.playerAuraFrameCacheValid = false;
         this.targetAuraFrameCacheValid = false;

@@ -164,4 +164,7 @@ public sealed unsafe partial class Plugin
         }
     }
 
+    private static uint GetAdjustedActionId(uint actionId)
+        => ActionManager.Instance()->GetAdjustedActionId(actionId);
+
 }

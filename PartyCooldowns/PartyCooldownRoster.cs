@@ -34,10 +34,28 @@ internal readonly record struct PartyCooldownRosterDiagnostics(
     int AllianceEmptySlotCount,
     bool UsedFlatAllianceFallback,
     int LocalAllianceGroupIndex,
-    int CrossRealmGroupCount);
+    int RawLocalAllianceGroupIndex,
+    int HudLocalAllianceGroupIndex,
+    int CrossRealmGroupCount,
+    int HudAllianceOrderCount);
 
 internal static class PartyCooldownRoster
 {
+    public static ulong ComputeMemberIdentityHash(IReadOnlyList<PartyCooldownMemberSnapshot> members)
+    {
+        const ulong Offset = 14695981039346656037UL;
+        const ulong Prime = 1099511628211UL;
+        var hash = Offset;
+        foreach (var member in members)
+        {
+            hash = (hash ^ member.EntityId) * Prime;
+            foreach (var value in member.Key)
+                hash = (hash ^ value) * Prime;
+        }
+
+        return (hash ^ (uint)members.Count) * Prime;
+    }
+
     public static IReadOnlyList<PartyCooldownMemberSnapshot> CreateDisplayMembers(
         IReadOnlyList<PartyCooldownMemberSnapshot> members,
         uint localEntityId,
@@ -70,7 +88,10 @@ internal static class PartyCooldownRoster
         bool hasAllianceSource = false,
         bool usedFlatAllianceFallback = false,
         int localAllianceGroupIndex = -1,
-        int crossRealmGroupCount = 0)
+        int rawLocalAllianceGroupIndex = -1,
+        int hudLocalAllianceGroupIndex = -1,
+        int crossRealmGroupCount = 0,
+        int hudAllianceOrderCount = 0)
     {
         var excludedLocalPlayer = localEntityId != 0
                                   && displayMembers.Count < members.Count
@@ -101,7 +122,10 @@ internal static class PartyCooldownRoster
             allianceEmptySlotCount,
             usedFlatAllianceFallback,
             Math.Clamp(localAllianceGroupIndex, -1, 2),
-            Math.Clamp(crossRealmGroupCount, 0, 3));
+            Math.Clamp(rawLocalAllianceGroupIndex, -1, 2),
+            Math.Clamp(hudLocalAllianceGroupIndex, -1, 2),
+            Math.Clamp(crossRealmGroupCount, 0, 3),
+            Math.Clamp(hudAllianceOrderCount, 0, 40));
     }
 
     private static int CountAllianceGroupMembers(

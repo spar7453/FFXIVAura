@@ -407,9 +407,12 @@ public sealed unsafe partial class Plugin
             return;
 
         runtime.LastLogTrackedAtUtc = nowUtc;
-        var cooldownEndsAtUtc = nowUtc.AddSeconds(definition.Cooldown);
-        if (cooldownEndsAtUtc > runtime.CooldownEndsAtUtc)
-            runtime.CooldownEndsAtUtc = cooldownEndsAtUtc;
+        PartyCooldownChargeTracker.RecordUse(
+            runtime,
+            nowUtc,
+            definition.Cooldown,
+            this.GetPartyCooldownMaxCharges(definition, this.GetCurrentEffectiveLevel()),
+            PartyCooldownLogDedupeWindow);
     }
 
     private static string ExtractLogParameterText(ReadOnlySeString value)
@@ -458,7 +461,7 @@ public sealed unsafe partial class Plugin
 
         var memberName = string.IsNullOrWhiteSpace(member.Name) ? "-" : member.Name;
         var actionName = PartyCooldownLogMatcher.NormalizeActionName(observedAction.ActionName);
-        this.partyCooldownLogObservations.Enqueue(new PartyCooldownLogObservation(
+        var observation = new PartyCooldownLogObservation(
             DateTime.UtcNow,
             logMessageId,
             sourceName,
@@ -471,10 +474,9 @@ public sealed unsafe partial class Plugin
             result,
             ignoredReason,
             rosterDiagnostics,
-            detail));
+            detail);
 
-        while (this.partyCooldownLogObservations.Count > PartyCooldownLogObservationLimit)
-            this.partyCooldownLogObservations.Dequeue();
+        this.partyCooldownLogObservations.Add(observation);
     }
 
     private bool ShouldObservePartyCooldownLogs()

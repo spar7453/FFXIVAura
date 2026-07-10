@@ -15,6 +15,7 @@ internal static class OverlayTests
         ("OverlayLayout finds a free slot", OverlayLayoutFindsFreeSlot),
         ("OverlayFrameModel exposes display and layout items", OverlayFrameModelExposesDisplayAndLayoutItems),
         ("OverlayTooltipResolver uses latest candidate", OverlayTooltipResolverUsesLatestCandidate),
+        ("OverlayTooltipResolver carries party cooldown definitions", OverlayTooltipResolverCarriesPartyCooldownDefinitions),
         ("OverlayControlGeometry splits narrow controls", OverlayControlGeometrySplitsNarrowControls),
         ("OverlayControlGeometry clamps floating windows", OverlayControlGeometryClampsFloatingWindows),
     ];
@@ -78,6 +79,18 @@ internal static class OverlayTests
         Equal(OverlayTooltipCandidateKind.Aura, candidate.Kind);
         Equal(42u, candidate.Aura.StatusId);
         True(!resolver.TryConsume(out _), "resolver should clear after consume");
+    }
+
+    private static void OverlayTooltipResolverCarriesPartyCooldownDefinitions()
+    {
+        var resolver = new OverlayTooltipResolver();
+        var definition = new PartyCooldownDefinition { Id = "reprisal", ActionId = 7535 };
+
+        resolver.Register(OverlayTooltipCandidate.ForPartyCooldown(definition));
+
+        True(resolver.TryConsume(out var candidate), "resolver should consume a party cooldown candidate");
+        Equal(OverlayTooltipCandidateKind.PartyCooldown, candidate.Kind);
+        True(ReferenceEquals(definition, candidate.PartyCooldown), "party cooldown definition should be preserved");
     }
 
     private static void OverlayControlGeometrySplitsNarrowControls()

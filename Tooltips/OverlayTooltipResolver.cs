@@ -5,12 +5,14 @@ internal enum OverlayTooltipCandidateKind
     None,
     Ability,
     Aura,
+    PartyCooldown,
 }
 
 internal readonly record struct OverlayTooltipCandidate(
     OverlayTooltipCandidateKind Kind,
     AbilityDefinition? Ability,
-    AuraState Aura)
+    AuraState Aura,
+    PartyCooldownDefinition? PartyCooldown)
 {
     public static OverlayTooltipCandidate None => default;
 
@@ -19,12 +21,18 @@ internal readonly record struct OverlayTooltipCandidate(
     public static OverlayTooltipCandidate ForAbility(AbilityDefinition ability)
     {
         ArgumentNullException.ThrowIfNull(ability);
-        return new OverlayTooltipCandidate(OverlayTooltipCandidateKind.Ability, ability, default);
+        return new OverlayTooltipCandidate(OverlayTooltipCandidateKind.Ability, ability, default, null);
     }
 
     public static OverlayTooltipCandidate ForAura(AuraState aura)
     {
-        return new OverlayTooltipCandidate(OverlayTooltipCandidateKind.Aura, null, aura);
+        return new OverlayTooltipCandidate(OverlayTooltipCandidateKind.Aura, null, aura, null);
+    }
+
+    public static OverlayTooltipCandidate ForPartyCooldown(PartyCooldownDefinition definition)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        return new OverlayTooltipCandidate(OverlayTooltipCandidateKind.PartyCooldown, null, default, definition);
     }
 }
 
