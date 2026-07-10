@@ -53,6 +53,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private static readonly TimeSpan ConfigSaveDebounceDelay = TimeSpan.FromMilliseconds(400);
     private static readonly TimeSpan ConfigSaveCombatRetryDelay = TimeSpan.FromSeconds(1);
     private static readonly TimeSpan ConfigSaveMaxCombatDeferDuration = TimeSpan.FromMinutes(10);
+    private static readonly TimeSpan PartyCooldownCandidateMissingSampleInterval = TimeSpan.FromSeconds(1);
 
     [PluginService] private static IDalamudPluginInterface PluginInterface { get; set; } = null!;
     [PluginService] private static ICommandManager CommandManager { get; set; } = null!;
@@ -140,11 +141,15 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private Vector2 draggedOverlayPositionStart;
     private DateTime configSaveAfter = DateTime.MinValue;
     private DateTime configSaveQueuedAtUtc = DateTime.MinValue;
+    private DateTime configSaveNextErrorLogAtUtc = DateTime.MinValue;
     private bool configSaveDeferredInCombat;
     private DateTime keybindCacheRefreshAfter = DateTime.MinValue;
     private DateTime performanceProfileNextRecordAtUtc = DateTime.MinValue;
     private DateTime performanceProfileNextErrorLogAtUtc = DateTime.MinValue;
     private DateTime lastBugDiagnosticEventAtUtc = DateTime.MinValue;
+    private DateTime partyCooldownNextCandidateMissingObservationAtUtc = DateTime.MinValue;
+    private long partyCooldownCandidateMissingLogCount;
+    private long partyCooldownCandidateMissingObservationCount;
     private string lastBugDiagnosticEvent = string.Empty;
     private PluginConfig config;
     private bool configVisible;
@@ -155,6 +160,8 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private readonly TooltipDiagnostics tooltipDiagnostics = new();
     private readonly PerformanceFrameStats performanceStats = new();
     private readonly PerformanceProfiler performanceProfiler = new();
+    private readonly PerformanceProfileWriter performanceProfileWriter = new();
+    private readonly ConfigSaveWorker configSaveWorker = new(snapshot => PluginInterface.SavePluginConfig(snapshot));
     private readonly LoginStabilizationState loginStabilizationState = new(LoginSkillAutoAlignSuppressionDuration);
     private readonly IFontHandle cooldownFont;
     private readonly IFontHandle chargeFont;
@@ -217,6 +224,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     public void Dispose()
     {
         this.FlushConfigSave(force: true);
+        this.configSaveWorker.Dispose();
         this.HideNativeActionTooltip();
         foreach (var eventType in ActionDetailTooltipEvents)
             AddonLifecycle.UnregisterListener(eventType, "ActionDetail", this.OnActionDetailTooltipLifecycle);
@@ -242,6 +250,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
         this.cooldownFont.Dispose();
         this.chargeFont.Dispose();
         this.auraCountFont.Dispose();
+        this.performanceProfileWriter.Dispose();
     }
 
     private void LoadAbilities()
@@ -322,7 +331,11 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                 this.InvalidateKeybindCache();
 
             if (!this.configVisible && wasConfigVisible)
+            {
                 this.CloseAuraSearchWindow();
+                if (this.EnsureIconWindows())
+                    this.QueueConfigSave();
+            }
 
             this.configWasVisible = this.configVisible;
 
@@ -359,6 +372,9 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
 
     private void BeginFrameCache()
     {
+        if (this.configSaveWorker.TakeLastError() is { } configSaveError)
+            this.HandleConfigSaveError(configSaveError);
+
         this.overlayTooltipRequestedThisFrame = false;
         this.overlayTooltipResolver.Clear();
         this.cooldownFrameCache.Clear();
@@ -387,19 +403,41 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
         this.configSaveAfter = nowUtc.Add(ConfigSaveDebounceDelay);
     }
 
+    private void HandleConfigSaveError(Exception exception)
+    {
+        var nowUtc = DateTime.UtcNow;
+        if (nowUtc >= this.configSaveNextErrorLogAtUtc)
+        {
+            this.configSaveNextErrorLogAtUtc = nowUtc.AddSeconds(30);
+            Log.Error(exception, "Failed to save FFXIVAura configuration; retrying the latest snapshot.");
+        }
+
+        if (!this.configSavePending)
+            this.configSaveQueuedAtUtc = nowUtc;
+
+        this.configSavePending = true;
+        this.configSaveAfter = nowUtc.Add(ConfigSaveCombatRetryDelay);
+        this.SetBugDiagnosticEvent("configSaveFailed");
+    }
+
     private void SaveConfigNow()
     {
         var profileStart = this.performanceProfiler.BeginSection(PerformanceProfileSection.ConfigSave);
         try
         {
-            PluginInterface.SavePluginConfig(this.config);
+            var snapshot = PluginConfigClone.CreateSnapshot(this.config);
+            if (!this.configSaveWorker.TryEnqueue(snapshot))
+            {
+                this.configSaveAfter = DateTime.UtcNow.Add(ConfigSaveCombatRetryDelay);
+                return;
+            }
         }
         finally
         {
             this.performanceProfiler.EndSection(PerformanceProfileSection.ConfigSave, profileStart);
         }
 
-        this.SetBugDiagnosticEvent("configSaved");
+        this.SetBugDiagnosticEvent("configSaveQueued");
         this.configSavePending = false;
         this.configSaveAfter = DateTime.MinValue;
         this.configSaveQueuedAtUtc = DateTime.MinValue;

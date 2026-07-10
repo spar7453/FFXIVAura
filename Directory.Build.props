@@ -1,0 +1,6 @@
+<Project>
+  <PropertyGroup>
+    <DalamudLibPath Condition="'$(DALAMUD_HOME)' != ''">$(DALAMUD_HOME)\</DalamudLibPath>
+    <DalamudLibPath Condition="'$(DALAMUD_HOME)' == '' and Exists('$(APPDATA)\XIVLauncherKR\addon\Hooks\15.0.2.2\Dalamud.dll')">$(APPDATA)\XIVLauncherKR\addon\Hooks\15.0.2.2\</DalamudLibPath>
+  </PropertyGroup>
+</Project>

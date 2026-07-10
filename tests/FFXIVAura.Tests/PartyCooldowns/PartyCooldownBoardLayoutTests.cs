@@ -15,8 +15,46 @@ internal static class PartyCooldownBoardLayoutTests
         ("PartyCooldownBoardLayout hides empty optional party rows", PartyCooldownBoardLayoutHidesEmptyOptionalPartyRows),
         ("PartyCooldownBoardLayout enables alliance columns only when wide enough", PartyCooldownBoardLayoutEnablesAllianceColumnsOnlyWhenWideEnough),
         ("PartyCooldownBoardLayout computes alliance column board height", PartyCooldownBoardLayoutComputesAllianceColumnBoardHeight),
+        ("PartyCooldownBoardLayout computes five-wide alliance board width", PartyCooldownBoardLayoutComputesFiveWideAllianceBoardWidth),
+        ("PartyCooldownBoardLayout fits a full alliance board at minimum icon size", PartyCooldownBoardLayoutFitsFullAllianceAtMinimumIconSize),
         ("PartyCooldownBoardLayout builds member-scoped icon interaction ids", PartyCooldownBoardLayoutBuildsMemberScopedIconInteractionIds),
     ];
+
+    private static void PartyCooldownBoardLayoutComputesFiveWideAllianceBoardWidth()
+    {
+        var width = PartyCooldownBoardLayout.GetRequiredAllianceBoardWidth(
+            allianceGroupCount: 3,
+            labelWidth: 79f,
+            iconSize: 40f,
+            gap: 3f,
+            columnGap: 8f,
+            padding: 4f);
+
+        Near(897f, width);
+        True(
+            PartyCooldownBoardLayout.ShouldUseAllianceColumns(3, width - 8f, 40f, 3f, 79f, 8f),
+            "computed alliance width should support three five-icon columns");
+    }
+
+    private static void PartyCooldownBoardLayoutFitsFullAllianceAtMinimumIconSize()
+    {
+        var rows = new List<(string AllianceGroup, int ItemCount)>();
+        foreach (var group in new[] { "A", "B", "C" })
+        {
+            for (var member = 0; member < 8; member++)
+                rows.Add((group, 9));
+        }
+
+        var height = PartyCooldownBoardLayout.GetAllianceBoardContentHeight(
+            rows,
+            iconSize: 24,
+            gap: 16,
+            padding: 16,
+            headerHeight: 42,
+            iconsPerLine: 5);
+
+        True(height <= 900, $"minimum-size alliance board should fit the overlay height limit, got {height}");
+    }
 
     private static void PartyCooldownBoardLayoutWrapsNineIconsIntoTwoLines()
     {

@@ -69,6 +69,22 @@ internal static class PartyCooldownBoardLayout
             (availableWidth - Math.Max(0, sanitizedColumnCount - 1) * Math.Max(0f, columnGap)) / sanitizedColumnCount);
     }
 
+    public static float GetRequiredAllianceBoardWidth(
+        int allianceGroupCount,
+        float labelWidth,
+        float iconSize,
+        float gap,
+        float columnGap,
+        float padding,
+        int iconsPerLine = MaxIconsPerWrappedLine)
+    {
+        var columnCount = Math.Clamp(allianceGroupCount, 1, AllianceColumnCount);
+        var iconAreaWidth = GetIconAreaWidth(iconSize, gap, iconsPerLine);
+        return Math.Max(0f, padding) * 2f
+               + columnCount * (Math.Max(0f, labelWidth) + iconAreaWidth)
+               + Math.Max(0, columnCount - 1) * Math.Max(0f, columnGap);
+    }
+
     public static bool ShouldUseAllianceColumns(
         int allianceGroupCount,
         float availableWidth,

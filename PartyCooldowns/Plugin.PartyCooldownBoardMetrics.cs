@@ -7,6 +7,7 @@ public sealed unsafe partial class Plugin
         float Gap,
         float Padding,
         float LabelGap,
+        float TextLineHeight,
         float JobIconSize,
         float AllianceGroupWidth,
         float AllianceColumnGap,
@@ -18,20 +19,120 @@ public sealed unsafe partial class Plugin
         bool UseAllianceColumns,
         int DrawnIconCount);
 
-    private bool EnsurePartyCooldownBoardHeight(
+    private readonly record struct PartyCooldownBoardDisplayLayout(
+        Vector2 Size,
+        PartyCooldownBoardRenderMetrics Metrics);
+
+    private static PartyCooldownBoardDisplayLayout GetPartyCooldownBoardDisplayLayout(
         IconWindowConfig iconWindow,
         IReadOnlyList<PartyCooldownMemberRow> rows)
     {
-        var metrics = GetPartyCooldownBoardRenderMetrics(iconWindow, rows);
-        var nextHeight = GetPartyCooldownExpandedBoardHeight(iconWindow.Height, rows, metrics);
+        var configuredIconSize = Math.Clamp(iconWindow.IconSize, MinIconSize, MaxIconSize);
+        var targetIconsPerLine = GetPartyCooldownTargetIconsPerLine(rows);
+        var layout = CreatePartyCooldownBoardDisplayLayout(
+            iconWindow,
+            rows,
+            configuredIconSize,
+            targetIconsPerLine);
+        if (layout.Metrics.AllianceGroupCount < 2
+            || PartyCooldownBoardLayoutFits(rows, layout.Metrics, targetIconsPerLine))
+        {
+            return layout;
+        }
 
-        if (nextHeight <= iconWindow.Height + 0.5f)
-            return false;
+        var minimumLayout = CreatePartyCooldownBoardDisplayLayout(
+            iconWindow,
+            rows,
+            MinIconSize,
+            targetIconsPerLine);
+        if (!PartyCooldownBoardLayoutFits(rows, minimumLayout.Metrics, targetIconsPerLine))
+            return minimumLayout;
 
-        iconWindow.Height = nextHeight;
-        this.SetBugDiagnosticEvent($"partyCooldownHeightExpanded:{iconWindow.Id}:{nextHeight:0}");
-        return true;
+        var minimum = MinIconSize;
+        var maximum = configuredIconSize;
+        var best = minimumLayout;
+        for (var iteration = 0; iteration < 12; iteration++)
+        {
+            var candidateIconSize = (minimum + maximum) * 0.5f;
+            var candidate = CreatePartyCooldownBoardDisplayLayout(
+                iconWindow,
+                rows,
+                candidateIconSize,
+                targetIconsPerLine);
+            if (PartyCooldownBoardLayoutFits(rows, candidate.Metrics, targetIconsPerLine))
+            {
+                best = candidate;
+                minimum = candidateIconSize;
+            }
+            else
+            {
+                maximum = candidateIconSize;
+            }
+        }
+
+        return best;
     }
+
+    private static PartyCooldownBoardDisplayLayout CreatePartyCooldownBoardDisplayLayout(
+        IconWindowConfig iconWindow,
+        IReadOnlyList<PartyCooldownMemberRow> rows,
+        float iconSize,
+        int targetIconsPerLine)
+    {
+        var width = GetPartyCooldownBoardDisplayWidth(iconWindow, rows, iconSize, targetIconsPerLine);
+        var metrics = GetPartyCooldownBoardRenderMetrics(iconWindow, rows, width, iconSize);
+        var requiredHeight = GetPartyCooldownBoardContentHeight(rows, metrics);
+        var height = Math.Clamp(
+            Math.Max(iconWindow.Height, requiredHeight),
+            MinOverlayHeight,
+            MaxOverlayHeight);
+        return new PartyCooldownBoardDisplayLayout(new Vector2(width, height), metrics);
+    }
+
+    private static float GetPartyCooldownBoardDisplayWidth(
+        IconWindowConfig iconWindow,
+        IReadOnlyList<PartyCooldownMemberRow> rows,
+        float iconSize,
+        int targetIconsPerLine)
+    {
+        var allianceGroupCount = GetPartyCooldownAllianceGroupCount(rows);
+        if (allianceGroupCount < 2)
+            return iconWindow.Width;
+
+        var gap = Math.Max(2f, iconWindow.Gap);
+        var padding = Math.Max(4f, gap);
+        var labelGap = Math.Max(4f, gap);
+        var jobIconSize = Math.Clamp(iconSize * 0.72f, 20f, 32f);
+        var nameWidth = Math.Clamp(iconSize * 1.05f, 34f, 54f);
+        var labelWidth = jobIconSize + labelGap + nameWidth + labelGap;
+        var columnGap = Math.Max(8f, gap * 2f);
+        var requiredWidth = PartyCooldownBoardLayout.GetRequiredAllianceBoardWidth(
+            allianceGroupCount,
+            labelWidth,
+            iconSize,
+            gap,
+            columnGap,
+            padding,
+            targetIconsPerLine);
+        return Math.Clamp(Math.Max(iconWindow.Width, requiredWidth + 1f), MinOverlayWidth, MaxOverlayWidth);
+    }
+
+    private static int GetPartyCooldownTargetIconsPerLine(IReadOnlyList<PartyCooldownMemberRow> rows)
+    {
+        var maximumItemCount = 1;
+        foreach (var row in rows)
+            maximumItemCount = Math.Max(maximumItemCount, row.Items.Count);
+
+        return Math.Clamp(maximumItemCount, 1, PartyCooldownBoardLayout.MaxIconsPerWrappedLine);
+    }
+
+    private static bool PartyCooldownBoardLayoutFits(
+        IReadOnlyList<PartyCooldownMemberRow> rows,
+        PartyCooldownBoardRenderMetrics metrics,
+        int targetIconsPerLine)
+        => metrics.UseAllianceColumns
+           && metrics.IconsPerLine >= targetIconsPerLine
+           && GetPartyCooldownBoardContentHeight(rows, metrics) <= MaxOverlayHeight + 0.5f;
 
     private static float GetPartyCooldownAllianceGroupWidth(
         IReadOnlyList<PartyCooldownMemberRow> rows,
@@ -42,21 +143,25 @@ public sealed unsafe partial class Plugin
 
     private static PartyCooldownBoardRenderMetrics GetPartyCooldownBoardRenderMetrics(
         IconWindowConfig iconWindow,
-        IReadOnlyList<PartyCooldownMemberRow> rows)
+        IReadOnlyList<PartyCooldownMemberRow> rows,
+        float? boardWidth = null,
+        float? renderIconSize = null)
     {
-        var iconSize = iconWindow.IconSize;
+        var width = boardWidth ?? iconWindow.Width;
+        var iconSize = renderIconSize ?? iconWindow.IconSize;
         var gap = Math.Max(2f, iconWindow.Gap);
         var padding = Math.Max(4f, gap);
         var labelGap = Math.Max(4f, gap);
+        var textLineHeight = ImGui.GetTextLineHeight() * Math.Clamp(iconWindow.FontScale, MinFontScale, MaxFontScale);
         var jobIconSize = Math.Clamp(iconSize * 0.72f, 20f, 32f);
         var nameWidth = Math.Clamp(iconSize * 1.05f, 34f, 54f);
         var regularAllianceGroupWidth = GetPartyCooldownAllianceGroupWidth(rows, labelGap);
         var regularLabelWidth = regularAllianceGroupWidth + jobIconSize + labelGap + nameWidth + labelGap;
-        var regularIconAreaWidth = Math.Max(0f, iconWindow.Width - padding * 2f - regularLabelWidth);
+        var regularIconAreaWidth = Math.Max(0f, width - padding * 2f - regularLabelWidth);
         var regularIconsPerLine = PartyCooldownBoardLayout.GetIconLineCapacity(regularIconAreaWidth, iconSize, gap);
         var allianceGroupCount = GetPartyCooldownAllianceGroupCount(rows);
         var allianceColumnGap = Math.Max(8f, gap * 2f);
-        var allianceAvailableWidth = Math.Max(0f, iconWindow.Width - padding * 2f);
+        var allianceAvailableWidth = Math.Max(0f, width - padding * 2f);
         var allianceColumnLabelWidth = jobIconSize + labelGap + nameWidth + labelGap;
         var useAllianceColumns = PartyCooldownBoardLayout.ShouldUseAllianceColumns(
             allianceGroupCount,
@@ -85,6 +190,7 @@ public sealed unsafe partial class Plugin
             gap,
             padding,
             labelGap,
+            textLineHeight,
             jobIconSize,
             useAllianceColumns ? 0f : regularAllianceGroupWidth,
             allianceColumnGap,
@@ -126,16 +232,18 @@ public sealed unsafe partial class Plugin
     }
 
     private static float GetPartyCooldownAllianceColumnHeaderHeight(PartyCooldownBoardRenderMetrics metrics)
-        => ImGui.GetTextLineHeight() + Math.Max(4f, metrics.Gap);
+        => metrics.TextLineHeight + Math.Max(4f, metrics.Gap);
 
-    private static float GetPartyCooldownExpandedBoardHeight(
-        float currentHeight,
-        IReadOnlyList<PartyCooldownMemberRow> rows,
+    private static float GetPartyCooldownRowContentHeight(
+        int itemCount,
         PartyCooldownBoardRenderMetrics metrics)
-    {
-        var requiredHeight = GetPartyCooldownBoardContentHeight(rows, metrics);
-        return Math.Clamp(Math.Max(currentHeight, requiredHeight), MinOverlayHeight, MaxOverlayHeight);
-    }
+        => Math.Max(
+            Math.Max(metrics.JobIconSize, metrics.TextLineHeight),
+            PartyCooldownBoardLayout.GetRowContentHeight(
+                itemCount,
+                metrics.IconSize,
+                metrics.Gap,
+                metrics.IconsPerLine));
 
     private static float GetPartyCooldownBoardContentHeight(
         IReadOnlyList<PartyCooldownMemberRow> rows,
@@ -150,11 +258,7 @@ public sealed unsafe partial class Plugin
             if (i > 0)
                 height += metrics.Gap;
 
-            height += PartyCooldownBoardLayout.GetRowContentHeight(
-                rows[i].Items.Count,
-                metrics.IconSize,
-                metrics.Gap,
-                metrics.IconsPerLine);
+            height += GetPartyCooldownRowContentHeight(rows[i].Items.Count, metrics);
         }
 
         return rows.Count == 0 ? 0f : height;
@@ -182,11 +286,7 @@ public sealed unsafe partial class Plugin
                 if (rowCount > 0)
                     columnHeight += metrics.Gap;
 
-                columnHeight += PartyCooldownBoardLayout.GetRowContentHeight(
-                    row.Items.Count,
-                    metrics.IconSize,
-                    metrics.Gap,
-                    metrics.IconsPerLine);
+                columnHeight += GetPartyCooldownRowContentHeight(row.Items.Count, metrics);
                 rowCount++;
             }
 

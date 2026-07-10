@@ -202,7 +202,6 @@ public sealed unsafe partial class Plugin
     private IReadOnlyList<uint> UpdateCurrentAuraSeenTimes(IconWindowConfig iconWindow)
     {
         var currentStatusIds = this.GetCurrentStatusIds(iconWindow)
-            .Distinct()
             .ToList();
         this.UpdateAuraSeenTimes(iconWindow, currentStatusIds);
         return currentStatusIds;
@@ -277,66 +276,16 @@ public sealed unsafe partial class Plugin
             : DateTime.MinValue;
     }
 
-    private IReadOnlyList<uint> GetCurrentStatusIds(IconWindowConfig iconWindow)
+    private IEnumerable<uint> GetCurrentStatusIds(IconWindowConfig iconWindow)
         => this.GetCurrentStatusIds(iconWindow.Role, iconWindow.Role == IconWindowRole.PartyBuffs && iconWindow.PartyAurasOwnOnly);
 
-    private IReadOnlyList<uint> GetCurrentStatusIds(IconWindowRole role, bool ownOnly)
-    {
-        var statusIds = new List<uint>();
-        switch (role)
+    private IEnumerable<uint> GetCurrentStatusIds(IconWindowRole role, bool ownOnly)
+        => role switch
         {
-            case IconWindowRole.TargetDebuffs:
-                if (TargetManager.Target is IBattleChara target)
-                {
-                    if (!this.TryReadStatusSnapshots(target.StatusList, "searchTarget", target.EntityId))
-                        break;
-
-                    foreach (var status in this.statusSnapshotBuffer)
-                    {
-                        if (status.StatusId > 0)
-                            statusIds.Add(status.StatusId);
-                    }
-                }
-
-                break;
-
-            case IconWindowRole.PartyBuffs:
-                for (var i = 0; i < PartyList.Length; i++)
-                {
-                    var member = PartyList[i];
-                    if (member is null)
-                        continue;
-
-                    if (!this.TryReadStatusSnapshots(member.Statuses, "searchParty", member.EntityId))
-                        continue;
-
-                    foreach (var status in this.statusSnapshotBuffer)
-                    {
-                        if (status.StatusId > 0 && (!ownOnly || this.IsStatusFromSelf(status.SourceId)))
-                            statusIds.Add(status.StatusId);
-                    }
-                }
-
-                break;
-
-            default:
-                if (ObjectTable.LocalPlayer is IBattleChara player)
-                {
-                    if (!this.TryReadStatusSnapshots(player.StatusList, "searchPlayer", player.EntityId))
-                        break;
-
-                    foreach (var status in this.statusSnapshotBuffer)
-                    {
-                        if (status.StatusId > 0)
-                            statusIds.Add(status.StatusId);
-                    }
-                }
-
-                break;
-        }
-
-        return statusIds;
-    }
+            IconWindowRole.TargetDebuffs => this.GetTargetAuraFrameIndex().Keys,
+            IconWindowRole.PartyBuffs => this.GetPartyAuraFrameIndex(ownOnly).Keys,
+            _ => this.GetPlayerAuraFrameIndex().Keys,
+        };
 
     private bool MatchesStatusSearch(uint statusId, string name, string query)
     {

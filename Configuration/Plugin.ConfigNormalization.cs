@@ -35,7 +35,7 @@ public sealed unsafe partial class Plugin
 
     private IconWindowConfig GetActiveIconWindow()
     {
-        if (this.EnsureIconWindows())
+        if (this.config.IconWindows.Count == 0 && this.EnsureIconWindows())
             this.QueueConfigSave();
 
         return this.config.IconWindows.FirstOrDefault(window => string.Equals(window.Id, this.config.ActiveWindowId, StringComparison.OrdinalIgnoreCase))

@@ -47,6 +47,7 @@ Use this checklist before pushing a build that changes overlay positioning, auto
 - Create one Party Defensives window, one Party Healing Cooldowns window, and one Party Damage Synergies window.
 - Join a party and confirm rows follow the in-game party list order.
 - Join 24-player alliance content and confirm rows follow the in-game alliance list order with A/B/C labels on the correct parties.
+- With a narrow saved board and large icon/gap settings, confirm the alliance board temporarily expands or scales its rendered icons so every member row remains visible. Leave alliance content and confirm the saved board size is unchanged.
 - Confirm each row shows a job icon, the first two characters of the party member name, and the expected ready cooldown icons.
 - In settings, uncheck one preset entry and confirm it disappears from the matching party cooldown window only.
 - Click the reset button for that window's exclusions and confirm the preset entry appears again.
@@ -57,6 +58,7 @@ Use this checklist before pushing a build that changes overlay positioning, auto
 - Enable the party cooldown log observer, then have a Scholar use fairy actions such as Whispering Dawn, Fey Illumination, or Fey Blessing.
 - Confirm the observer records the action as tracked on the Scholar row, not as an ignored pet source. The detail should mention owned summon/object matching when the log source is the fairy.
 - If two same-named pets or owned objects are present, confirm ambiguous ownership is ignored instead of starting cooldowns on the wrong party member.
+- During duty entry, zone transitions, and party member loading, confirm transient status-list reads do not close the overlay or produce repeated exceptions.
 
 ## Performance Overlay
 
@@ -66,3 +68,6 @@ Use this checklist before pushing a build that changes overlay positioning, auto
 - Reset the profiler and confirm section and window samples clear.
 - During combat or a duty pull, watch for repeated spikes above the expected frame budget.
 - If running above 120 FPS, confirm the recent average remains stable instead of changing abruptly from sample capping.
+- Enable automatic CSV recording, change several settings, and confirm profile/config queue depth returns to zero with no failed or dropped work.
+- Reload the plugin after a queued settings change and confirm the latest settings were persisted.
+- Confirm `performance-profile.csv` rotates at the configured limit without a visible frame-time spike.

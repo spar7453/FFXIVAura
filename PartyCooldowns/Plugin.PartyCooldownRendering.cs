@@ -15,10 +15,9 @@ public sealed unsafe partial class Plugin
         if (itemCount == 0 && this.config.LockOverlay)
             return;
 
-        if (this.EnsurePartyCooldownBoardHeight(iconWindow, rows))
-            this.QueueConfigSave();
-
-        var areaSize = new Vector2(iconWindow.Width, iconWindow.Height);
+        var displayLayout = GetPartyCooldownBoardDisplayLayout(iconWindow, rows);
+        this.RememberPartyCooldownWindowLayoutDiagnostics(iconWindow, displayLayout.Metrics);
+        var areaSize = displayLayout.Size;
         var windowSize = areaSize;
         var clampedPosition = ClampOverlayWindowPosition(iconWindow.Position, windowSize);
         var positionWasClamped = Vector2.DistanceSquared(iconWindow.Position, clampedPosition) > 0.25f;
@@ -64,7 +63,7 @@ public sealed unsafe partial class Plugin
         if (!this.config.LockOverlay)
             this.DrawOverlayEditStage(ImGui.GetWindowDrawList(), areaOrigin, areaOrigin + areaSize);
 
-        this.DrawPartyCooldownRows(iconWindow, rows, areaOrigin, areaSize);
+        this.DrawPartyCooldownRows(iconWindow, rows, areaOrigin, areaSize, displayLayout.Metrics);
 
         if (!this.config.LockOverlay)
             this.HandleOverlayResize(iconWindow, job, Array.Empty<AbilityDefinition>(), Array.Empty<AuraState>(), areaOrigin, areaSize);
@@ -86,10 +85,10 @@ public sealed unsafe partial class Plugin
         IconWindowConfig iconWindow,
         IReadOnlyList<PartyCooldownMemberRow> rows,
         Vector2 areaOrigin,
-        Vector2 areaSize)
+        Vector2 areaSize,
+        PartyCooldownBoardRenderMetrics metrics)
     {
         var draw = ImGui.GetWindowDrawList();
-        var metrics = GetPartyCooldownBoardRenderMetrics(iconWindow, rows);
 
         draw.PushClipRect(areaOrigin, areaOrigin + areaSize, true);
         if (metrics.UseAllianceColumns)
@@ -209,7 +208,7 @@ public sealed unsafe partial class Plugin
     {
         var iconSize = metrics.IconSize;
         var gap = metrics.Gap;
-        var contentHeight = PartyCooldownBoardLayout.GetRowContentHeight(row.Items.Count, iconSize, gap, metrics.IconsPerLine);
+        var contentHeight = GetPartyCooldownRowContentHeight(row.Items.Count, metrics);
         var cursor = new Vector2(rowStartX, rowY + Math.Max(0f, (contentHeight - metrics.JobIconSize) * 0.5f));
         if (showAllianceGroup && metrics.AllianceGroupWidth > 0f)
         {

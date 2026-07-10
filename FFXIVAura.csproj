@@ -1,15 +1,14 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Dalamud.NET.Sdk/15.0.0">
   <PropertyGroup>
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <DalamudLibPath Condition="'$(DALAMUD_HOME)' != ''">$(DALAMUD_HOME)\</DalamudLibPath>
+    <DalamudLibPath Condition="'$(DALAMUD_HOME)' == '' and Exists('$(APPDATA)\XIVLauncherKR\addon\Hooks\15.0.2.2\Dalamud.dll')">$(APPDATA)\XIVLauncherKR\addon\Hooks\15.0.2.2\</DalamudLibPath>
+    <AssemblySearchPaths>$(AssemblySearchPaths);$(DalamudLibPath)</AssemblySearchPaths>
     <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <AssemblyName>FFXIVAura</AssemblyName>
     <RootNamespace>FFXIVAura</RootNamespace>
     <Version>0.1.0.26</Version>
     <AssemblyVersion>0.1.0.26</AssemblyVersion>
     <FileVersion>0.1.0.26</FileVersion>
-    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
   </PropertyGroup>
 
   <ItemGroup>
@@ -21,15 +20,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Reference Include="Dalamud" HintPath="$(APPDATA)\XIVLauncherKR\addon\Hooks\15.0.2.2\Dalamud.dll" Private="false" />
-    <Reference Include="Dalamud.Bindings.ImGui" HintPath="$(APPDATA)\XIVLauncherKR\addon\Hooks\15.0.2.2\Dalamud.Bindings.ImGui.dll" Private="false" />
-    <Reference Include="FFXIVClientStructs" HintPath="$(APPDATA)\XIVLauncherKR\addon\Hooks\15.0.2.2\FFXIVClientStructs.dll" Private="false" />
-    <Reference Include="InteropGenerator.Runtime" HintPath="$(APPDATA)\XIVLauncherKR\addon\Hooks\15.0.2.2\InteropGenerator.Runtime.dll" Private="false" />
-    <Reference Include="Lumina" HintPath="$(APPDATA)\XIVLauncherKR\addon\Hooks\15.0.2.2\Lumina.dll" Private="false" />
-    <Reference Include="Lumina.Excel" HintPath="$(APPDATA)\XIVLauncherKR\addon\Hooks\15.0.2.2\Lumina.Excel.dll" Private="false" />
-  </ItemGroup>
-
-  <ItemGroup>
+    <None Include="FFXIVAura.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Data\abilities.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Data\party_cooldowns.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

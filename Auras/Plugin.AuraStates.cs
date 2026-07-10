@@ -109,7 +109,7 @@ public sealed unsafe partial class Plugin
             if (chara is null)
                 return;
 
-            if (!this.TryReadStatusSnapshots(chara.StatusList, "characterAura", chara.EntityId))
+            if (!this.TryReadBattleCharaStatusSnapshots(chara, "characterAura", out _))
                 return;
 
             foreach (var status in this.statusSnapshotBuffer)
@@ -169,14 +169,15 @@ public sealed unsafe partial class Plugin
             aggregateAuras.Clear();
 
             var memberAuras = new Dictionary<uint, PartyMemberAuraState>();
-            for (var i = 0; i < PartyList.Length; i++)
+            var partySlotCount = this.GetPartyListHeader().PartySlotCount;
+            for (var i = 0; i < partySlotCount; i++)
             {
-                var member = PartyList[i];
+                var member = this.TryCreatePartyMemberReference(i);
                 if (member is null)
                     continue;
 
                 memberAuras.Clear();
-                if (!this.TryReadStatusSnapshots(member.Statuses, "partyAura", member.EntityId))
+                if (!this.TryReadPartyMemberStatusSnapshots(member, "partyAura", out _))
                     continue;
 
                 foreach (var status in this.statusSnapshotBuffer)

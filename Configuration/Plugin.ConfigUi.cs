@@ -12,9 +12,6 @@ public sealed unsafe partial class Plugin
             return;
         }
 
-        if (this.EnsureIconWindows())
-            this.QueueConfigSave();
-
         var activeWindow = this.GetActiveIconWindow();
         var job = PlayerState.IsLoaded ? JobInfo.Code(PlayerState.ClassJob.RowId) : "JOB";
         var level = this.GetCurrentEffectiveLevel();

@@ -121,7 +121,7 @@ The general settings include a detailed profiling option for local debugging. Wh
 
 Use this only while diagnosing performance. Keep it disabled for normal play unless you are actively checking a problem.
 
-For longer development sessions, enable `프로파일 자동 기록` in the general settings. The plugin writes `performance-profile.csv` to the Dalamud plugin config directory once per configured interval. Rows are stored in long format with `frame`, `section`, `window`, and `diagnostic` scopes, so the same file can be filtered by total frame time, profiler section, overlay window, or runtime state. Diagnostic rows include player level/combat/loading state, overlay/window settings, cache sizes, aura cache state, party cooldown log/runtime counts, grayscale queue state, tooltip activity, per-window display decision counts, and the last notable debug event. When the file reaches the configured size limit, the previous file is rotated to `performance-profile.previous.csv`.
+For longer development sessions, enable `프로파일 자동 기록` in the general settings. The plugin writes `performance-profile.csv` to the Dalamud plugin config directory once per configured interval. File writes and configuration saves run through bounded background queues so disk latency does not stall overlay rendering. Queue depth, dropped work, completion/failure counts, and write duration are included in diagnostics. Rows are stored in long format with `frame`, `section`, `window`, and `diagnostic` scopes, so the same file can be filtered by total frame time, profiler section, overlay window, or runtime state. Diagnostic rows include player level/combat/loading state, overlay/window settings, cache sizes, aura cache state, party cooldown log/runtime counts, grayscale queue state, tooltip activity, per-window display decision counts, and the last notable debug event. When the file reaches the configured size limit, the previous file is rotated to `performance-profile.previous.csv`.
 
 When automatic recording is enabled, party cooldown log observations are kept even if the on-screen log observer is hidden. This keeps the CSV useful for bugs where an action use was logged but ignored, excluded, level-filtered, or matched to the wrong source.
 
@@ -164,102 +164,39 @@ Typical update workflow:
 ## Code Map
 
 - `Plugin.cs`
-  - Plugin entry point, command registration, services, lifecycle.
-- `Plugin.ConfigUi.cs`
-  - Main settings UI.
-- `Plugin.Overlay.cs`
-  - Overlay window rendering and icon interaction.
-- `Plugin.PartyCooldowns.cs`
-  - Built-in party defensive, healing cooldown, and damage synergy data loading, source-aware active status detection, and cooldown state estimation.
-- `PartyCooldownDefinitionSelector.cs`
-  - Effective-level selection for upgraded party cooldown definitions.
-- `PartyCooldownReplacementDataTests.cs`
-  - Test coverage that party cooldown replacement groups match verified `ReplaceAction` / trait unlock data.
-- `Plugin.PartyCooldownRendering.cs`
-  - Row-based party cooldown board rendering and tooltip handling.
-- `Plugin.OverlayControls.cs`
-  - Floating overlay edit controls for role, display condition, name, and alignment.
-- `Plugin.OverlayPositions.cs`
-  - Shared icon position normalization, resize normalization, and stale position cleanup.
-- `Plugin.SkillPositions.cs`
-  - Skill icon position storage, auto placement, alignment, and tracked-action key matching.
-- `SkillPositionLayout.cs`
-  - Pure skill position restore, equivalent-key migration, row alignment, and level-sync layout helpers.
-- `Plugin.AuraPositions.cs`
-  - Aura position storage, active-only compact placement, alignment, and stale aura position cleanup.
-- `Plugin.OverlayItems.cs`
-  - Shared skill/aura item selection for overlay windows.
-- `OverlayLayout.cs`
-  - Pure overlay layout geometry for auto placement, row alignment, clamping, and overlap checks.
-- `OverlayPositionKeys.cs`
-  - Shared string key generation and parsing for overlay position maps.
-- `RuntimeScopeKeys.cs`
-  - Shared string key generation and matching for frame caches, drag state, and runtime window-scoped state.
-- `Plugin.Cooldowns.cs`
-  - Cooldown, charge, action availability, and icon state logic.
-- `CooldownMath.cs`
-  - Pure cooldown/charge timing calculations.
-- `Plugin.Abilities.cs`
-  - Ability loading, filtering, level/job visibility, adjusted action helpers.
-- `Plugin.TrackedSkillEditor.cs`
-  - Tracked skill selection and display order editor.
-- `Plugin.TrackedAbilityState.cs`
-  - Tracked skill list mutation, exclusion handling, and order changes.
-- `Plugin.AuraTracking.cs`
-  - Buff/debuff tracking UI and aura search window.
-- `Plugin.AuraSearch.cs`
-  - Recently/currently seen aura search and status candidate ordering.
-- `AuraSearchDisplayResult.cs`
-  - Pure aura search result merging, sorting, same-name counting, and display tags.
-- `Plugin.AuraStates.cs`
-  - Player, target, and party aura state calculation.
-- `Plugin.AuraRendering.cs`
-  - Buff/debuff icon rendering.
-- `Plugin.ConfigNormalization.cs`
-  - Config migration, default window creation, and saved data normalization.
-- `ConfigMapNormalizer.cs`
-  - Pure normalization for saved string and position maps.
-- `ConfigValueNormalizer.cs`
-  - Pure normalization for saved scalar, dimension, and position values.
-- `IconWindowIdentity.cs`
-  - Overlay window ID, default name, and aura position group remapping helpers.
-- `IconWindowClone.cs`
-  - Safe deep-copy helpers for cloned overlay window tracking lists and position maps.
-- `Plugin.IconWindowRuntimeState.cs`
-  - Runtime cache cleanup for added, removed, or normalized overlay windows.
-- `Plugin.Keybinds.cs`
-  - Hotbar keybind lookup and display text.
-- `KeybindTextFormatter.cs`
-  - Pure keybind label formatting and unsupported glyph filtering.
-- `Plugin.Performance.cs`
-  - Performance overlay UI and detailed profiler display.
-- `Plugin.PerformanceRecording.cs`
-  - Automatic CSV performance profile recording and file rotation.
-- `PerformanceProfileCsv.cs`
-  - CSV row formatting and escaping for recorded profiler samples.
-- `PerformanceProfiler.cs`
-  - Pure section and per-window timing aggregation.
-- `PerformanceProfileSection.cs`
-  - Performance profiler section and snapshot models.
-- `PluginConfig.cs`
-  - Saved configuration model.
-- `AbilityDefinition.cs`
-  - Ability metadata model.
-- `PartyCooldownDefinition.cs`
-  - Built-in party cooldown metadata and runtime display models.
-- `CooldownState.cs`
-  - Runtime cooldown display state.
-- `AuraState.cs`
-  - Runtime aura display state.
-- `JobInfo.cs`
-  - Job and role helper data.
+  - Plugin entry point, Dalamud services, command registration, and lifecycle.
+- `Abilities/`
+  - Ability data, adjusted actions, cooldown calculations, tracked-skill editing, rendering, and keybind indexing.
+- `Auras/`
+  - Player/target/party aura snapshots, search, tracking, positioning, and rendering.
+- `Configuration/`
+  - Settings UI, window management, config migration/normalization, deep snapshots, and background saves.
+- `Core/`
+  - Job metadata, status snapshots, data-file loading, runtime keys, login stabilization, and keybind formatting.
+- `Overlay/`
+  - Overlay frame models, edit controls, layout geometry, icon positions, resizing, and shared icon rendering.
+- `PartyCooldowns/`
+  - Party/alliance roster snapshots, curated definitions, combat-log matching, active-status attribution, board layout, and rendering.
+- `Performance/`
+  - Frame/section profiling, diagnostic CSV formatting, bounded background recording, and profiler UI.
+- `Tooltips/`
+  - Native game tooltip requests, hover resolution, lifecycle control, and diagnostics.
+- `tests/FFXIVAura.Tests/`
+  - Pure-logic and regression tests grouped by the same feature boundaries.
 
 ## Verification
 
+The project targets .NET 10 and Dalamud API 15 through `Dalamud.NET.Sdk`. Set `DALAMUD_HOME` to a directory containing the Dalamud development assemblies. The local Korean launcher API 15 path is used as a fallback when it exists.
+
 ```powershell
+$env:DALAMUD_HOME = 'C:\path\to\dalamud'
+dotnet restore .\FFXIVAura.csproj --locked-mode
+dotnet restore .\tests\FFXIVAura.Tests\FFXIVAura.Tests.csproj
 dotnet build -c Release --no-restore
-dotnet run --project .\tests\FFXIVAura.Tests\FFXIVAura.Tests.csproj -c Release
+dotnet run --project .\tests\FFXIVAura.Tests\FFXIVAura.Tests.csproj -c Release --no-restore
 ```
+
+Release builds generate `bin/Release/FFXIVAura/latest.zip`. GitHub Actions repeats the locked restore, test run, release build, and package upload on pushes and pull requests.
 
 The test suite validates party cooldown data shape, status ID coverage for duration-based entries, synced-level replacement selection, and the currently curated `replacementGroup` mappings.
 

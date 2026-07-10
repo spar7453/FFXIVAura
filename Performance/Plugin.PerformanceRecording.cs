@@ -5,10 +5,11 @@ namespace FFXIVAura;
 
 public sealed unsafe partial class Plugin
 {
-    private static readonly Encoding PerformanceProfileFileEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: true);
-
     private void RecordPerformanceProfileIfNeeded()
     {
+        if (this.performanceProfileWriter.TakeLastError() is { } writerError)
+            this.LogPerformanceProfileRecordingError(writerError);
+
         if (!this.config.RecordPerformanceProfile)
         {
             this.performanceProfileNextRecordAtUtc = DateTime.MinValue;
@@ -41,42 +42,22 @@ public sealed unsafe partial class Plugin
 
     private void ClearPerformanceProfileFiles()
     {
-        try
-        {
-            var directory = GetPerformanceProfileDirectory();
-            File.Delete(Path.Combine(directory, PerformanceProfileCsv.FileName));
-            File.Delete(Path.Combine(directory, PerformanceProfileCsv.PreviousFileName));
-            this.performanceProfileNextRecordAtUtc = DateTime.MinValue;
-        }
-        catch (Exception ex)
-        {
-            this.LogPerformanceProfileRecordingError(ex);
-        }
+        if (!this.performanceProfileWriter.TryEnqueueClear(this.GetPerformanceProfileFilePath()))
+            this.SetBugDiagnosticEvent("performanceProfileClearQueueFull");
+
+        this.performanceProfileNextRecordAtUtc = DateTime.MinValue;
     }
 
     private string GetPerformanceProfileFilePath()
         => Path.Combine(GetPerformanceProfileDirectory(), PerformanceProfileCsv.FileName);
 
     private static string GetPerformanceProfileDirectory()
-    {
-        var directory = PluginInterface.ConfigDirectory.FullName;
-        Directory.CreateDirectory(directory);
-        return directory;
-    }
+        => PluginInterface.ConfigDirectory.FullName;
 
     private void AppendPerformanceProfileRows(DateTime timestampUtc)
     {
         var tooltipDiagnosticSnapshot = this.tooltipDiagnostics.CreateSnapshot();
-        var path = this.GetPerformanceProfileFilePath();
-        this.RotatePerformanceProfileFileIfNeeded(path);
-        this.RotatePerformanceProfileFileIfHeaderChanged(path);
-
-        var fileExists = File.Exists(path);
-        var fileIsEmpty = !fileExists || new FileInfo(path).Length == 0;
         var builder = new StringBuilder(4096);
-        if (fileIsEmpty)
-            builder.AppendLine(PerformanceProfileCsv.Header);
-
         this.AppendPerformanceProfileFrameRow(builder, timestampUtc);
         foreach (var snapshot in this.performanceProfiler.GetSnapshots())
             this.AppendPerformanceProfileSectionRow(builder, timestampUtc, snapshot);
@@ -86,45 +67,22 @@ public sealed unsafe partial class Plugin
 
         this.AppendPerformanceProfileDiagnosticRows(builder, timestampUtc, tooltipDiagnosticSnapshot);
 
-        File.AppendAllText(path, builder.ToString(), PerformanceProfileFileEncoding);
-        this.tooltipDiagnostics.ResetIntervalCounters();
-    }
-
-    private void RotatePerformanceProfileFileIfNeeded(string path)
-    {
-        if (!File.Exists(path))
-            return;
-
         var maxBytes = (long)Math.Clamp(
             this.config.PerformanceProfileMaxFileMegabytes,
             MinPerformanceProfileMaxFileMegabytes,
             MaxPerformanceProfileMaxFileMegabytes) * 1024L * 1024L;
-        if (new FileInfo(path).Length < maxBytes)
-            return;
-
-        RotatePerformanceProfileFileToPrevious(path);
-    }
-
-    private void RotatePerformanceProfileFileIfHeaderChanged(string path)
-    {
-        if (!File.Exists(path) || new FileInfo(path).Length == 0)
-            return;
-
-        using var reader = new StreamReader(path, PerformanceProfileFileEncoding, detectEncodingFromByteOrderMarks: true);
-        var header = reader.ReadLine();
-        if (string.Equals(header, PerformanceProfileCsv.Header, StringComparison.Ordinal))
-            return;
-
-        RotatePerformanceProfileFileToPrevious(path);
-    }
-
-    private static void RotatePerformanceProfileFileToPrevious(string path)
-    {
-        var previousPath = Path.Combine(Path.GetDirectoryName(path)!, PerformanceProfileCsv.PreviousFileName);
-        if (File.Exists(previousPath))
-            File.Delete(previousPath);
-
-        File.Move(path, previousPath);
+        if (this.performanceProfileWriter.TryEnqueueAppend(
+                this.GetPerformanceProfileFilePath(),
+                PerformanceProfileCsv.Header,
+                builder.ToString(),
+                maxBytes))
+        {
+            this.tooltipDiagnostics.ResetIntervalCounters();
+        }
+        else
+        {
+            this.SetBugDiagnosticEvent("performanceProfileWriteQueueFull");
+        }
     }
 
     private void AppendPerformanceProfileFrameRow(StringBuilder builder, DateTime timestampUtc)
@@ -228,6 +186,12 @@ public sealed unsafe partial class Plugin
             ("configSavePending", this.configSavePending),
             ("configSaveDeferredInCombat", this.configSaveDeferredInCombat),
             ("configSavePendingSec", GetConfigSavePendingSeconds(timestampUtc, this.configSaveQueuedAtUtc)),
+            ("configSaveQueue", this.configSaveWorker.PendingCount),
+            ("configSaveDropped", this.configSaveWorker.DroppedCount),
+            ("configSaveCompleted", this.configSaveWorker.CompletedCount),
+            ("configSaveFailed", this.configSaveWorker.FailedCount),
+            ("configSaveLastMs", this.configSaveWorker.LastSaveMilliseconds),
+            ("configSaveMaxMs", this.configSaveWorker.MaxSaveMilliseconds),
             ("lockOverlay", this.config.LockOverlay),
             ("hideDuringZoneLoad", this.config.HideDuringZoneLoad),
             ("showTooltips", this.config.ShowTooltips),
@@ -236,6 +200,12 @@ public sealed unsafe partial class Plugin
             ("recordProfile", this.config.RecordPerformanceProfile),
             ("recordIntervalSec", this.config.PerformanceProfileRecordIntervalSeconds),
             ("maxFileMb", this.config.PerformanceProfileMaxFileMegabytes),
+            ("profileWritePending", this.performanceProfileWriter.PendingCount),
+            ("profileWriteDropped", this.performanceProfileWriter.DroppedCount),
+            ("profileWriteCompleted", this.performanceProfileWriter.CompletedCount),
+            ("profileWriteFailed", this.performanceProfileWriter.FailedCount),
+            ("profileWriteLastMs", this.performanceProfileWriter.LastWriteMilliseconds),
+            ("profileWriteMaxMs", this.performanceProfileWriter.MaxWriteMilliseconds),
             ("logObserver", this.config.ShowPartyCooldownLogObserver)));
 
         this.AppendPerformanceProfileDiagnosticRow(builder, timestampUtc, "player", "Player", FormatDiagnosticPairs(
@@ -349,10 +319,11 @@ public sealed unsafe partial class Plugin
         }
 
         var partyCooldownRoster = this.partyCooldownFrameSnapshot?.RosterDiagnostics ?? default;
+        var partyListHeader = this.GetPartyListHeader();
         this.AppendPerformanceProfileDiagnosticRow(builder, timestampUtc, "partyCooldown", "Party Cooldown", FormatDiagnosticPairs(
-            ("partyListLength", PartyList.Length),
-            ("partyId", PartyList.PartyId),
-            ("localAllianceGroup", PartyCooldownAllianceGroups.OwnPartyLabel(PartyList.IsAlliance, (int)PartyList.PartyId)),
+            ("partyListLength", partyListHeader.Length),
+            ("partyId", partyListHeader.PartyId),
+            ("localAllianceGroup", PartyCooldownAllianceGroups.OwnPartyLabel(partyListHeader.IsAlliance, partyListHeader.PartyId)),
             ("rosterSource", partyCooldownRoster.Source),
             ("rosterReadMode", partyCooldownRoster.ReadMode),
             ("definitions", this.partyCooldownDefinitions.Count),
@@ -372,6 +343,8 @@ public sealed unsafe partial class Plugin
             ("usedFlatFallback", partyCooldownRoster.UsedFlatAllianceFallback),
             ("liveRuntimeKeys", this.partyCooldownLiveRuntimeKeysFrameCache?.Count ?? 0),
             ("logObservations", this.partyCooldownLogObservations.Count),
+            ("candidateMissingTotal", this.partyCooldownCandidateMissingLogCount),
+            ("candidateMissingSamples", this.partyCooldownCandidateMissingObservationCount),
             ("logTracked", partyLogTracked),
             ("logIgnored", partyLogIgnored),
             ("logMemberNotFound", partyLogMemberNotFound),

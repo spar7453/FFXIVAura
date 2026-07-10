@@ -9,9 +9,6 @@ public sealed unsafe partial class Plugin
         {
             var job = JobInfo.Code(PlayerState.ClassJob.RowId);
             var level = (uint)(PlayerState.EffectiveLevel > 0 ? PlayerState.EffectiveLevel : PlayerState.Level);
-            if (this.EnsureIconWindows())
-                this.QueueConfigSave();
-
             foreach (var iconWindow in this.config.IconWindows)
                 this.DrawIconWindow(iconWindow, job, level);
         }
@@ -197,8 +194,8 @@ public sealed unsafe partial class Plugin
             return;
 
         var delta = ImGui.GetIO().MouseDelta;
-        var nextWidth = Math.Clamp(iconWindow.Width + delta.X, MinOverlayWidth, MaxOverlayWidth);
-        var nextHeight = Math.Clamp(iconWindow.Height + delta.Y, MinOverlayHeight, MaxOverlayHeight);
+        var nextWidth = Math.Clamp(Math.Max(iconWindow.Width, areaSize.X) + delta.X, MinOverlayWidth, MaxOverlayWidth);
+        var nextHeight = Math.Clamp(Math.Max(iconWindow.Height, areaSize.Y) + delta.Y, MinOverlayHeight, MaxOverlayHeight);
         if (Math.Abs(nextWidth - iconWindow.Width) <= 0.1f && Math.Abs(nextHeight - iconWindow.Height) <= 0.1f)
             return;
 

@@ -59,6 +59,8 @@ public sealed unsafe partial class Plugin
         ImGui.TextUnformatted($"키바인드 항목: {this.actionKeybindIndex.Count}");
         ImGui.TextUnformatted($"툴팁 제어: {this.performanceStats.NativeTooltipControlCount}");
         ImGui.TextUnformatted($"흑백 처리: {this.performanceStats.GrayscaleIconProcessCount}");
+        ImGui.TextUnformatted($"프로파일 기록: {this.performanceProfileWriter.LastWriteMilliseconds:0.00} ms / 대기 {this.performanceProfileWriter.PendingCount} / 실패 {this.performanceProfileWriter.FailedCount}");
+        ImGui.TextUnformatted($"설정 저장: {this.configSaveWorker.LastSaveMilliseconds:0.00} ms / 대기 {this.configSaveWorker.PendingCount} / 성공 {this.configSaveWorker.CompletedCount} / 실패 {this.configSaveWorker.FailedCount}");
         if (this.config.ShowPartyCooldownLogObserver)
             this.DrawPartyCooldownLogObserver();
 
@@ -74,7 +76,14 @@ public sealed unsafe partial class Plugin
         ImGui.TextUnformatted("파티 쿨다운 로그 관측");
         ImGui.SameLine();
         if (ImGui.SmallButton("비우기##party-cooldown-log-observer-clear"))
+        {
             this.partyCooldownLogObservations.Clear();
+            this.partyCooldownCandidateMissingLogCount = 0;
+            this.partyCooldownCandidateMissingObservationCount = 0;
+            this.partyCooldownNextCandidateMissingObservationAtUtc = DateTime.MinValue;
+        }
+
+        ImGui.TextDisabled($"후보 없음 {this.partyCooldownCandidateMissingLogCount} / 표본 {this.partyCooldownCandidateMissingObservationCount}");
 
         if (this.partyCooldownLogObservations.Count == 0)
         {

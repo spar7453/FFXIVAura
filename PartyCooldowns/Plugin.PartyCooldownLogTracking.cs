@@ -35,10 +35,32 @@ public sealed unsafe partial class Plugin
             return;
 
         var observedAction = this.ExtractObservedPartyCooldownAction(message);
-        if (!this.HasPartyCooldownCandidate(observedAction) && !this.ShouldObservePartyCooldownLogs())
-            return;
-
         var sourceName = source.Name.ExtractText();
+        if (!this.HasPartyCooldownCandidate(observedAction))
+        {
+            this.partyCooldownCandidateMissingLogCount++;
+            if (!this.ShouldObservePartyCooldownLogs())
+                return;
+
+            var sampleNowUtc = DateTime.UtcNow;
+            if (sampleNowUtc < this.partyCooldownNextCandidateMissingObservationAtUtc)
+                return;
+
+            this.partyCooldownNextCandidateMissingObservationAtUtc = sampleNowUtc.Add(PartyCooldownCandidateMissingSampleInterval);
+            this.partyCooldownCandidateMissingObservationCount++;
+            this.RecordPartyCooldownLogObservation(
+                message.LogMessageId,
+                sourceName,
+                source.HomeWorldId,
+                default,
+                observedAction,
+                "무시",
+                PartyCooldownIgnoredLogReason.CandidateMissing,
+                this.partyCooldownFrameSnapshot?.RosterDiagnostics ?? default,
+                $"추적 대상 후보를 찾지 못했습니다. {this.DescribeLogMessageParameters(message)}");
+            return;
+        }
+
         var rosterSnapshot = this.GetPartyCooldownLogRosterSnapshot();
         if (!this.TryFindPartyCooldownMemberByLogSource(source, rosterSnapshot.DisplayMembers, out var member, out var memberMatchDetail, out var ignoredReason))
         {
@@ -241,17 +263,32 @@ public sealed unsafe partial class Plugin
         }
 
         var matchedMembers = new Dictionary<string, PartyCooldownMemberSnapshot>(StringComparer.OrdinalIgnoreCase);
-        foreach (var gameObject in ObjectTable)
+        try
         {
-            if (gameObject is null || !IsValidPartyCooldownEntityId(gameObject.OwnerId))
-                continue;
+            foreach (var gameObject in ObjectTable)
+            {
+                if (gameObject is null)
+                    continue;
 
-            var objectName = PartyCooldownLogMatcher.NormalizeActorName(gameObject.Name.ToString());
-            if (!string.Equals(normalizedSourceName, objectName, StringComparison.Ordinal))
-                continue;
+                var ownerId = gameObject.OwnerId;
+                if (!IsValidPartyCooldownEntityId(ownerId))
+                    continue;
 
-            if (TryFindPartyCooldownMemberByEntityId(displayMembers, gameObject.OwnerId, out var ownerMember))
-                matchedMembers.TryAdd(ownerMember.Key, ownerMember);
+                var objectName = PartyCooldownLogMatcher.NormalizeActorName(gameObject.Name.ToString());
+                if (!string.Equals(normalizedSourceName, objectName, StringComparison.Ordinal))
+                    continue;
+
+                if (TryFindPartyCooldownMemberByEntityId(displayMembers, ownerId, out var ownerMember))
+                    matchedMembers.TryAdd(ownerMember.Key, ownerMember);
+            }
+        }
+        catch (Exception ex)
+        {
+            matchedMembers.Clear();
+            member = default;
+            detail = $"소환수/객체 목록을 읽지 못했습니다: {ex.GetType().Name}";
+            this.SetBugDiagnosticEvent($"partyCooldownOwnedObjectReadFailed:{ex.GetType().Name}");
+            return false;
         }
 
         if (matchedMembers.Count == 1)

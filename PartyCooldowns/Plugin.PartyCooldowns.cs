@@ -558,13 +558,21 @@ public sealed unsafe partial class Plugin
 
         this.AddPartyCooldownStatusSamplesFromPartyList(memberEntityIds);
 
-        if (ObjectTable.LocalPlayer is IBattleChara player && (PartyList.Length == 0 || memberEntityIds.Contains(player.EntityId)))
+        var partyListHeader = this.GetPartyListHeader();
+        if (ObjectTable.LocalPlayer is IBattleChara player && (partyListHeader.Length == 0 || memberEntityIds.Contains(player.EntityId)))
             this.AddPartyCooldownStatusSamplesFromCharacter(player, memberEntityIds);
 
-        foreach (var gameObject in ObjectTable)
+        try
         {
-            if (gameObject is IBattleChara battleChara)
-                this.AddPartyCooldownStatusSamplesFromCharacter(battleChara, memberEntityIds);
+            foreach (var gameObject in ObjectTable)
+            {
+                if (gameObject is IBattleChara battleChara)
+                    this.AddPartyCooldownStatusSamplesFromCharacter(battleChara, memberEntityIds);
+            }
+        }
+        catch (Exception ex)
+        {
+            this.SetBugDiagnosticEvent($"partyCooldownObjectTableReadFailed:{ex.GetType().Name}");
         }
 
         if (TargetManager.Target is IBattleChara target)
@@ -573,14 +581,11 @@ public sealed unsafe partial class Plugin
 
     private void AddPartyCooldownStatusSamplesFromCharacter(IBattleChara character, HashSet<uint> partyEntityIds)
     {
-        if (character.EntityId == 0)
-            return;
-
-        if (!this.TryReadStatusSnapshots(character.StatusList, "partyCooldownCharacter", character.EntityId))
+        if (!this.TryReadBattleCharaStatusSnapshots(character, "partyCooldownCharacter", out var entityId))
             return;
 
         foreach (var status in this.statusSnapshotBuffer)
-            this.AddPartyCooldownStatusSample(character.EntityId, status.SourceId, status.StatusId, status.RemainingTime, partyEntityIds);
+            this.AddPartyCooldownStatusSample(entityId, status.SourceId, status.StatusId, status.RemainingTime, partyEntityIds);
     }
 
     private void AddPartyCooldownStatusSample(
