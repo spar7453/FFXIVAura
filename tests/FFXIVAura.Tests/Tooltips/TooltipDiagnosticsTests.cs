@@ -35,6 +35,8 @@ internal static class TooltipDiagnosticsTests
             AddonSize: new Vector2(120, 64),
             MousePosition: new Vector2(20, 30),
             Position: new Vector2(38, 48)));
+        diagnostics.RecordNativeHoverDispatch();
+        diagnostics.RecordNativeForcedShow();
         diagnostics.RecordAddonMissingSkip();
 
         var snapshot = diagnostics.CreateSnapshot();
@@ -43,6 +45,8 @@ internal static class TooltipDiagnosticsTests
         Equal(1, snapshot.AbilityRequests);
         Equal(1, snapshot.NativeActionRequests);
         Equal(1, snapshot.NativeControls);
+        Equal(1, snapshot.NativeHoverDispatches);
+        Equal(1, snapshot.NativeForcedShows);
         Equal(1, snapshot.AddonMissingSkips);
         Equal("Ability", snapshot.LastKind);
         Equal("jump", snapshot.LastId);
@@ -73,6 +77,8 @@ internal static class TooltipDiagnosticsTests
         diagnostics.RecordDisabledSkip(TooltipDiagnosticKind.PartyCooldown, "reprisal", 7535);
         diagnostics.RecordNativeActionRequest(0);
         diagnostics.RecordZeroActionSkip();
+        diagnostics.RecordNativeHoverDispatch();
+        diagnostics.RecordNativeForcedShow();
 
         diagnostics.ResetIntervalCounters();
         var snapshot = diagnostics.CreateSnapshot();
@@ -81,6 +87,8 @@ internal static class TooltipDiagnosticsTests
         Equal(0, snapshot.NativeActionRequests);
         Equal(0, snapshot.DisabledSkips);
         Equal(0, snapshot.ZeroActionSkips);
+        Equal(0, snapshot.NativeHoverDispatches);
+        Equal(0, snapshot.NativeForcedShows);
         Equal("PartyCooldown", snapshot.LastKind);
         Equal("reprisal", snapshot.LastId);
         Equal(0u, snapshot.LastActionId);

@@ -145,10 +145,10 @@ public sealed unsafe partial class Plugin
 
         this.overlayWindowDebugSnapshots[iconWindow.Id] = snapshot with
         {
-            PartyLayoutMode = metrics.UseAllianceColumns ? "AllianceColumns" : "Linear",
+            PartyLayoutMode = metrics.UseAllianceGrid ? "AllianceGrid4x2" : "Linear",
             PartyIconsPerLine = metrics.IconsPerLine,
             PartyAllianceGroupCount = metrics.AllianceGroupCount,
-            PartyAllianceColumnCount = metrics.AllianceColumnCount,
+            PartyAllianceMemberColumnCount = metrics.AllianceMemberColumnCount,
         };
     }
 

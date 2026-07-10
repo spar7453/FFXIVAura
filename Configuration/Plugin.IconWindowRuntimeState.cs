@@ -8,6 +8,7 @@ public sealed unsafe partial class Plugin
             return;
 
         RemoveScopedRuntimeKeys(this.visibleAbilityKeys, windowId);
+        RemoveScopedRuntimeKeys(this.transientSkillPositionsByGroup, windowId);
         RemoveScopedRuntimeKeys(this.visibleAurasByScope, windowId);
         RemoveScopedRuntimeKeys(this.auraFirstSeenByScope, windowId);
         if (string.Equals(this.auraSearchWindowId, windowId, StringComparison.OrdinalIgnoreCase))
@@ -23,6 +24,7 @@ public sealed unsafe partial class Plugin
             .ToList();
 
         PruneScopedRuntimeKeys(this.visibleAbilityKeys, windowIds);
+        PruneScopedRuntimeKeys(this.transientSkillPositionsByGroup, windowIds);
         PruneScopedRuntimeKeys(this.visibleAurasByScope, windowIds);
         PruneScopedRuntimeKeys(this.auraFirstSeenByScope, windowIds);
         if (!string.IsNullOrWhiteSpace(this.auraSearchWindowId)

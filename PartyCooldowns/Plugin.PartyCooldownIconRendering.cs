@@ -63,6 +63,9 @@ public sealed unsafe partial class Plugin
         int drawnIconCount)
     {
         var iconMax = iconPos + new Vector2(iconSize, iconSize);
+        if (this.IsMouseOverNativeTooltip())
+            return;
+
         if (this.config.LockOverlay)
         {
             if (IsMouseInRect(iconPos, iconMax))

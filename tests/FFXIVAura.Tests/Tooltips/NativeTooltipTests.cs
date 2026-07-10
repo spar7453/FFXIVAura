@@ -13,6 +13,7 @@ internal static class NativeTooltipTests
         ("NativeActionTooltipState controls only active requests", NativeActionTooltipStateControlsOnlyActiveRequests),
         ("NativeActionTooltipState captures sound state once", NativeActionTooltipStateCapturesSoundStateOnce),
         ("NativeActionTooltipController clamps tooltip position", NativeActionTooltipControllerClampsTooltipPosition),
+        ("NativeActionTooltipController avoids overlay bounds", NativeActionTooltipControllerAvoidsOverlayBounds),
         ("NativeActionTooltipController suppresses sound selectively", NativeActionTooltipControllerSuppressesSoundSelectively),
     ];
 
@@ -51,13 +52,21 @@ internal static class NativeTooltipTests
 
         True(!state.ShouldControl(now, matchesRequestedAction: true), "inactive state should not control tooltips");
 
-        state.BeginHover(42, now, TimeSpan.FromMilliseconds(500));
+        True(state.BeginHover(42, now, TimeSpan.FromMilliseconds(500), TimeSpan.FromMilliseconds(120), addonVisible: false), "new hidden tooltip should dispatch native hover");
         Equal(42u, state.ActionId);
         True(state.Visible, "tooltip should become visible when hover begins");
         True(state.CanControlWithoutActionMatch(now), "visible tooltip should keep lifecycle control active");
         True(state.ShouldControl(now, matchesRequestedAction: false), "hover in progress should control the native tooltip");
         True(state.ShouldHideNativeTooltip(matchesRequestedAction: false), "hover in progress should allow native hide");
 
+        state.EndHover();
+        True(!state.BeginHover(42, now.AddMilliseconds(20), TimeSpan.FromMilliseconds(500), TimeSpan.FromMilliseconds(120), addonVisible: true), "visible unchanged tooltip should not dispatch every frame");
+        state.EndHover();
+        True(!state.BeginHover(42, now.AddMilliseconds(40), TimeSpan.FromMilliseconds(500), TimeSpan.FromMilliseconds(120), addonVisible: false), "hidden tooltip should respect retry throttle");
+        state.EndHover();
+        True(state.BeginHover(42, now.AddMilliseconds(140), TimeSpan.FromMilliseconds(500), TimeSpan.FromMilliseconds(120), addonVisible: false), "persistently hidden tooltip should retry");
+        state.EndHover();
+        True(state.BeginHover(43, now.AddMilliseconds(150), TimeSpan.FromMilliseconds(500), TimeSpan.FromMilliseconds(120), addonVisible: true), "action changes should dispatch even while the addon is visible");
         state.EndHover();
         True(state.ShouldControl(now.AddMilliseconds(100), matchesRequestedAction: true), "matching tooltip should stay controlled");
         True(!state.ShouldControl(now.AddMilliseconds(100), matchesRequestedAction: false), "non-matching tooltip should not stay controlled");
@@ -91,7 +100,8 @@ internal static class NativeTooltipTests
             new Vector2(500, 300),
             new Vector2(80, 40));
 
-        Vector(new Vector2(420, 260), position);
+        Vector(new Vector2(392, 232), position);
+        True(position.X + 80 < 490 && position.Y + 40 < 290, "edge fallback should keep the tooltip away from the mouse");
 
         var unclamped = NativeActionTooltipController.GetPositionAtMouse(
             new Vector2(10, 20),
@@ -99,6 +109,19 @@ internal static class NativeTooltipTests
             new Vector2(80, 40));
 
         Vector(new Vector2(28, 38), unclamped);
+    }
+
+    private static void NativeActionTooltipControllerAvoidsOverlayBounds()
+    {
+        var overlay = new NativeTooltipAvoidanceRect(new Vector2(20, 40), new Vector2(500, 180));
+        var position = NativeActionTooltipController.GetPositionAtMouse(
+            new Vector2(100, 100),
+            new Vector2(1000, 800),
+            new Vector2(300, 200),
+            [overlay]);
+
+        Vector(new Vector2(118, 198), position);
+        True(position.Y >= overlay.Max.Y, "tooltip should be placed below the hovered overlay when space is available");
     }
 
     private static void NativeActionTooltipControllerSuppressesSoundSelectively()

@@ -4,7 +4,7 @@ internal static class PartyCooldownBoardLayout
 {
     public const int MaxIconsPerWrappedLine = 5;
     public const int AllianceColumnCount = 3;
-    public const int MinAllianceColumnIconsPerLine = 3;
+    public const int AllianceMemberColumnCount = 4;
 
     public static bool HideEmptyRows(PartyCooldownCategory category)
         => category is PartyCooldownCategory.Healing or PartyCooldownCategory.Synergy;
@@ -61,46 +61,27 @@ internal static class PartyCooldownBoardLayout
             GetIconAreaWidth(iconSize, gap, iconsPerLine),
             GetLineWidth(lineItemCount, iconSize, gap));
 
-    public static float GetAllianceColumnWidth(float availableWidth, float columnGap, int columnCount)
-    {
-        var sanitizedColumnCount = Math.Clamp(columnCount, 1, AllianceColumnCount);
-        return Math.Max(
+    public static float GetAllianceMemberCellWidth(float availableWidth, float cellGap)
+        => Math.Max(
             0f,
-            (availableWidth - Math.Max(0, sanitizedColumnCount - 1) * Math.Max(0f, columnGap)) / sanitizedColumnCount);
-    }
+            (availableWidth - (AllianceMemberColumnCount - 1) * Math.Max(0f, cellGap)) / AllianceMemberColumnCount);
 
-    public static float GetRequiredAllianceBoardWidth(
-        int allianceGroupCount,
+    public static float GetRequiredAllianceGridWidth(
         float labelWidth,
         float iconSize,
         float gap,
-        float columnGap,
+        float cellGap,
         float padding,
         int iconsPerLine = MaxIconsPerWrappedLine)
     {
-        var columnCount = Math.Clamp(allianceGroupCount, 1, AllianceColumnCount);
-        var iconAreaWidth = GetIconAreaWidth(iconSize, gap, iconsPerLine);
+        var cellWidth = Math.Max(0f, labelWidth) + GetIconAreaWidth(iconSize, gap, iconsPerLine);
         return Math.Max(0f, padding) * 2f
-               + columnCount * (Math.Max(0f, labelWidth) + iconAreaWidth)
-               + Math.Max(0, columnCount - 1) * Math.Max(0f, columnGap);
+               + AllianceMemberColumnCount * cellWidth
+               + (AllianceMemberColumnCount - 1) * Math.Max(0f, cellGap);
     }
 
-    public static bool ShouldUseAllianceColumns(
-        int allianceGroupCount,
-        float availableWidth,
-        float iconSize,
-        float gap,
-        float labelWidth,
-        float columnGap)
-    {
-        if (allianceGroupCount < 2)
-            return false;
-
-        var columnCount = Math.Clamp(allianceGroupCount, 2, AllianceColumnCount);
-        var columnWidth = GetAllianceColumnWidth(availableWidth, columnGap, columnCount);
-        var iconAreaWidth = Math.Max(0f, columnWidth - Math.Max(0f, labelWidth));
-        return GetIconLineCapacity(iconAreaWidth, iconSize, gap) >= MinAllianceColumnIconsPerLine;
-    }
+    public static bool ShouldUseAllianceGrid(int allianceGroupCount)
+        => allianceGroupCount >= 2;
 
     public static float GetIconContentHeight(int itemCount, float iconSize, float gap, int iconsPerLine = MaxIconsPerWrappedLine)
     {
@@ -127,7 +108,7 @@ internal static class PartyCooldownBoardLayout
         return rowCount == 0 ? 0f : height;
     }
 
-    public static float GetAllianceBoardContentHeight(
+    public static float GetAllianceGridBoardContentHeight(
         IReadOnlyList<(string AllianceGroup, int ItemCount)> rows,
         float iconSize,
         float gap,
@@ -135,30 +116,44 @@ internal static class PartyCooldownBoardLayout
         float headerHeight,
         int iconsPerLine = MaxIconsPerWrappedLine)
     {
-        var maxColumnHeight = 0f;
-        for (var group = 0; group < AllianceColumnCount; group++)
+        var height = Math.Max(0f, padding) * 2f;
+        var renderedGroupCount = 0;
+        var groupGap = Math.Max(8f, gap * 2f);
+        for (var groupIndex = 0; groupIndex < AllianceColumnCount; groupIndex++)
         {
-            var groupLabel = PartyCooldownAllianceGroups.GroupLabel(group);
-            var columnHeight = headerHeight;
-            var rowCount = 0;
-            for (var rowIndex = 0; rowIndex < rows.Count; rowIndex++)
+            var groupLabel = PartyCooldownAllianceGroups.GroupLabel(groupIndex);
+            var groupMemberCount = 0;
+            var gridRowHeight = 0f;
+            var groupContentHeight = Math.Max(0f, headerHeight);
+            foreach (var row in rows)
             {
-                var row = rows[rowIndex];
                 if (!string.Equals(row.AllianceGroup, groupLabel, StringComparison.Ordinal))
                     continue;
 
-                if (rowCount > 0)
-                    columnHeight += gap;
+                if (groupMemberCount > 0 && groupMemberCount % AllianceMemberColumnCount == 0)
+                {
+                    groupContentHeight += gridRowHeight + gap;
+                    gridRowHeight = 0f;
+                }
 
-                columnHeight += GetRowContentHeight(row.ItemCount, iconSize, gap, iconsPerLine);
-                rowCount++;
+                gridRowHeight = Math.Max(
+                    gridRowHeight,
+                    GetRowContentHeight(row.ItemCount, iconSize, gap, iconsPerLine));
+                groupMemberCount++;
             }
 
-            if (rowCount > 0)
-                maxColumnHeight = Math.Max(maxColumnHeight, columnHeight);
+            if (groupMemberCount == 0)
+                continue;
+
+            groupContentHeight += gridRowHeight;
+            if (renderedGroupCount > 0)
+                height += groupGap;
+
+            height += groupContentHeight;
+            renderedGroupCount++;
         }
 
-        return maxColumnHeight <= 0f ? 0f : padding * 2f + maxColumnHeight;
+        return renderedGroupCount == 0 ? 0f : height;
     }
 
     public static float GetExpandedBoardHeight(

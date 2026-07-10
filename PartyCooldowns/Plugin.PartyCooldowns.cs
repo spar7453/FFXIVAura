@@ -176,17 +176,7 @@ public sealed unsafe partial class Plugin
         this.partyCooldownFrameSnapshot = new PartyCooldownFrameSnapshot(
             members,
             displayMembers,
-            PartyCooldownRoster.CreateDiagnostics(
-                roster.Source,
-                roster.ReadMode,
-                roster.PartyListLength,
-                members,
-                displayMembers,
-                ObjectTable.LocalPlayer?.EntityId ?? 0,
-                roster.AlliancePartyCount,
-                roster.AllianceMemberCount,
-                roster.HasAllianceSource,
-                roster.UsedFlatAllianceFallback),
+            this.CreatePartyCooldownRosterDiagnostics(roster, displayMembers),
             DateTime.UtcNow);
         return this.partyCooldownFrameSnapshot;
     }
@@ -254,21 +244,14 @@ public sealed unsafe partial class Plugin
                 allianceGroupCount++;
         }
 
-        if (PartyCooldownBoardLayout.ShouldUseAllianceColumns(
-                allianceGroupCount,
-                availableWidth,
-                iconSize,
-                gap,
-                columnLabelWidth,
-                columnGap))
+        if (PartyCooldownBoardLayout.ShouldUseAllianceGrid(allianceGroupCount))
         {
-            var columnCount = Math.Clamp(allianceGroupCount, 2, PartyCooldownBoardLayout.AllianceColumnCount);
-            var columnWidth = PartyCooldownBoardLayout.GetAllianceColumnWidth(availableWidth, columnGap, columnCount);
+            var columnWidth = PartyCooldownBoardLayout.GetAllianceMemberCellWidth(availableWidth, columnGap);
             var columnIconsPerLine = PartyCooldownBoardLayout.GetIconLineCapacity(
                 Math.Max(0f, columnWidth - columnLabelWidth),
                 iconSize,
                 gap);
-            return PartyCooldownBoardLayout.GetAllianceBoardContentHeight(
+            return PartyCooldownBoardLayout.GetAllianceGridBoardContentHeight(
                 allianceRowItemCounts,
                 iconSize,
                 gap,

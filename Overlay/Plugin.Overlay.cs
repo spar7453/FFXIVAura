@@ -100,6 +100,7 @@ public sealed unsafe partial class Plugin
         var iconSize = iconWindow.IconSize;
         var gap = iconWindow.Gap;
         var areaOrigin = ImGui.GetCursorScreenPos();
+        this.RegisterNativeTooltipAvoidanceRect(areaOrigin, areaOrigin + areaSize);
 
         if (!this.config.LockOverlay)
             this.DrawOverlayEditStage(ImGui.GetWindowDrawList(), areaOrigin, areaOrigin + areaSize);
@@ -214,6 +215,9 @@ public sealed unsafe partial class Plugin
     private void HandleOverlayIconInteraction(IconWindowConfig iconWindow, string job, uint level, AbilityDefinition ability, Vector2 localPos, Vector2 iconPos, Vector2 areaSize, float iconSize, int drawnIconCount)
     {
         var iconMax = iconPos + new Vector2(iconSize, iconSize);
+        if (this.IsMouseOverNativeTooltip())
+            return;
+
         if (this.config.LockOverlay)
         {
             if (IsMouseInRect(iconPos, iconMax))
@@ -294,6 +298,9 @@ public sealed unsafe partial class Plugin
     private void HandleAuraIconInteraction(IconWindowConfig iconWindow, AuraState aura, Vector2 localPos, Vector2 iconPos, Vector2 areaSize, float iconSize, int drawnIconCount)
     {
         var iconMax = iconPos + new Vector2(iconSize, iconSize);
+        if (this.IsMouseOverNativeTooltip())
+            return;
+
         if (this.config.LockOverlay || UsesCompactAuraLayout(iconWindow))
         {
             if (IsMouseInRect(iconPos, iconMax))

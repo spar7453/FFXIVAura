@@ -6,40 +6,28 @@ public sealed unsafe partial class Plugin
     {
         var key = OverlayPositionKeys.VisibleAbilityGroup(iconWindow.Id, job);
         var visibleIds = visible.Select(ability => ability.Id).ToList();
-        var visibleKey = SkillPositionLayout.BuildVisibleKey(level, visibleIds);
+        var visibleKey = SkillPositionLayout.BuildVisibleLayoutKey(
+            level,
+            visibleIds,
+            iconWindow.Alignment,
+            areaSize,
+            iconWindow.IconSize,
+            iconWindow.Gap);
         var hasTrackedSkills = iconWindow.TrackedByJob.TryGetValue(job, out var tracked) && tracked.Count > 0;
         var hasSavedPositions = iconWindow.IconPositionsByJob.TryGetValue(job, out var positions) && positions.Count > 0;
         var suppressAutoAlign = this.loginStabilizationState.ShouldSuppressSkillAutoAlign(DateTime.UtcNow);
-        var shouldRealignLevelFilteredSkills = positions is not null
-                                               && hasSavedPositions
-                                               && visible.Count > 0
-                                               && this.HasHiddenSavedSkillPositions(positions, job, visibleIds);
-        if (this.visibleAbilityKeys.TryGetValue(key, out var previous) && string.Equals(previous, visibleKey, StringComparison.Ordinal))
-        {
-            if (hasSavedPositions)
-                return this.AddMissingOverlayIconPositions(iconWindow, job, visible, areaSize);
-
-            if (hasTrackedSkills && visible.Count > 0)
-            {
-                this.AlignOverlayIcons(iconWindow, job, level);
-                return true;
-            }
-
-            return false;
-        }
-
+        var visibleChanged = !this.visibleAbilityKeys.TryGetValue(key, out var previous)
+                             || !string.Equals(previous, visibleKey, StringComparison.Ordinal);
         if (suppressAutoAlign)
+        {
+            this.transientSkillPositionsByGroup.Remove(key);
             return hasSavedPositions && this.AddMissingOverlayIconPositions(iconWindow, job, visible, areaSize);
+        }
 
         this.visibleAbilityKeys[key] = visibleKey;
-        if (shouldRealignLevelFilteredSkills)
-        {
-            this.AlignOverlayIcons(iconWindow, job, level);
-            return true;
-        }
-
         if (!hasSavedPositions)
         {
+            this.transientSkillPositionsByGroup.Remove(key);
             if (hasTrackedSkills && visible.Count > 0)
             {
                 this.AlignOverlayIcons(iconWindow, job, level);
@@ -49,7 +37,52 @@ public sealed unsafe partial class Plugin
             return false;
         }
 
-        return this.AddMissingOverlayIconPositions(iconWindow, job, visible, areaSize);
+        var positionsChanged = this.AddMissingOverlayIconPositions(iconWindow, job, visible, areaSize);
+        positions = iconWindow.IconPositionsByJob.GetValueOrDefault(job);
+        var shouldUseTransientLayout = positions is not null
+                                       && visible.Count > 0
+                                       && this.HasHiddenSavedSkillPositions(positions, job, visibleIds);
+        if (!shouldUseTransientLayout)
+        {
+            this.transientSkillPositionsByGroup.Remove(key);
+            return positionsChanged;
+        }
+
+        if (visibleChanged || positionsChanged || !this.transientSkillPositionsByGroup.ContainsKey(key))
+            this.BuildTransientSkillLayout(iconWindow, job, visible, areaSize, key, positions!);
+
+        return positionsChanged;
+    }
+
+    private void BuildTransientSkillLayout(
+        IconWindowConfig iconWindow,
+        string job,
+        IReadOnlyList<AbilityDefinition> visible,
+        Vector2 areaSize,
+        string key,
+        IReadOnlyDictionary<string, Vector2> savedPositions)
+    {
+        var options = this.GetSkillPositionLayoutOptions(iconWindow, areaSize);
+        var items = visible
+            .Select((ability, index) => new SkillPositionLayoutItem(
+                ability.Id,
+                index,
+                this.GetTrackedOrder(iconWindow, job, ability.Id),
+                SkillPositionLayout.GetPosition(
+                    savedPositions,
+                    ability.Id,
+                    index,
+                    visible.Count,
+                    options,
+                    (first, second) => this.TrackedAbilityIdsMatch(first, second, job))))
+            .ToList();
+        this.transientSkillPositionsByGroup[key] = SkillPositionLayout.CreateAlignedVisibleCopy(
+            savedPositions,
+            items,
+            options,
+            preferTrackedOrder: false,
+            (first, second) => this.TrackedAbilityIdsMatch(first, second, job));
+        this.SetBugDiagnosticEvent($"transientSkillAlign:{iconWindow.Id}:{job}:{visible.Count}");
     }
 
     private bool HasHiddenSavedSkillPositions(Dictionary<string, Vector2> positions, string job, IReadOnlyList<string> visibleIds)
@@ -85,6 +118,13 @@ public sealed unsafe partial class Plugin
 
     private Vector2 GetOverlayIconPosition(IconWindowConfig iconWindow, string job, AbilityDefinition ability, int index, int visibleCount, Vector2 areaSize, float iconSize, float gap)
     {
+        var transientKey = OverlayPositionKeys.VisibleAbilityGroup(iconWindow.Id, job);
+        if (this.transientSkillPositionsByGroup.TryGetValue(transientKey, out var transientPositions)
+            && SkillPositionLayout.TryGetPosition(transientPositions, ability.Id, (first, second) => this.TrackedAbilityIdsMatch(first, second, job), out var transient))
+        {
+            return this.ClampOverlayIconPosition(transient, areaSize, iconSize);
+        }
+
         if (iconWindow.IconPositionsByJob.TryGetValue(job, out var positions)
             && SkillPositionLayout.TryGetPosition(positions, ability.Id, (first, second) => this.TrackedAbilityIdsMatch(first, second, job), out var saved))
         {
@@ -102,11 +142,19 @@ public sealed unsafe partial class Plugin
             iconWindow.IconPositionsByJob[job] = positions;
         }
 
-        SkillPositionLayout.SetPosition(positions, abilityId, position, (first, second) => this.TrackedAbilityIdsMatch(first, second, job));
+        var transientKey = OverlayPositionKeys.VisibleAbilityGroup(iconWindow.Id, job);
+        this.transientSkillPositionsByGroup.TryGetValue(transientKey, out var transientPositions);
+        SkillPositionLayout.SetPositionInLayouts(
+            positions,
+            transientPositions,
+            abilityId,
+            position,
+            (first, second) => this.TrackedAbilityIdsMatch(first, second, job));
     }
 
     private void AlignOverlayIcons(IconWindowConfig iconWindow, string job, uint level, bool preferTrackedOrder = false, bool respectDisplayCondition = false)
     {
+        this.transientSkillPositionsByGroup.Remove(OverlayPositionKeys.VisibleAbilityGroup(iconWindow.Id, job));
         this.SetBugDiagnosticEvent($"alignIcons:{iconWindow.Id}:{job}:{level}:tracked={preferTrackedOrder}:display={respectDisplayCondition}");
         var visible = this.GetOverlayAbilities(
                 iconWindow,

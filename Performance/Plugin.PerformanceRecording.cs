@@ -239,6 +239,7 @@ public sealed unsafe partial class Plugin
         this.AppendPerformanceProfileDiagnosticRow(builder, timestampUtc, "cache", "Cache", FormatDiagnosticPairs(
             ("cooldownFrame", this.cooldownFrameCache.Count),
             ("visibleAbilityKeys", this.visibleAbilityKeys.Count),
+            ("transientSkillLayouts", this.transientSkillPositionsByGroup.Count),
             ("jobCandidates", this.jobCandidatesCache.Count),
             ("gameActionCandidates", this.gameActionCandidatesCache.Count),
             ("actionRows", this.actionRowCache.Count),
@@ -323,7 +324,9 @@ public sealed unsafe partial class Plugin
         this.AppendPerformanceProfileDiagnosticRow(builder, timestampUtc, "partyCooldown", "Party Cooldown", FormatDiagnosticPairs(
             ("partyListLength", partyListHeader.Length),
             ("partyId", partyListHeader.PartyId),
-            ("localAllianceGroup", PartyCooldownAllianceGroups.OwnPartyLabel(partyListHeader.IsAlliance, partyListHeader.PartyId)),
+            ("localAllianceGroup", PartyCooldownAllianceGroups.OwnPartyLabel(partyListHeader.IsAlliance, partyCooldownRoster.LocalAllianceGroupIndex)),
+            ("localAllianceGroupIndex", partyCooldownRoster.LocalAllianceGroupIndex),
+            ("crossRealmGroupCount", partyCooldownRoster.CrossRealmGroupCount),
             ("rosterSource", partyCooldownRoster.Source),
             ("rosterReadMode", partyCooldownRoster.ReadMode),
             ("definitions", this.partyCooldownDefinitions.Count),
@@ -376,6 +379,8 @@ public sealed unsafe partial class Plugin
                 ("allianceB", lastObservation.RosterDiagnostics.AllianceGroupBMemberCount),
                 ("allianceC", lastObservation.RosterDiagnostics.AllianceGroupCMemberCount),
                 ("allianceEmptySlots", lastObservation.RosterDiagnostics.AllianceEmptySlotCount),
+                ("localAllianceGroupIndex", lastObservation.RosterDiagnostics.LocalAllianceGroupIndex),
+                ("crossRealmGroupCount", lastObservation.RosterDiagnostics.CrossRealmGroupCount),
                 ("usedFlatFallback", lastObservation.RosterDiagnostics.UsedFlatAllianceFallback),
                 ("detail", lastObservation.Detail)));
         }
@@ -412,6 +417,8 @@ public sealed unsafe partial class Plugin
             ("agentMissingSkips", tooltipDiagnostics.AgentMissingSkips),
             ("addonMissingSkips", tooltipDiagnostics.AddonMissingSkips),
             ("nativeControls", tooltipDiagnostics.NativeControls),
+            ("nativeHoverDispatches", tooltipDiagnostics.NativeHoverDispatches),
+            ("nativeForcedShows", tooltipDiagnostics.NativeForcedShows),
             ("lastKind", tooltipDiagnostics.LastKind),
             ("lastId", tooltipDiagnostics.LastId),
             ("lastWindowId", tooltipDiagnostics.LastWindowId),
@@ -505,7 +512,7 @@ public sealed unsafe partial class Plugin
             ("partyLayoutMode", debug.PartyLayoutMode),
             ("partyIconsPerLine", debug.PartyIconsPerLine),
             ("partyAllianceGroups", debug.PartyAllianceGroupCount),
-            ("partyAllianceColumns", debug.PartyAllianceColumnCount)));
+            ("partyAllianceMemberColumns", debug.PartyAllianceMemberColumnCount)));
     }
 
     private static double GetConfigSavePendingSeconds(DateTime timestampUtc, DateTime queuedAtUtc)

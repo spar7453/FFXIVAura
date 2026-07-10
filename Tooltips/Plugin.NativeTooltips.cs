@@ -25,19 +25,46 @@ public sealed unsafe partial class Plugin
         this.tooltipDiagnostics.RecordNativeAgentIds(agent->ActionId, agent->OriginalId);
         this.MarkOverlayTooltipRequested();
         this.SetBugDiagnosticEvent($"tooltipActionNative:{actionId}");
-        this.nativeActionTooltipController.BeginHover(actionId, DateTime.UtcNow);
-        this.ControlNativeActionTooltip(NativeActionTooltipController.AddonName, suppressSound: false);
+        var addon = GetNativeTooltipAddon(NativeActionTooltipController.AddonName);
+        var addonShowsRequestedAction = addon is not null
+                                        && addon->IsVisible
+                                        && NativeActionTooltipIdMatcher.MatchesAny(
+                                            actionId,
+                                            agent->ActionId,
+                                            agent->OriginalId,
+                                            GetAdjustedActionId);
+        var shouldDispatchHover = this.nativeActionTooltipController.BeginHover(
+            actionId,
+            DateTime.UtcNow,
+            addonShowsRequestedAction);
+        if (addon is not null && shouldDispatchHover)
+            this.ControlNativeActionTooltip(addon, suppressSound: true);
+
         try
         {
-            agent->HandleActionHover(DetailKind.Action, actionId, flag: 0, isLovmActionDetail: false, a5: 0, a6: 0);
-            this.tooltipDiagnostics.RecordNativeAgentIds(agent->ActionId, agent->OriginalId);
+            if (shouldDispatchHover)
+            {
+                this.tooltipDiagnostics.RecordNativeHoverDispatch();
+                agent->HandleActionHover(DetailKind.Action, actionId, flag: 0, isLovmActionDetail: false, a5: 0, a6: 0);
+                this.tooltipDiagnostics.RecordNativeAgentIds(agent->ActionId, agent->OriginalId);
+            }
         }
         finally
         {
             this.nativeActionTooltipController.EndHover();
         }
 
-        this.ControlNativeActionTooltip(NativeActionTooltipController.AddonName, suppressSound: true);
+        addon = GetNativeTooltipAddon(NativeActionTooltipController.AddonName);
+        if (addon is null)
+        {
+            this.tooltipDiagnostics.RecordAddonMissingSkip();
+            return;
+        }
+
+        if (shouldDispatchHover && this.nativeActionTooltipController.EnsureVisible(addon))
+            this.tooltipDiagnostics.RecordNativeForcedShow();
+
+        this.ControlNativeActionTooltip(addon, suppressSound: true);
     }
 
     private void ShowAuraTooltip(AuraState aura)
@@ -230,7 +257,12 @@ public sealed unsafe partial class Plugin
         var profileStart = this.performanceProfiler.BeginSection(PerformanceProfileSection.TooltipControl);
         try
         {
-            var control = this.nativeActionTooltipController.Control(addon, suppressSound, ImGui.GetMousePos(), ImGui.GetIO().DisplaySize);
+            var control = this.nativeActionTooltipController.Control(
+                addon,
+                suppressSound,
+                ImGui.GetMousePos(),
+                ImGui.GetIO().DisplaySize,
+                this.nativeTooltipAvoidanceRects);
             this.tooltipDiagnostics.RecordNativeControl(control);
         }
         finally
@@ -265,4 +297,15 @@ public sealed unsafe partial class Plugin
             Log.Debug(ex, "Failed to restore ActionDetail tooltip sound.");
         }
     }
+
+    private void RegisterNativeTooltipAvoidanceRect(Vector2 min, Vector2 max)
+    {
+        if (max.X <= min.X || max.Y <= min.Y)
+            return;
+
+        this.nativeTooltipAvoidanceRects.Add(new NativeTooltipAvoidanceRect(min, max));
+    }
+
+    private bool IsMouseOverNativeTooltip()
+        => this.nativeActionTooltipController.ContainsActiveTooltip(ImGui.GetMousePos());
 }

@@ -37,7 +37,7 @@ internal static class PartyCooldownRosterTests
 
         var diagnostics = PartyCooldownRoster.CreateDiagnostics(
             PartyCooldownRosterSource.Alliance,
-            PartyCooldownRosterReadMode.GroupedAllianceWithFlatFallback,
+            PartyCooldownRosterReadMode.CrossRealmAllianceWithFlatFallback,
             partyListLength: 8,
             members,
             displayMembers,
@@ -45,10 +45,12 @@ internal static class PartyCooldownRosterTests
             alliancePartyCount: 3,
             allianceMemberCount: 3,
             hasAllianceSource: true,
-            usedFlatAllianceFallback: true);
+            usedFlatAllianceFallback: true,
+            localAllianceGroupIndex: 1,
+            crossRealmGroupCount: 3);
 
         Equal(PartyCooldownRosterSource.Alliance, diagnostics.Source);
-        Equal(PartyCooldownRosterReadMode.GroupedAllianceWithFlatFallback, diagnostics.ReadMode);
+        Equal(PartyCooldownRosterReadMode.CrossRealmAllianceWithFlatFallback, diagnostics.ReadMode);
         Equal(3, diagnostics.MemberCount);
         Equal(2, diagnostics.DisplayMemberCount);
         True(diagnostics.ExcludedLocalPlayer, "local player should be marked excluded");
@@ -60,6 +62,8 @@ internal static class PartyCooldownRosterTests
         Equal(0, diagnostics.AllianceGroupCMemberCount);
         Equal(21, diagnostics.AllianceEmptySlotCount);
         True(diagnostics.UsedFlatAllianceFallback, "flat alliance fallback should be captured");
+        Equal(1, diagnostics.LocalAllianceGroupIndex);
+        Equal(3, diagnostics.CrossRealmGroupCount);
     }
 
     private static PartyCooldownMemberSnapshot Member(uint entityId, string job)

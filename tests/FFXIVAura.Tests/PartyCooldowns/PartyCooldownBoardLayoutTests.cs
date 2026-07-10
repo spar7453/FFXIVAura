@@ -13,27 +13,24 @@ internal static class PartyCooldownBoardLayoutTests
         ("PartyCooldownBoardLayout computes required board height", PartyCooldownBoardLayoutComputesRequiredBoardHeight),
         ("PartyCooldownBoardLayout expands short boards without shrinking", PartyCooldownBoardLayoutExpandsShortBoardsWithoutShrinking),
         ("PartyCooldownBoardLayout hides empty optional party rows", PartyCooldownBoardLayoutHidesEmptyOptionalPartyRows),
-        ("PartyCooldownBoardLayout enables alliance columns only when wide enough", PartyCooldownBoardLayoutEnablesAllianceColumnsOnlyWhenWideEnough),
-        ("PartyCooldownBoardLayout computes alliance column board height", PartyCooldownBoardLayoutComputesAllianceColumnBoardHeight),
-        ("PartyCooldownBoardLayout computes five-wide alliance board width", PartyCooldownBoardLayoutComputesFiveWideAllianceBoardWidth),
+        ("PartyCooldownBoardLayout enables dedicated alliance grid", PartyCooldownBoardLayoutEnablesDedicatedAllianceGrid),
+        ("PartyCooldownBoardLayout computes alliance grid board height", PartyCooldownBoardLayoutComputesAllianceGridBoardHeight),
+        ("PartyCooldownBoardLayout computes four-member alliance grid width", PartyCooldownBoardLayoutComputesAllianceGridWidth),
         ("PartyCooldownBoardLayout fits a full alliance board at minimum icon size", PartyCooldownBoardLayoutFitsFullAllianceAtMinimumIconSize),
         ("PartyCooldownBoardLayout builds member-scoped icon interaction ids", PartyCooldownBoardLayoutBuildsMemberScopedIconInteractionIds),
     ];
 
-    private static void PartyCooldownBoardLayoutComputesFiveWideAllianceBoardWidth()
+    private static void PartyCooldownBoardLayoutComputesAllianceGridWidth()
     {
-        var width = PartyCooldownBoardLayout.GetRequiredAllianceBoardWidth(
-            allianceGroupCount: 3,
+        var width = PartyCooldownBoardLayout.GetRequiredAllianceGridWidth(
             labelWidth: 79f,
             iconSize: 40f,
             gap: 3f,
-            columnGap: 8f,
+            cellGap: 8f,
             padding: 4f);
 
-        Near(897f, width);
-        True(
-            PartyCooldownBoardLayout.ShouldUseAllianceColumns(3, width - 8f, 40f, 3f, 79f, 8f),
-            "computed alliance width should support three five-icon columns");
+        Near(1196f, width);
+        Near(291f, PartyCooldownBoardLayout.GetAllianceMemberCellWidth(width - 8f, 8f));
     }
 
     private static void PartyCooldownBoardLayoutFitsFullAllianceAtMinimumIconSize()
@@ -45,7 +42,7 @@ internal static class PartyCooldownBoardLayoutTests
                 rows.Add((group, 9));
         }
 
-        var height = PartyCooldownBoardLayout.GetAllianceBoardContentHeight(
+        var height = PartyCooldownBoardLayout.GetAllianceGridBoardContentHeight(
             rows,
             iconSize: 24,
             gap: 16,
@@ -97,30 +94,14 @@ internal static class PartyCooldownBoardLayoutTests
         True(!PartyCooldownBoardLayout.HideEmptyRows(PartyCooldownCategory.Defensive), "defensive board should keep party-member rows");
     }
 
-    private static void PartyCooldownBoardLayoutEnablesAllianceColumnsOnlyWhenWideEnough()
+    private static void PartyCooldownBoardLayoutEnablesDedicatedAllianceGrid()
     {
-        True(
-            PartyCooldownBoardLayout.ShouldUseAllianceColumns(
-                allianceGroupCount: 3,
-                availableWidth: 900,
-                iconSize: 40,
-                gap: 3,
-                labelWidth: 82,
-                columnGap: 8),
-            "wide alliance boards should use A/B/C columns");
-        True(
-            !PartyCooldownBoardLayout.ShouldUseAllianceColumns(
-                allianceGroupCount: 3,
-                availableWidth: 500,
-                iconSize: 40,
-                gap: 3,
-                labelWidth: 82,
-                columnGap: 8),
-            "narrow alliance boards should keep the linear fallback");
-        Near(294.67f, PartyCooldownBoardLayout.GetAllianceColumnWidth(900, 8, 3), tolerance: 0.01f);
+        True(PartyCooldownBoardLayout.ShouldUseAllianceGrid(3), "24-player alliance boards should always use the dedicated grid");
+        True(PartyCooldownBoardLayout.ShouldUseAllianceGrid(2), "partially loaded alliance boards should keep the dedicated grid");
+        True(!PartyCooldownBoardLayout.ShouldUseAllianceGrid(1), "ordinary parties should keep linear rows");
     }
 
-    private static void PartyCooldownBoardLayoutComputesAllianceColumnBoardHeight()
+    private static void PartyCooldownBoardLayoutComputesAllianceGridBoardHeight()
     {
         var rows = new (string AllianceGroup, int ItemCount)[]
         {
@@ -132,7 +113,7 @@ internal static class PartyCooldownBoardLayoutTests
             ("C", 5),
         };
 
-        Near(84, PartyCooldownBoardLayout.GetAllianceBoardContentHeight(rows, 20, 3, 4, 10, 5));
+        Near(137, PartyCooldownBoardLayout.GetAllianceGridBoardContentHeight(rows, 20, 3, 4, 10, 5));
     }
 
     private static void PartyCooldownBoardLayoutBuildsMemberScopedIconInteractionIds()

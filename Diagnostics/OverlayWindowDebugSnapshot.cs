@@ -29,4 +29,4 @@ internal readonly record struct OverlayWindowDebugSnapshot(
     string PartyLayoutMode,
     int PartyIconsPerLine,
     int PartyAllianceGroupCount,
-    int PartyAllianceColumnCount);
+    int PartyAllianceMemberColumnCount);

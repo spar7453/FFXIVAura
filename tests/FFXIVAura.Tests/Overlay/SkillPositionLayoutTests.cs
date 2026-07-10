@@ -9,15 +9,30 @@ internal static class SkillPositionLayoutTests
     public static IReadOnlyList<(string Name, Action Run)> Cases { get; } =
     [
         ("SkillPositionLayout builds stable visible keys", BuildsStableVisibleKeys),
+        ("SkillPositionLayout includes layout geometry in cache keys", IncludesLayoutGeometryInCacheKeys),
         ("SkillPositionLayout detects hidden saved positions", DetectsHiddenSavedPositions),
         ("SkillPositionLayout reuses equivalent saved positions", ReusesEquivalentSavedPositions),
         ("SkillPositionLayout replaces equivalent keys on save", ReplacesEquivalentKeysOnSave),
         ("SkillPositionLayout aligns rows and tracked order", AlignsRowsAndTrackedOrder),
+        ("SkillPositionLayout transient alignment preserves saved positions", TransientAlignmentPreservesSavedPositions),
+        ("SkillPositionLayout drag updates saved and active layouts", DragUpdatesSavedAndActiveLayouts),
     ];
 
     private static void BuildsStableVisibleKeys()
     {
         Equal("70:a|b|c", SkillPositionLayout.BuildVisibleKey(70, ["a", "b", "c"]));
+    }
+
+    private static void IncludesLayoutGeometryInCacheKeys()
+    {
+        var first = SkillPositionLayout.BuildVisibleLayoutKey(70, ["a", "b"], IconAlignment.Center, new Vector2(200, 100), 40, 5);
+        var same = SkillPositionLayout.BuildVisibleLayoutKey(70, ["a", "b"], IconAlignment.Center, new Vector2(200, 100), 40, 5);
+        var resized = SkillPositionLayout.BuildVisibleLayoutKey(70, ["a", "b"], IconAlignment.Center, new Vector2(240, 100), 40, 5);
+        var realigned = SkillPositionLayout.BuildVisibleLayoutKey(70, ["a", "b"], IconAlignment.Left, new Vector2(200, 100), 40, 5);
+
+        Equal(first, same);
+        True(!string.Equals(first, resized, StringComparison.Ordinal), "area changes should invalidate transient layouts");
+        True(!string.Equals(first, realigned, StringComparison.Ordinal), "alignment changes should invalidate transient layouts");
     }
 
     private static void DetectsHiddenSavedPositions()
@@ -95,6 +110,57 @@ internal static class SkillPositionLayoutTests
         Vector(new Vector2(58, 8), positions["b"]);
         Vector(new Vector2(103, 8), positions["low-skill"]);
         Vector(new Vector2(80, 53), positions["c"]);
+    }
+
+    private static void TransientAlignmentPreservesSavedPositions()
+    {
+        var positions = new Dictionary<string, Vector2>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["a"] = new(0, 0),
+            ["hidden"] = new(45, 0),
+            ["b"] = new(90, 0),
+        };
+        var original = positions.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase);
+        var items = new[]
+        {
+            new SkillPositionLayoutItem("a", 0, 0, positions["a"]),
+            new SkillPositionLayoutItem("b", 1, 2, positions["b"]),
+        };
+
+        var transient = SkillPositionLayout.CreateAlignedVisibleCopy(
+            positions,
+            items,
+            Options(),
+            preferTrackedOrder: false,
+            EquivalentIdsMatch);
+
+        Equal(2, transient.Count);
+        Vector(new Vector2(58, 30), transient["a"]);
+        Vector(new Vector2(103, 30), transient["b"]);
+        Equal(original.Count, positions.Count);
+        foreach (var pair in original)
+            Vector(pair.Value, positions[pair.Key]);
+    }
+
+    private static void DragUpdatesSavedAndActiveLayouts()
+    {
+        var saved = new Dictionary<string, Vector2>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["a"] = new(10, 10),
+            ["hidden"] = new(55, 10),
+        };
+        var active = new Dictionary<string, Vector2>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["a"] = new(20, 20),
+            ["b"] = new(65, 20),
+        };
+
+        SkillPositionLayout.SetPositionInLayouts(saved, active, "a", new Vector2(80, 40), EquivalentIdsMatch);
+
+        Vector(new Vector2(80, 40), saved["a"]);
+        Vector(new Vector2(80, 40), active["a"]);
+        Vector(new Vector2(65, 20), active["b"]);
+        Equal(2, active.Count);
     }
 
     private static SkillPositionLayoutOptions Options()

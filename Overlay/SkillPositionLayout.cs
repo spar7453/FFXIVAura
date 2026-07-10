@@ -17,6 +17,16 @@ internal static class SkillPositionLayout
     public static string BuildVisibleKey(uint level, IEnumerable<string> visibleIds)
         => $"{level}:{string.Join("|", visibleIds)}";
 
+    public static string BuildVisibleLayoutKey(
+        uint level,
+        IEnumerable<string> visibleIds,
+        IconAlignment alignment,
+        Vector2 areaSize,
+        float iconSize,
+        float gap)
+        => FormattableString.Invariant(
+            $"{BuildVisibleKey(level, visibleIds)}:{alignment}:{areaSize.X:R}x{areaSize.Y:R}:{iconSize:R}:{gap:R}");
+
     public static bool HasHiddenSavedPositions(
         IEnumerable<string> savedKeys,
         IReadOnlyList<string> visibleIds,
@@ -128,6 +138,18 @@ internal static class SkillPositionLayout
         positions[id] = position;
     }
 
+    public static void SetPositionInLayouts(
+        Dictionary<string, Vector2> savedPositions,
+        Dictionary<string, Vector2>? activePositions,
+        string id,
+        Vector2 position,
+        Func<string, string, bool> idsMatch)
+    {
+        SetPosition(savedPositions, id, position, idsMatch);
+        if (activePositions is not null && !ReferenceEquals(savedPositions, activePositions))
+            SetPosition(activePositions, id, position, idsMatch);
+    }
+
     public static void AlignPositions(
         Dictionary<string, Vector2> positions,
         IReadOnlyList<SkillPositionLayoutItem> visibleItems,
@@ -176,6 +198,26 @@ internal static class SkillPositionLayout
         }
 
         NormalizePositions(positions, visibleItems.Select(item => item.Id).ToList(), options, idsMatch);
+    }
+
+    public static Dictionary<string, Vector2> CreateAlignedVisibleCopy(
+        IReadOnlyDictionary<string, Vector2> savedPositions,
+        IReadOnlyList<SkillPositionLayoutItem> visibleItems,
+        SkillPositionLayoutOptions options,
+        bool preferTrackedOrder,
+        Func<string, string, bool> idsMatch)
+    {
+        var working = new Dictionary<string, Vector2>(savedPositions, StringComparer.OrdinalIgnoreCase);
+        AlignPositions(working, visibleItems, options, preferTrackedOrder, idsMatch);
+
+        var result = new Dictionary<string, Vector2>(StringComparer.OrdinalIgnoreCase);
+        foreach (var item in visibleItems)
+        {
+            if (TryGetPosition(working, item.Id, idsMatch, out var position))
+                result[item.Id] = position;
+        }
+
+        return result;
     }
 
     private static List<Vector2> GetOccupiedPositions(

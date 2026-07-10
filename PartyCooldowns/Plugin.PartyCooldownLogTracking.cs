@@ -150,17 +150,7 @@ public sealed unsafe partial class Plugin
     {
         var roster = this.GetPartyCooldownRoster();
         var displayMembers = this.GetPartyCooldownDisplayMembers(roster.Members);
-        var diagnostics = PartyCooldownRoster.CreateDiagnostics(
-            roster.Source,
-            roster.ReadMode,
-            roster.PartyListLength,
-            roster.Members,
-            displayMembers,
-            ObjectTable.LocalPlayer?.EntityId ?? 0,
-            roster.AlliancePartyCount,
-            roster.AllianceMemberCount,
-            roster.HasAllianceSource,
-            roster.UsedFlatAllianceFallback);
+        var diagnostics = this.CreatePartyCooldownRosterDiagnostics(roster, displayMembers);
         return (displayMembers, diagnostics);
     }
 

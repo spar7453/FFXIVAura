@@ -113,6 +113,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private readonly Dictionary<string, HashSet<uint>> visibleAurasByScope = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<uint, IDalamudTextureWrap> grayscaleIconCache = new();
     private readonly Dictionary<string, string> visibleAbilityKeys = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Dictionary<string, Vector2>> transientSkillPositionsByGroup = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, OverlayWindowDebugSnapshot> overlayWindowDebugSnapshots = new(StringComparer.OrdinalIgnoreCase);
     private readonly Queue<uint> grayscaleIconQueue = new();
     private readonly HashSet<uint> grayscaleIconPending = new();
@@ -156,6 +157,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private bool zoneLoadActive;
     private DateTime zoneLoadHiddenUntil = DateTime.MinValue;
     private readonly NativeActionTooltipController nativeActionTooltipController = new();
+    private readonly List<NativeTooltipAvoidanceRect> nativeTooltipAvoidanceRects = [];
     private readonly OverlayTooltipResolver overlayTooltipResolver = new();
     private readonly TooltipDiagnostics tooltipDiagnostics = new();
     private readonly PerformanceFrameStats performanceStats = new();
@@ -345,7 +347,10 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
             var loggedInAndLoaded = ClientState.IsLoggedIn && PlayerState.IsLoaded;
             var loginStarted = this.loginStabilizationState.Update(loggedInAndLoaded, DateTime.UtcNow);
             if (!loggedInAndLoaded || loginStarted)
+            {
                 this.visibleAbilityKeys.Clear();
+                this.transientSkillPositionsByGroup.Clear();
+            }
 
             if (!this.config.Enabled || !loggedInAndLoaded)
             {
@@ -377,6 +382,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
 
         this.overlayTooltipRequestedThisFrame = false;
         this.overlayTooltipResolver.Clear();
+        this.nativeTooltipAvoidanceRects.Clear();
         this.cooldownFrameCache.Clear();
         this.playerAuraFrameCacheValid = false;
         this.targetAuraFrameCacheValid = false;

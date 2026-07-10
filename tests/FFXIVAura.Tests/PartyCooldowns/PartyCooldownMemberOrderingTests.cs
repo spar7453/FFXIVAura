@@ -15,15 +15,16 @@ internal static class PartyCooldownMemberOrderingTests
     {
         var sorted = PartyCooldownMemberOrdering.PreserveInGameOrder(
             [
-                Member(10, "DNC"),
-                Member(20, "WHM"),
                 Member(30, "SAM"),
+                Member(10, "DNC"),
                 Member(40, "WAR"),
+                Member(20, "WHM"),
                 Member(50, "JOB"),
                 Member(60, "PLD"),
-            ]);
+            ],
+            [40, 20, 10, 30]);
 
-        Sequence([10u, 20u, 30u, 40u, 50u, 60u], sorted.Select(member => member.EntityId).ToList());
+        Sequence([40u, 20u, 10u, 30u, 50u, 60u], sorted.Select(member => member.EntityId).ToList());
     }
 
     private static void RemovesOnlyLocalPlayerDuringDisplayFiltering()

@@ -18,6 +18,8 @@ internal readonly record struct TooltipDiagnosticSnapshot(
     int AgentMissingSkips,
     int AddonMissingSkips,
     int NativeControls,
+    int NativeHoverDispatches,
+    int NativeForcedShows,
     string LastKind,
     string LastId,
     string LastWindowId,
@@ -53,6 +55,8 @@ internal sealed class TooltipDiagnostics
     private int agentMissingSkips;
     private int addonMissingSkips;
     private int nativeControls;
+    private int nativeHoverDispatches;
+    private int nativeForcedShows;
     private string lastKind = string.Empty;
     private string lastId = string.Empty;
     private string lastWindowId = string.Empty;
@@ -171,6 +175,18 @@ internal sealed class TooltipDiagnostics
         this.lastEventUtc = DateTime.UtcNow;
     }
 
+    public void RecordNativeHoverDispatch()
+    {
+        this.nativeHoverDispatches++;
+        this.lastEventUtc = DateTime.UtcNow;
+    }
+
+    public void RecordNativeForcedShow()
+    {
+        this.nativeForcedShows++;
+        this.lastEventUtc = DateTime.UtcNow;
+    }
+
     public TooltipDiagnosticSnapshot CreateSnapshot()
         => new(
             this.hoverHits,
@@ -183,6 +199,8 @@ internal sealed class TooltipDiagnostics
             this.agentMissingSkips,
             this.addonMissingSkips,
             this.nativeControls,
+            this.nativeHoverDispatches,
+            this.nativeForcedShows,
             this.lastKind,
             this.lastId,
             this.lastWindowId,
@@ -218,6 +236,8 @@ internal sealed class TooltipDiagnostics
         this.agentMissingSkips = 0;
         this.addonMissingSkips = 0;
         this.nativeControls = 0;
+        this.nativeHoverDispatches = 0;
+        this.nativeForcedShows = 0;
     }
 
     private void RememberSkip(TooltipDiagnosticKind kind, string id, uint actionId, string reason)

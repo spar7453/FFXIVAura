@@ -1,3 +1,6 @@
+using FFXIVClientStructs.FFXIV.Client.UI.Agent;
+using FFXIVClientStructs.FFXIV.Client.UI.Info;
+
 namespace FFXIVAura;
 
 public sealed unsafe partial class Plugin
@@ -14,7 +17,11 @@ public sealed unsafe partial class Plugin
         int AlliancePartyCount,
         int AllianceMemberCount,
         bool HasAllianceSource,
-        bool UsedFlatAllianceFallback);
+        bool UsedFlatAllianceFallback,
+        int LocalAllianceGroupIndex,
+        int CrossRealmGroupCount);
+
+    private readonly record struct CrossRealmAllianceHeader(int LocalGroupIndex, int GroupCount);
 
     private IReadOnlyList<PartyCooldownMemberSnapshot> GetPartyCooldownMembers()
         => this.GetPartyCooldownRoster().Members;
@@ -24,7 +31,10 @@ public sealed unsafe partial class Plugin
         var partyListHeader = this.GetPartyListHeader();
         var partyListLength = partyListHeader.Length;
         var hasAllianceSource = partyListHeader.IsAlliance;
-        var partyId = partyListHeader.PartyId;
+        var crossRealmHeader = hasAllianceSource
+            ? this.GetCrossRealmAllianceHeader()
+            : new CrossRealmAllianceHeader(-1, 0);
+        var localAllianceGroupIndex = crossRealmHeader.LocalGroupIndex;
         var capacity = Math.Max(hasAllianceSource ? AllianceGroupCount * AllianceGroupMemberSlotCount : partyListLength, 1);
         var members = new List<PartyCooldownMemberSnapshot>(capacity);
         var seenKeys = new HashSet<string>(StringComparer.Ordinal);
@@ -37,22 +47,21 @@ public sealed unsafe partial class Plugin
         var readMode = PartyCooldownRosterReadMode.Unknown;
         if (hasAllianceSource)
         {
-            groupedAllianceMemberCount = this.AddPartyCooldownAllianceGroupMembers(members, seenKeys, seenEntityIds);
-            if (groupedAllianceMemberCount == 0)
+            groupedAllianceMemberCount = this.AddPartyCooldownCrossRealmMembers(members, seenKeys, seenEntityIds);
+            if (groupedAllianceMemberCount < AllianceGroupCount * AllianceGroupMemberSlotCount)
             {
                 partySlotMemberCount = this.AddPartyCooldownPartySlotMembers(
                     members,
                     seenKeys,
                     seenEntityIds,
-                    PartyCooldownAllianceGroups.OwnPartyLabel(isAlliance: true, partyId),
+                    PartyCooldownAllianceGroups.OwnPartyLabel(isAlliance: true, localAllianceGroupIndex),
                     partyListHeader.PartySlotCount);
-                usedFlatAllianceFallback = true;
-                flatAllianceMemberCount = this.AddPartyCooldownFlatAllianceMembers(members, seenKeys, seenEntityIds, partyId);
-            }
-            else if (groupedAllianceMemberCount < AllianceGroupCount * AllianceGroupMemberSlotCount)
-            {
-                usedFlatAllianceFallback = true;
-                flatAllianceMemberCount = this.AddPartyCooldownFlatAllianceMembers(members, seenKeys, seenEntityIds, partyId);
+                flatAllianceMemberCount = this.AddPartyCooldownFlatAllianceMembers(
+                    members,
+                    seenKeys,
+                    seenEntityIds,
+                    localAllianceGroupIndex);
+                usedFlatAllianceFallback = partySlotMemberCount > 0 || flatAllianceMemberCount > 0;
             }
         }
         else
@@ -82,9 +91,12 @@ public sealed unsafe partial class Plugin
             readMode = PartyCooldownRosterReadMode.SoloFallback;
         }
 
-        var orderedMembers = PartyCooldownMemberOrdering.PreserveInGameOrder(members);
+        var orderedMembers = hasAllianceSource
+            ? PartyCooldownMemberOrdering.PreserveInGameOrder(members)
+            : PartyCooldownMemberOrdering.PreserveInGameOrder(members, this.GetHudPartyMemberEntityOrder());
         var allianceMemberCount = CountPartyCooldownAllianceMembers(orderedMembers);
-        var hasUsableAllianceSource = hasAllianceSource && (groupedAllianceMemberCount > 0 || flatAllianceMemberCount > 0);
+        var hasUsableAllianceSource = hasAllianceSource
+                                      && (groupedAllianceMemberCount > 0 || flatAllianceMemberCount > 0 || partySlotMemberCount > 0);
         var source = hasUsableAllianceSource
             ? PartyCooldownRosterSource.Alliance
             : partyListLength > 0
@@ -96,8 +108,8 @@ public sealed unsafe partial class Plugin
             if (groupedAllianceMemberCount > 0)
             {
                 readMode = usedFlatAllianceFallback
-                    ? PartyCooldownRosterReadMode.GroupedAllianceWithFlatFallback
-                    : PartyCooldownRosterReadMode.GroupedAlliance;
+                    ? PartyCooldownRosterReadMode.CrossRealmAllianceWithFlatFallback
+                    : PartyCooldownRosterReadMode.CrossRealmAlliance;
             }
             else if (flatAllianceMemberCount > 0)
             {
@@ -121,7 +133,9 @@ public sealed unsafe partial class Plugin
             hasAllianceSource ? AllianceGroupCount : 0,
             hasAllianceSource ? allianceMemberCount : 0,
             hasAllianceSource,
-            usedFlatAllianceFallback);
+            usedFlatAllianceFallback,
+            localAllianceGroupIndex,
+            crossRealmHeader.GroupCount);
     }
 
     private static int CountPartyCooldownAllianceMembers(IReadOnlyList<PartyCooldownMemberSnapshot> members)
@@ -160,31 +174,87 @@ public sealed unsafe partial class Plugin
         return added;
     }
 
-    private int AddPartyCooldownAllianceGroupMembers(
+    private CrossRealmAllianceHeader GetCrossRealmAllianceHeader()
+    {
+        try
+        {
+            var proxy = InfoProxyCrossRealm.Instance();
+            if (proxy is null)
+                return new CrossRealmAllianceHeader(-1, 0);
+
+            var groupCount = Math.Clamp((int)proxy->GroupCount, 0, AllianceGroupCount);
+            if (groupCount < 2)
+                return new CrossRealmAllianceHeader(-1, groupCount);
+
+            var localGroupIndex = proxy->LocalPlayerGroupIndex < AllianceGroupCount
+                ? proxy->LocalPlayerGroupIndex
+                : -1;
+            return new CrossRealmAllianceHeader(localGroupIndex, groupCount);
+        }
+        catch (Exception ex)
+        {
+            this.SetBugDiagnosticEvent($"partyCooldownCrossRealmHeaderReadFailed:{ex.GetType().Name}");
+            return new CrossRealmAllianceHeader(-1, 0);
+        }
+    }
+
+    private int AddPartyCooldownCrossRealmMembers(
         List<PartyCooldownMemberSnapshot> members,
         HashSet<string> seenKeys,
         HashSet<uint> seenEntityIds)
     {
-        var added = 0;
-        for (var group = 0; group < AllianceGroupCount; group++)
+        try
         {
-            var label = PartyCooldownAllianceGroups.GroupLabel(group);
-            for (var index = 0; index < AllianceGroupMemberSlotCount; index++)
-            {
-                var member = this.TryCreateAllianceGroupMemberReference(group, index);
-                if (member is not null && this.TryAddPartyCooldownMemberSnapshot(members, seenKeys, seenEntityIds, member, label))
-                    added++;
-            }
-        }
+            var proxy = InfoProxyCrossRealm.Instance();
+            if (proxy is null)
+                return 0;
 
-        return added;
+            var added = 0;
+            var groupCount = Math.Clamp((int)proxy->GroupCount, 0, AllianceGroupCount);
+            if (groupCount < 2)
+                return 0;
+
+            Span<int> memberOrder = stackalloc int[AllianceGroupMemberSlotCount];
+            for (var groupIndex = 0; groupIndex < groupCount; groupIndex++)
+            {
+                var group = proxy->CrossRealmGroups[groupIndex];
+                var memberCount = Math.Clamp((int)group.GroupMemberCount, 0, AllianceGroupMemberSlotCount);
+                var label = PartyCooldownAllianceGroups.GroupLabel(groupIndex);
+                for (var memberIndex = 0; memberIndex < memberCount; memberIndex++)
+                {
+                    memberOrder[memberIndex] = memberIndex;
+                    var insertIndex = memberIndex;
+                    while (insertIndex > 0
+                           && group.GroupMembers[memberOrder[insertIndex - 1]].MemberIndex
+                           > group.GroupMembers[memberOrder[insertIndex]].MemberIndex)
+                    {
+                        (memberOrder[insertIndex - 1], memberOrder[insertIndex]) = (memberOrder[insertIndex], memberOrder[insertIndex - 1]);
+                        insertIndex--;
+                    }
+                }
+
+                for (var orderedIndex = 0; orderedIndex < memberCount; orderedIndex++)
+                {
+                    var member = group.GroupMembers[memberOrder[orderedIndex]];
+                    if (this.TryAddPartyCooldownCrossRealmMemberSnapshot(members, seenKeys, seenEntityIds, member, label))
+                        added++;
+                }
+            }
+
+            return added;
+        }
+        catch (Exception ex)
+        {
+            this.SetBugDiagnosticEvent($"partyCooldownCrossRealmRosterReadFailed:{ex.GetType().Name}");
+            return 0;
+        }
     }
 
     private int AddPartyCooldownFlatAllianceMembers(
         List<PartyCooldownMemberSnapshot> members,
         HashSet<string> seenKeys,
         HashSet<uint> seenEntityIds,
-        int localPartyId)
+        int localGroupIndex)
     {
         var added = 0;
         for (var i = 0; i < FlatAllianceMemberSlotCount; i++)
@@ -196,13 +266,59 @@ public sealed unsafe partial class Plugin
                     seenKeys,
                     seenEntityIds,
                     member,
-                    PartyCooldownAllianceGroups.AllianceSlotLabel(i, localPartyId)))
+                    PartyCooldownAllianceGroups.AllianceSlotLabel(i, localGroupIndex)))
             {
                 added++;
             }
         }
 
         return added;
+    }
+
+    private bool TryAddPartyCooldownCrossRealmMemberSnapshot(
+        List<PartyCooldownMemberSnapshot> members,
+        HashSet<string> seenKeys,
+        HashSet<uint> seenEntityIds,
+        CrossRealmMember member,
+        string allianceGroup)
+    {
+        var entityId = member.EntityId;
+        try
+        {
+            var classJobId = (uint)member.ClassJobId;
+            var overrideName = member.NameOverride.HasValue ? member.NameOverride.ToString() : string.Empty;
+            var name = string.IsNullOrWhiteSpace(overrideName) ? member.NameString : overrideName;
+            if (classJobId == 0 || string.IsNullOrWhiteSpace(name))
+                return false;
+
+            var job = JobInfo.Code(classJobId);
+            var key = PartyCooldownMemberKey(member.ContentId, entityId, name, job);
+            if (entityId != 0 && !seenEntityIds.Add(entityId))
+                return false;
+
+            if (!seenKeys.Add(key))
+            {
+                if (entityId != 0)
+                    seenEntityIds.Remove(entityId);
+                return false;
+            }
+
+            members.Add(new PartyCooldownMemberSnapshot(
+                key,
+                entityId,
+                (ushort)Math.Max(0, (int)member.HomeWorld),
+                name,
+                ShortPartyMemberName(name),
+                job,
+                JobInfo.IconId(classJobId),
+                allianceGroup));
+            return true;
+        }
+        catch (Exception ex)
+        {
+            this.SetBugDiagnosticEvent($"partyCooldownCrossRealmMemberReadFailed:{entityId}:{ex.GetType().Name}");
+            return false;
+        }
     }
 
     private bool TryAddPartyCooldownMemberSnapshot(
@@ -222,19 +338,16 @@ public sealed unsafe partial class Plugin
             var classJobId = member.ClassJob.RowId;
             var job = JobInfo.Code(classJobId);
             var name = member.Name.ToString();
+            if (classJobId == 0 || string.IsNullOrWhiteSpace(name))
+                return false;
+
             var contentId = member.ContentId;
             var worldId = (ushort)member.World.RowId;
             var key = PartyCooldownMemberKey(contentId, entityId, name, job);
             if (!seenEntityIds.Add(entityId))
                 return false;
 
-            if (!seenKeys.Add(key))
-            {
-                seenEntityIds.Remove(entityId);
-                return false;
-            }
-
-            members.Add(new PartyCooldownMemberSnapshot(
+            var snapshot = new PartyCooldownMemberSnapshot(
                 key,
                 entityId,
                 worldId,
@@ -242,34 +355,33 @@ public sealed unsafe partial class Plugin
                 ShortPartyMemberName(name),
                 job,
                 JobInfo.IconId(classJobId),
-                allianceGroup));
+                allianceGroup);
+            if (!seenKeys.Add(key))
+            {
+                var existingIndex = members.FindIndex(candidate => string.Equals(candidate.Key, key, StringComparison.Ordinal));
+                if (existingIndex >= 0 && members[existingIndex].EntityId == 0)
+                {
+                    var existing = members[existingIndex];
+                    members[existingIndex] = snapshot with
+                    {
+                        AllianceGroup = string.IsNullOrWhiteSpace(existing.AllianceGroup)
+                            ? snapshot.AllianceGroup
+                            : existing.AllianceGroup,
+                    };
+                    return true;
+                }
+
+                seenEntityIds.Remove(entityId);
+                return false;
+            }
+
+            members.Add(snapshot);
             return true;
         }
         catch (Exception ex)
         {
             this.SetBugDiagnosticEvent($"partyCooldownMemberReadFailed:{entityId}:{ex.GetType().Name}");
             return false;
-        }
-    }
-
-    private IPartyMember? TryCreateAllianceGroupMemberReference(int group, int index)
-    {
-        try
-        {
-            var groupManager = FFXIVClientStructs.FFXIV.Client.Game.Group.GroupManager.Instance();
-            if (groupManager is null)
-                return null;
-
-            var member = groupManager->MainGroup.GetAllianceMemberByGroupAndIndex(group, index);
-            if (member is null)
-                return null;
-
-            return PartyList.CreateAllianceMemberReference((IntPtr)member);
-        }
-        catch (Exception ex)
-        {
-            this.SetBugDiagnosticEvent($"partyCooldownAllianceGroupMemberReadFailed:{group}:{index}:{ex.GetType().Name}");
-            return null;
         }
     }
 
@@ -297,18 +409,74 @@ public sealed unsafe partial class Plugin
             ObjectTable.LocalPlayer?.EntityId ?? 0,
             excludeLocalPlayer: true);
 
+    private PartyCooldownRosterDiagnostics CreatePartyCooldownRosterDiagnostics(
+        PartyCooldownRosterReadResult roster,
+        IReadOnlyList<PartyCooldownMemberSnapshot> displayMembers)
+        => PartyCooldownRoster.CreateDiagnostics(
+            roster.Source,
+            roster.ReadMode,
+            roster.PartyListLength,
+            roster.Members,
+            displayMembers,
+            ObjectTable.LocalPlayer?.EntityId ?? 0,
+            roster.AlliancePartyCount,
+            roster.AllianceMemberCount,
+            roster.HasAllianceSource,
+            roster.UsedFlatAllianceFallback,
+            roster.LocalAllianceGroupIndex,
+            roster.CrossRealmGroupCount);
+
+    private IReadOnlyList<uint> GetHudPartyMemberEntityOrder()
+    {
+        try
+        {
+            var agent = AgentHUD.Instance();
+            if (agent is null)
+                return Array.Empty<uint>();
+
+            var count = Math.Clamp(agent->PartyMemberCount, 0, agent->PartyMembers.Length);
+            if (count == 0)
+                return Array.Empty<uint>();
+
+            Span<(byte DisplayIndex, uint EntityId)> orderedMembers = stackalloc (byte, uint)[10];
+            var orderedMemberCount = 0;
+            for (var index = 0; index < count; index++)
+            {
+                var member = agent->PartyMembers[index];
+                if (member.EntityId == 0)
+                    continue;
+
+                orderedMembers[orderedMemberCount] = (member.Index, member.EntityId);
+                var insertIndex = orderedMemberCount;
+                while (insertIndex > 0
+                       && orderedMembers[insertIndex - 1].DisplayIndex > orderedMembers[insertIndex].DisplayIndex)
+                {
+                    (orderedMembers[insertIndex - 1], orderedMembers[insertIndex]) = (orderedMembers[insertIndex], orderedMembers[insertIndex - 1]);
+                    insertIndex--;
+                }
+
+                orderedMemberCount++;
+            }
+
+            var result = new uint[orderedMemberCount];
+            for (var index = 0; index < orderedMemberCount; index++)
+                result[index] = orderedMembers[index].EntityId;
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            this.SetBugDiagnosticEvent($"partyCooldownHudPartyOrderReadFailed:{ex.GetType().Name}");
+            return Array.Empty<uint>();
+        }
+    }
+
     private void AddPartyCooldownStatusSamplesFromPartyList(HashSet<uint> partyEntityIds)
     {
         var partyListHeader = this.GetPartyListHeader();
         if (partyListHeader.IsAlliance)
         {
-            var added = this.AddPartyCooldownStatusSamplesFromAllianceGroupMembers(partyEntityIds);
-            if (added >= AllianceGroupCount * AllianceGroupMemberSlotCount)
-                return;
-
-            if (added == 0)
-                this.AddPartyCooldownStatusSamplesFromPartySlots(partyEntityIds, partyListHeader.PartySlotCount);
-
+            this.AddPartyCooldownStatusSamplesFromPartySlots(partyEntityIds, partyListHeader.PartySlotCount);
             this.AddPartyCooldownStatusSamplesFromFlatAllianceMembers(partyEntityIds);
             return;
         }
@@ -326,25 +494,6 @@ public sealed unsafe partial class Plugin
                 && this.AddPartyCooldownStatusSamplesFromPartyMember(member, partyEntityIds, "partyCooldownPartyMember"))
             {
                 added++;
-            }
-        }
-
-        return added;
-    }
-
-    private int AddPartyCooldownStatusSamplesFromAllianceGroupMembers(HashSet<uint> partyEntityIds)
-    {
-        var added = 0;
-        for (var group = 0; group < AllianceGroupCount; group++)
-        {
-            for (var index = 0; index < AllianceGroupMemberSlotCount; index++)
-            {
-                var member = this.TryCreateAllianceGroupMemberReference(group, index);
-                if (member is null)
-                    continue;
-
-                if (this.AddPartyCooldownStatusSamplesFromPartyMember(member, partyEntityIds, "partyCooldownAllianceGroupMember"))
-                    added++;
             }
         }
 

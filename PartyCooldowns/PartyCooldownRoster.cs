@@ -13,9 +13,9 @@ internal enum PartyCooldownRosterReadMode
     Unknown,
     PartySlots,
     SoloFallback,
-    GroupedAlliance,
-    GroupedAllianceWithFlatFallback,
     FlatAllianceFallback,
+    CrossRealmAlliance,
+    CrossRealmAllianceWithFlatFallback,
 }
 
 internal readonly record struct PartyCooldownRosterDiagnostics(
@@ -32,7 +32,9 @@ internal readonly record struct PartyCooldownRosterDiagnostics(
     int AllianceGroupBMemberCount,
     int AllianceGroupCMemberCount,
     int AllianceEmptySlotCount,
-    bool UsedFlatAllianceFallback);
+    bool UsedFlatAllianceFallback,
+    int LocalAllianceGroupIndex,
+    int CrossRealmGroupCount);
 
 internal static class PartyCooldownRoster
 {
@@ -66,7 +68,9 @@ internal static class PartyCooldownRoster
         int alliancePartyCount = 0,
         int allianceMemberCount = 0,
         bool hasAllianceSource = false,
-        bool usedFlatAllianceFallback = false)
+        bool usedFlatAllianceFallback = false,
+        int localAllianceGroupIndex = -1,
+        int crossRealmGroupCount = 0)
     {
         var excludedLocalPlayer = localEntityId != 0
                                   && displayMembers.Count < members.Count
@@ -95,7 +99,9 @@ internal static class PartyCooldownRoster
             allianceGroupBMemberCount,
             allianceGroupCMemberCount,
             allianceEmptySlotCount,
-            usedFlatAllianceFallback);
+            usedFlatAllianceFallback,
+            Math.Clamp(localAllianceGroupIndex, -1, 2),
+            Math.Clamp(crossRealmGroupCount, 0, 3));
     }
 
     private static int CountAllianceGroupMembers(

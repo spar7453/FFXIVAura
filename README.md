@@ -27,7 +27,7 @@ The goal is simple: show only the skills, buffs, debuffs, charges, cooldowns, an
 - Drag resize handle for overlay width and height.
 - Row-based display order editor.
 - Per-window left, center, and right icon alignment.
-- Effective level filtering for synced content.
+- Effective level filtering for synced content, with transient compact placement that preserves the saved full-level layout.
 - Role action support is always enabled.
 - Cooldown display using Dalamud ActionManager data.
 - Charge count display for charge-based skills.
@@ -45,7 +45,7 @@ The goal is simple: show only the skills, buffs, debuffs, charges, cooldowns, an
 - Aura search and tracking for recently seen buffs/debuffs.
 - Aura search by status name, status ID, action name, or action ID, with result tags for active, recently seen, action-granted skill names, status-list, and same-name status IDs.
 - Party aura options for own-only filtering and party member count display.
-- Party cooldown boards show each party member in party-list order with job icon, short name, ready skills, active borders, and estimated cooldown timers after active effects end. Alliance boards add an A/B/C group label when alliance roster data is available.
+- Party cooldown boards show each party member in the in-game party-list order with job icon, short name, ready skills, active borders, and estimated cooldown timers after active effects end. Alliance boards use stacked A/B/C sections with a four-member by two-row grid for each alliance party.
 - Party defensive, healing cooldown, and damage synergy boards are separated so healer cooldowns do not crowd the defensive board.
 - Party cooldown presets show all configured job skills by default, and each window can exclude unneeded preset entries from settings.
 - Party cooldown replacement groups hide lower-level actions after the current effective level unlocks their upgraded action.
@@ -96,7 +96,7 @@ Open the settings window with `/fa`.
 - Aura search results show where a status came from, including active, recent, action-granted skill names, full status list, and same-name ID hints. Action-granted statuses keep their skill source tag even when found by status name or status ID.
 - Buff/debuff windows set to the Active display condition continuously compact the currently active auras so expired or newly appeared statuses do not leave empty slots.
 - Party defensive, party healing cooldown, and party damage synergy windows use built-in job data instead of manual tracking lists. Skills above the current effective level are hidden for synced content.
-- Party cooldown boards read the current party roster and, when Dalamud reports an alliance, the grouped alliance roster as well. Alliance rows include A/B/C labels from the alliance group index, with a flat alliance-list fallback for compatibility.
+- Party cooldown boards read the current party roster and use the game's cross-realm alliance UI data for the authoritative A/B/C group and member order. Party/flat alliance slots remain a compatibility fallback while that data is loading.
 - In party cooldown windows, uncheck preset entries in the settings list to exclude skills you do not want that window to track.
 
 The most common per-window controls are available directly on the unlocked overlay:
@@ -108,7 +108,7 @@ The most common per-window controls are available directly on the unlocked overl
 - The lower-right corner handle resizes the overlay box.
 - Ctrl + right-click on a skill icon removes it from that overlay while edit controls are visible.
 
-Each window stores its own display settings and manual icon positions. When a window is switched between skill and aura roles, the last display condition used for that role is restored. Buff/debuff windows use automatic compact placement only while their display condition is Active.
+Each window stores its own display settings and manual icon positions. When a window is switched between skill and aura roles, the last display condition used for that role is restored. Buff/debuff windows use automatic compact placement only while their display condition is Active. Skill windows also compact temporarily when synced-level filtering hides saved skills, but the full-level saved positions are not rewritten.
 
 ### Performance Profiling
 
@@ -123,7 +123,7 @@ Use this only while diagnosing performance. Keep it disabled for normal play unl
 
 For longer development sessions, enable `프로파일 자동 기록` in the general settings. The plugin writes `performance-profile.csv` to the Dalamud plugin config directory once per configured interval. File writes and configuration saves run through bounded background queues so disk latency does not stall overlay rendering. Queue depth, dropped work, completion/failure counts, and write duration are included in diagnostics. Rows are stored in long format with `frame`, `section`, `window`, and `diagnostic` scopes, so the same file can be filtered by total frame time, profiler section, overlay window, or runtime state. Diagnostic rows include player level/combat/loading state, overlay/window settings, cache sizes, aura cache state, party cooldown log/runtime counts, grayscale queue state, tooltip activity, per-window display decision counts, and the last notable debug event. When the file reaches the configured size limit, the previous file is rotated to `performance-profile.previous.csv`.
 
-When automatic recording is enabled, party cooldown log observations are kept even if the on-screen log observer is hidden. This keeps the CSV useful for bugs where an action use was logged but ignored, excluded, level-filtered, or matched to the wrong source.
+When automatic recording is enabled, party cooldown log observations are kept even if the on-screen log observer is hidden. This keeps the CSV useful for bugs where an action use was logged but ignored, excluded, level-filtered, or matched to the wrong source. Tooltip retry/forced-show counts, temporary skill layout count, and cross-realm alliance group diagnostics are recorded so these runtime fixes can be verified in game.
 
 ## Data Files
 
