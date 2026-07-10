@@ -9,7 +9,7 @@ jobs:
   build-and-test:
     runs-on: windows-latest
     env:
-      DALAMUD_HOME: ${{ runner.temp }}\dalamud
+      DALAMUD_HOME: ${{ github.workspace }}\.dalamud
 
     steps:
       - name: Check out repository
