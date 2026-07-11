@@ -75,6 +75,7 @@ public sealed unsafe partial class Plugin
     private void RebuildPartyCooldownDefinitionLookups()
     {
         this.partyCooldownDefinitionsByActionId.Clear();
+        this.partyCooldownMaxChargesByActionAndLevel.Clear();
         this.partyCooldownDefinitionsByName.Clear();
         this.partyCooldownDefinitionsByCategory.Clear();
         this.partyCooldownEffectiveDefinitionsByScope.Clear();
@@ -138,9 +139,13 @@ public sealed unsafe partial class Plugin
 
         foreach (var member in members)
         {
-            var items = new List<PartyCooldownDisplayItem>();
-            foreach (var definition in this.GetPartyCooldownDefinitionsForMember(category, member.Job, level, iconWindow))
+            var definitions = this.GetEffectivePartyCooldownDefinitionsForMember(category, member.Job, level);
+            var items = new List<PartyCooldownDisplayItem>(definitions.Count);
+            foreach (var definition in definitions)
             {
+                if (this.IsPartyCooldownExcluded(iconWindow, definition))
+                    continue;
+
                 candidateItemCount++;
                 if (!this.HasPartyCooldownStatusTracking(definition))
                     statuslessCandidateCount++;
@@ -148,8 +153,8 @@ public sealed unsafe partial class Plugin
                 var item = this.BuildPartyCooldownDisplayItem(member, definition, level, frameSnapshot.TimestampUtc);
 
                 var visibleItem = this.FilterPartyCooldownDisplayCondition(iconWindow, item);
-                if (visibleItem is not null)
-                    items.Add(visibleItem);
+                if (visibleItem is { } visibleValue)
+                    items.Add(visibleValue);
                 else
                     hiddenByDisplayConditionCount++;
             }
@@ -187,10 +192,10 @@ public sealed unsafe partial class Plugin
 
     private HashSet<string> GetLivePartyCooldownRuntimeKeys(IReadOnlyList<PartyCooldownMemberSnapshot> members, uint level)
     {
-        if (this.partyCooldownLiveRuntimeKeysFrameCache is not null)
+        if (this.partyCooldownLiveRuntimeKeysFrameCacheValid)
             return this.partyCooldownLiveRuntimeKeysFrameCache;
 
-        var liveRuntimeKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        this.partyCooldownLiveRuntimeKeysFrameCache.Clear();
         foreach (var window in this.config.IconWindows)
         {
             if (!IconWindowRoles.IsPartyCooldownRole(window.Role))
@@ -200,12 +205,12 @@ public sealed unsafe partial class Plugin
             foreach (var member in members)
             {
                 foreach (var definition in this.GetPartyCooldownDefinitionsForMember(category, member.Job, level, window))
-                    liveRuntimeKeys.Add(this.PartyCooldownRuntimeKey(member.Key, definition));
+                    this.partyCooldownLiveRuntimeKeysFrameCache.Add(this.PartyCooldownRuntimeKey(member.Key, definition));
             }
         }
 
-        this.partyCooldownLiveRuntimeKeysFrameCache = liveRuntimeKeys;
-        return liveRuntimeKeys;
+        this.partyCooldownLiveRuntimeKeysFrameCacheValid = true;
+        return this.partyCooldownLiveRuntimeKeysFrameCache;
     }
 
     private float GetEstimatedPartyCooldownBoardHeight(IconWindowConfig iconWindow, uint level)
@@ -494,7 +499,12 @@ public sealed unsafe partial class Plugin
         }
 
         var maxCharges = this.GetPartyCooldownMaxCharges(definition, level);
-        var activeRemaining = this.GetPartyCooldownActiveRemaining(member.EntityId, definition, now);
+        var observedActiveRemaining = this.GetPartyCooldownActiveRemaining(member.EntityId, definition, now);
+        var activeRemaining = PartyCooldownActiveTimerTracker.Update(
+            runtime,
+            now,
+            observedActiveRemaining,
+            definition.Duration);
         PartyCooldownChargeTracker.ObserveActiveStatus(
             runtime,
             now,
@@ -502,7 +512,9 @@ public sealed unsafe partial class Plugin
             definition.Duration,
             definition.Cooldown,
             maxCharges,
-            PartyCooldownLogDedupeWindow);
+            PartyCooldownLogDedupeWindow,
+            PartyCooldownCrossSignalDedupeWindow,
+            PartyCooldownStatusMissingGrace);
         var chargeSnapshot = PartyCooldownChargeTracker.GetSnapshot(
             runtime,
             now,
@@ -543,18 +555,25 @@ public sealed unsafe partial class Plugin
         PartyCooldownDefinition definition,
         DateTime nowUtc)
     {
-        var remaining = 0f;
+        PartyCooldownActiveStatus? selected = null;
         var cacheAgeSeconds = this.partyCooldownActiveStatusIndexBuiltAtUtc == DateTime.MinValue
             ? 0f
             : Math.Max(0f, (float)(nowUtc - this.partyCooldownActiveStatusIndexBuiltAtUtc).TotalSeconds);
         foreach (var statusId in this.ResolvePartyCooldownStatusIds(definition))
         {
             var key = PartyCooldownStatusKey(sourceEntityId, statusId);
-            if (this.partyCooldownActiveStatusFrameCache.TryGetValue(key, out var status))
-                remaining = Math.Max(remaining, status.Remaining - cacheAgeSeconds);
+            if (!this.partyCooldownActiveStatusFrameCache.TryGetValue(key, out var status))
+                continue;
+
+            var adjusted = status with { Remaining = Math.Max(0f, status.Remaining - cacheAgeSeconds) };
+            if (adjusted.Remaining > 0f
+                && (selected is null || PartyCooldownStatusSampleSelector.IsPreferredAcrossStatusIds(adjusted, selected.Value)))
+            {
+                selected = adjusted;
+            }
         }
 
-        return remaining;
+        return selected?.Remaining ?? 0f;
     }
 
     private void RebuildPartyCooldownActiveStatusIndex(IReadOnlyList<PartyCooldownMemberSnapshot> members)
@@ -606,7 +625,13 @@ public sealed unsafe partial class Plugin
             return;
 
         foreach (var status in this.statusSnapshotBuffer)
-            this.AddPartyCooldownStatusSample(entityId, status.SourceId, status.StatusId, status.RemainingTime, partyEntityIds);
+            this.AddPartyCooldownStatusSample(
+                entityId,
+                status.SourceId,
+                status.StatusId,
+                status.RemainingTime,
+                partyEntityIds,
+                fromPartyList: false);
     }
 
     private void AddPartyCooldownStatusSample(
@@ -614,7 +639,8 @@ public sealed unsafe partial class Plugin
         uint sourceEntityId,
         uint statusId,
         float remaining,
-        HashSet<uint> partyEntityIds)
+        HashSet<uint> partyEntityIds,
+        bool fromPartyList)
     {
         if (statusId == 0 || remaining <= 0f)
             return;
@@ -627,10 +653,17 @@ public sealed unsafe partial class Plugin
             return;
 
         var key = PartyCooldownStatusKey(normalizedSourceId, statusId);
-        if (this.partyCooldownActiveStatusFrameCache.TryGetValue(key, out var existing) && existing.Remaining >= remaining)
+        var candidate = new PartyCooldownActiveStatus(
+            statusId,
+            remaining,
+            PartyCooldownStatusSampleSelector.GetPriority(fromPartyList, ownerEntityId == normalizedSourceId));
+        if (this.partyCooldownActiveStatusFrameCache.TryGetValue(key, out var existing)
+            && !PartyCooldownStatusSampleSelector.IsPreferredDuplicateSample(candidate, existing))
+        {
             return;
+        }
 
-        this.partyCooldownActiveStatusFrameCache[key] = new PartyCooldownActiveStatus(statusId, remaining);
+        this.partyCooldownActiveStatusFrameCache[key] = candidate;
     }
 
     private uint ResolvePartyCooldownStatusSourceEntityId(
@@ -644,13 +677,9 @@ public sealed unsafe partial class Plugin
             this.GetPartyOwnedObjectOwnerEntityId);
 
     private uint GetPartyOwnedObjectOwnerEntityId(uint entityId)
-    {
-        if (!PartyCooldownOwnerResolver.IsValidEntityId(entityId))
-            return 0;
-
-        var gameObject = ObjectTable.SearchByEntityId(entityId);
-        return gameObject is null ? 0 : gameObject.OwnerId;
-    }
+        => PartyCooldownOwnerResolver.IsValidEntityId(entityId)
+            ? this.GetGameObjectOwnerEntityId(entityId)
+            : 0;
 
     private IReadOnlyList<uint> ResolvePartyCooldownStatusIds(PartyCooldownDefinition definition)
     {
@@ -665,18 +694,25 @@ public sealed unsafe partial class Plugin
 
     private uint GetPartyCooldownMaxCharges(PartyCooldownDefinition definition, uint level)
     {
+        var effectiveLevel = Math.Max(1u, level);
+        var cacheKey = ((ulong)effectiveLevel << 32) | definition.ActionId;
+        if (this.partyCooldownMaxChargesByActionAndLevel.TryGetValue(cacheKey, out var cached))
+            return cached;
+
+        var resolved = Math.Max(1u, definition.Charges);
         try
         {
-            var maxCharges = (uint)ActionManager.GetMaxCharges(definition.ActionId, Math.Max(1u, level));
+            var maxCharges = (uint)ActionManager.GetMaxCharges(definition.ActionId, effectiveLevel);
             if (maxCharges > 0)
-                return maxCharges;
+                resolved = maxCharges;
         }
         catch (Exception ex)
         {
             Log.Debug(ex, $"Failed to read party cooldown charges for {definition.ActionId} at level {level}.");
         }
 
-        return Math.Max(1u, definition.Charges);
+        this.partyCooldownMaxChargesByActionAndLevel[cacheKey] = resolved;
+        return resolved;
     }
 
     private void PrunePartyCooldownRuntime(HashSet<string> liveRuntimeKeys)

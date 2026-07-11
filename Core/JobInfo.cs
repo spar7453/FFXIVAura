@@ -6,11 +6,27 @@ public static class JobInfo
 
     private static readonly Dictionary<uint, string> JobIds = new()
     {
-        [19] = "PLD", [21] = "WAR", [32] = "DRK", [37] = "GNB",
-        [24] = "WHM", [28] = "SCH", [33] = "AST", [40] = "SGE",
-        [20] = "MNK", [22] = "DRG", [30] = "NIN", [34] = "SAM", [39] = "RPR", [41] = "VPR",
-        [23] = "BRD", [31] = "MCH", [38] = "DNC",
-        [25] = "BLM", [27] = "SMN", [35] = "RDM", [42] = "PCT",
+        [19] = "PLD",
+        [21] = "WAR",
+        [32] = "DRK",
+        [37] = "GNB",
+        [24] = "WHM",
+        [28] = "SCH",
+        [33] = "AST",
+        [40] = "SGE",
+        [20] = "MNK",
+        [22] = "DRG",
+        [30] = "NIN",
+        [34] = "SAM",
+        [39] = "RPR",
+        [41] = "VPR",
+        [23] = "BRD",
+        [31] = "MCH",
+        [38] = "DNC",
+        [25] = "BLM",
+        [27] = "SMN",
+        [35] = "RDM",
+        [42] = "PCT",
     };
 
     private static readonly Dictionary<string, uint> BaseClassIds = new(StringComparer.OrdinalIgnoreCase)

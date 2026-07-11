@@ -14,6 +14,13 @@ internal enum PartyCooldownDisplayState
     Cooldown,
 }
 
+internal enum PartyCooldownUseObservationSource
+{
+    Unknown,
+    CombatLog,
+    ActiveStatus,
+}
+
 internal enum PartyCooldownIgnoredLogReason
 {
     None,
@@ -48,13 +55,20 @@ internal sealed class PartyCooldownRuntimeState
     public uint MaxCharges { get; set; }
     public DateTime LastChargeRecoveryEndsAtUtc { get; set; } = DateTime.MinValue;
     public DateTime LastObservedUseAtUtc { get; set; } = DateTime.MinValue;
+    public PartyCooldownUseObservationSource LastObservedUseSource { get; set; }
     public DateTime LastLogTrackedAtUtc { get; set; } = DateTime.MinValue;
     public bool ActiveObservedLastFrame { get; set; }
+    public DateTime ActiveStatusLastSeenAtUtc { get; set; } = DateTime.MinValue;
+    public DateTime ActiveTimerEstimatedEndsAtUtc { get; set; } = DateTime.MinValue;
+    public DateTime ActiveTimerUpdatedAtUtc { get; set; } = DateTime.MinValue;
+    public DateTime ActiveTimerLastUseAtUtc { get; set; } = DateTime.MinValue;
+    public float ActiveTimerLastObservedRemaining { get; set; }
 }
 
 internal readonly record struct PartyCooldownMemberSnapshot(
     string Key,
     uint EntityId,
+    ulong ContentId,
     ushort WorldId,
     string Name,
     string ShortName,
@@ -85,9 +99,10 @@ internal sealed record PartyCooldownLogObservation(
 
 internal readonly record struct PartyCooldownActiveStatus(
     uint StatusId,
-    float Remaining);
+    float Remaining,
+    PartyCooldownStatusSamplePriority Priority);
 
-internal sealed record PartyCooldownDisplayItem(
+internal readonly record struct PartyCooldownDisplayItem(
     PartyCooldownDefinition Definition,
     PartyCooldownDisplayState State,
     float ActiveRemaining,
@@ -96,7 +111,7 @@ internal sealed record PartyCooldownDisplayItem(
     uint CurrentCharges,
     uint MaxCharges);
 
-internal sealed record PartyCooldownMemberRow(
+internal readonly record struct PartyCooldownMemberRow(
     PartyCooldownMemberSnapshot Member,
     IReadOnlyList<PartyCooldownDisplayItem> Items);
 

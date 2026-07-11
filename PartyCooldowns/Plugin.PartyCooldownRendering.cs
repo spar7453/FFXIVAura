@@ -111,6 +111,7 @@ public sealed unsafe partial class Plugin
         var iconAreaStartX = rowStartX + metrics.LabelWidth;
         var rowY = areaOrigin.Y + metrics.Padding;
         var areaMaxX = areaOrigin.X + areaSize.X;
+        var memberRowGap = PartyCooldownBoardLayout.GetMemberRowGap(metrics.IconSize, metrics.Gap, metrics.IsCompact);
         for (var rowIndex = 0; rowIndex < rows.Count; rowIndex++)
         {
             var row = rows[rowIndex];
@@ -127,7 +128,7 @@ public sealed unsafe partial class Plugin
                 areaMaxX,
                 showAllianceGroup: true,
                 metrics);
-            rowY += contentHeight + metrics.Gap;
+            rowY += contentHeight + memberRowGap;
         }
     }
 
@@ -143,6 +144,7 @@ public sealed unsafe partial class Plugin
         var groupY = areaOrigin.Y + metrics.Padding;
         var groupX = areaOrigin.X + metrics.Padding;
         var groupGap = Math.Max(8f, metrics.Gap * 2f);
+        var memberRowGap = PartyCooldownBoardLayout.GetMemberRowGap(metrics.IconSize, metrics.Gap, metrics.IsCompact);
         Span<int> groupRowIndices = stackalloc int[AllianceGroupMemberSlotCount];
         for (var group = 0; group < PartyCooldownBoardLayout.AllianceColumnCount; group++)
         {
@@ -194,10 +196,10 @@ public sealed unsafe partial class Plugin
                     groupX + metrics.AllianceCellWidth,
                     showAllianceGroup: false,
                     metrics);
-                rowY += contentHeight + metrics.Gap;
+                rowY += contentHeight + memberRowGap;
             }
 
-            groupY = rowY - metrics.Gap + groupGap;
+            groupY = rowY - memberRowGap + groupGap;
         }
     }
 
@@ -215,13 +217,14 @@ public sealed unsafe partial class Plugin
         var iconSize = metrics.IconSize;
         var gap = metrics.Gap;
         var contentHeight = GetPartyCooldownRowContentHeight(row.Items.Count, metrics);
-        var cursor = new Vector2(rowStartX, rowY + Math.Max(0f, (contentHeight - metrics.JobIconSize) * 0.5f));
+        var firstLineHeight = Math.Max(iconSize, Math.Max(metrics.JobIconSize, metrics.TextLineHeight));
+        var cursor = new Vector2(rowStartX, rowY + Math.Max(0f, (firstLineHeight - metrics.JobIconSize) * 0.5f));
         if (showAllianceGroup && metrics.AllianceGroupWidth > 0f)
         {
             var groupTextSize = ImGui.CalcTextSize(row.Member.AllianceGroup);
             var groupTextPos = new Vector2(
                 cursor.X + Math.Max(0f, metrics.AllianceGroupWidth - metrics.LabelGap - groupTextSize.X) * 0.5f,
-                rowY + Math.Max(0f, (contentHeight - ImGui.GetTextLineHeight()) * 0.5f));
+                rowY + Math.Max(0f, (firstLineHeight - ImGui.GetTextLineHeight()) * 0.5f));
             this.DrawOutlinedText(
                 draw,
                 groupTextPos,
@@ -235,7 +238,7 @@ public sealed unsafe partial class Plugin
         this.DrawPartyCooldownJobBadge(draw, row.Member, cursor, metrics.JobIconSize);
 
         cursor.X += metrics.JobIconSize + metrics.LabelGap;
-        var namePos = new Vector2(cursor.X, rowY + Math.Max(0f, (contentHeight - ImGui.GetTextLineHeight()) * 0.5f));
+        var namePos = new Vector2(cursor.X, rowY + Math.Max(0f, (firstLineHeight - ImGui.GetTextLineHeight()) * 0.5f));
         this.DrawOutlinedText(
             draw,
             namePos,

@@ -10,6 +10,7 @@ internal static class PartyCooldownBoardLayoutTests
         ("PartyCooldownBoardLayout wraps nine icons into two lines", PartyCooldownBoardLayoutWrapsNineIconsIntoTwoLines),
         ("PartyCooldownBoardLayout falls back when the board is narrow", PartyCooldownBoardLayoutFallsBackWhenTheBoardIsNarrow),
         ("PartyCooldownBoardLayout aligns partial wrapped rows", PartyCooldownBoardLayoutAlignsPartialWrappedRows),
+        ("PartyCooldownBoardLayout separates member rows from wrapped lines", PartyCooldownBoardLayoutSeparatesMemberRows),
         ("PartyCooldownBoardLayout computes required board height", PartyCooldownBoardLayoutComputesRequiredBoardHeight),
         ("PartyCooldownBoardLayout expands short boards without shrinking", PartyCooldownBoardLayoutExpandsShortBoardsWithoutShrinking),
         ("PartyCooldownBoardLayout hides empty optional party rows", PartyCooldownBoardLayoutHidesEmptyOptionalPartyRows),
@@ -51,7 +52,7 @@ internal static class PartyCooldownBoardLayoutTests
             headerHeight: 42,
             iconsPerLine: 5);
 
-        Near(2094, height);
+        Near(2136, height);
     }
 
     private static void PartyCooldownBoardLayoutWrapsNineIconsIntoTwoLines()
@@ -60,6 +61,12 @@ internal static class PartyCooldownBoardLayoutTests
         Equal(5, PartyCooldownBoardLayout.GetLineItemCount(9, 0));
         Equal(4, PartyCooldownBoardLayout.GetLineItemCount(9, 1));
         Near(42 * 2 + 5, PartyCooldownBoardLayout.GetIconContentHeight(9, 42, 5));
+    }
+
+    private static void PartyCooldownBoardLayoutSeparatesMemberRows()
+    {
+        Near(6.2f, PartyCooldownBoardLayout.GetMemberRowGap(40f, 3f));
+        Near(1.25f, PartyCooldownBoardLayout.GetMemberRowGap(16f, 1.25f, compactAlliance: true));
     }
 
     private static void PartyCooldownBoardLayoutCompactsAllianceSpacing()
@@ -78,7 +85,8 @@ internal static class PartyCooldownBoardLayoutTests
             1.25f,
             2f,
             18f,
-            PartyCooldownBoardLayout.MaxIconsPerWrappedLine);
+            PartyCooldownBoardLayout.MaxIconsPerWrappedLine,
+            compactAlliance: true);
         True(compactHeight <= 900f, $"compact worst-case board should fit, got {compactHeight}");
     }
 
@@ -98,12 +106,12 @@ internal static class PartyCooldownBoardLayoutTests
 
     private static void PartyCooldownBoardLayoutComputesRequiredBoardHeight()
     {
-        Near(74, PartyCooldownBoardLayout.GetBoardContentHeight([9, 2], 20, 3, 4, 5));
+        Near(76, PartyCooldownBoardLayout.GetBoardContentHeight([9, 2], 20, 3, 4, 5));
     }
 
     private static void PartyCooldownBoardLayoutExpandsShortBoardsWithoutShrinking()
     {
-        Near(74, PartyCooldownBoardLayout.GetExpandedBoardHeight(40, [9, 2], 20, 3, 4, 5, 40, 900));
+        Near(76, PartyCooldownBoardLayout.GetExpandedBoardHeight(40, [9, 2], 20, 3, 4, 5, 40, 900));
         Near(120, PartyCooldownBoardLayout.GetExpandedBoardHeight(120, [9, 2], 20, 3, 4, 5, 40, 900));
         Near(60, PartyCooldownBoardLayout.GetExpandedBoardHeight(40, [9, 2], 20, 3, 4, 5, 40, 60));
     }
@@ -134,7 +142,7 @@ internal static class PartyCooldownBoardLayoutTests
             ("C", 5),
         };
 
-        Near(206, PartyCooldownBoardLayout.GetAllianceGridBoardContentHeight(rows, 20, 3, 4, 10, 5));
+        Near(212, PartyCooldownBoardLayout.GetAllianceGridBoardContentHeight(rows, 20, 3, 4, 10, 5));
     }
 
     private static void PartyCooldownBoardLayoutBuildsMemberScopedIconInteractionIds()

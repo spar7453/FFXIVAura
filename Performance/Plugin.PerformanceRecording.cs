@@ -8,7 +8,7 @@ public sealed unsafe partial class Plugin
     private void RecordPerformanceProfileIfNeeded()
     {
         if (this.performanceProfileWriter.TakeLastError() is { } writerError)
-            this.LogPerformanceProfileRecordingError(writerError);
+            this.NotePerformanceProfileRecordingFailure("writer", writerError);
 
         if (!this.config.RecordPerformanceProfile)
         {
@@ -36,7 +36,7 @@ public sealed unsafe partial class Plugin
         }
         catch (Exception ex)
         {
-            this.LogPerformanceProfileRecordingError(ex);
+            this.NotePerformanceProfileRecordingFailure("batch", ex);
         }
     }
 
@@ -65,7 +65,20 @@ public sealed unsafe partial class Plugin
         foreach (var snapshot in this.performanceProfiler.GetWindowSnapshots())
             this.AppendPerformanceProfileWindowRow(builder, timestampUtc, snapshot);
 
-        this.AppendPerformanceProfileDiagnosticRows(builder, timestampUtc, tooltipDiagnosticSnapshot);
+        try
+        {
+            this.AppendPerformanceProfileDiagnosticRows(builder, timestampUtc, tooltipDiagnosticSnapshot);
+        }
+        catch (Exception ex)
+        {
+            this.NotePerformanceProfileRecordingFailure("diagnostic", ex);
+            this.AppendPerformanceProfileDiagnosticRow(
+                builder,
+                timestampUtc,
+                "profileDiagnosticError",
+                "Profile Diagnostic Error",
+                FormatDiagnosticPairs(("error", ex.GetType().Name)));
+        }
 
         var maxBytes = (long)Math.Clamp(
             this.config.PerformanceProfileMaxFileMegabytes,
@@ -82,6 +95,7 @@ public sealed unsafe partial class Plugin
         else
         {
             this.SetBugDiagnosticEvent("performanceProfileWriteQueueFull");
+            this.NotePerformanceProfileRecordingFailure("queueFull");
         }
     }
 
@@ -210,6 +224,14 @@ public sealed unsafe partial class Plugin
             ("profileWriteFailed", this.performanceProfileWriter.FailedCount),
             ("profileWriteLastMs", this.performanceProfileWriter.LastWriteMilliseconds),
             ("profileWriteMaxMs", this.performanceProfileWriter.MaxWriteMilliseconds),
+            ("profileWriteLastCompletedLocal", this.performanceProfileWriter.LastCompletedAtUtc == DateTime.MinValue
+                ? string.Empty
+                : this.performanceProfileWriter.LastCompletedAtUtc.ToLocalTime()),
+            ("profileFailureCount", this.performanceProfileFailureCount),
+            ("profileLastError", this.performanceProfileLastError),
+            ("profileLastErrorLocal", this.performanceProfileLastErrorAtUtc == DateTime.MinValue
+                ? string.Empty
+                : this.performanceProfileLastErrorAtUtc.ToLocalTime()),
             ("logObserver", this.config.ShowPartyCooldownLogObserver)));
 
         this.AppendPerformanceProfileDiagnosticRow(builder, timestampUtc, "player", "Player", FormatDiagnosticPairs(
@@ -251,6 +273,8 @@ public sealed unsafe partial class Plugin
             ("actionEquivalenceGroups", this.actionEquivalenceGroupCache.Count),
             ("statusDefinitions", this.statusDefinitionCache.Count),
             ("statusTooltips", this.statusTooltipTextCache.Count),
+            ("statusFallbacks", this.statusSnapshotFallbackCache.Count),
+            ("gameObjectOwners", this.gameObjectOwnerFrameCache.Count),
             ("hotbarVisibility", this.hotbarVisibilityCache.Count),
             ("missingActionRows", this.missingActionRows.Count),
             ("keybindDirty", this.keybindCacheDirty),
@@ -338,6 +362,10 @@ public sealed unsafe partial class Plugin
             ("definitions", this.partyCooldownDefinitions.Count),
             ("runtimeStates", this.partyCooldownRuntimeStates.Count),
             ("activeStatuses", this.partyCooldownActiveStatusFrameCache.Count),
+            ("activePartyListSource", this.partyCooldownActiveStatusFrameCache.Values.Count(status => status.Priority == PartyCooldownStatusSamplePriority.PartyListSource)),
+            ("activePartyListRecipient", this.partyCooldownActiveStatusFrameCache.Values.Count(status => status.Priority == PartyCooldownStatusSamplePriority.PartyListRecipient)),
+            ("activeObjectSource", this.partyCooldownActiveStatusFrameCache.Values.Count(status => status.Priority == PartyCooldownStatusSamplePriority.ObjectSource)),
+            ("activeObjectRecipient", this.partyCooldownActiveStatusFrameCache.Values.Count(status => status.Priority == PartyCooldownStatusSamplePriority.ObjectRecipient)),
             ("statusScansThisFrame", this.performanceStats.PartyStatusScanCount),
             ("statusCacheHitsThisFrame", this.performanceStats.PartyStatusCacheHitCount),
             ("frameSnapshot", this.partyCooldownFrameSnapshot is not null),
@@ -352,7 +380,7 @@ public sealed unsafe partial class Plugin
             ("allianceC", partyCooldownRoster.AllianceGroupCMemberCount),
             ("allianceEmptySlots", partyCooldownRoster.AllianceEmptySlotCount),
             ("usedFlatFallback", partyCooldownRoster.UsedFlatAllianceFallback),
-            ("liveRuntimeKeys", this.partyCooldownLiveRuntimeKeysFrameCache?.Count ?? 0),
+            ("liveRuntimeKeys", this.partyCooldownLiveRuntimeKeysFrameCacheValid ? this.partyCooldownLiveRuntimeKeysFrameCache.Count : 0),
             ("logObservations", this.partyCooldownLogObservations.ActionableCount),
             ("candidateObservations", this.partyCooldownLogObservations.CandidateCount),
             ("candidateMissingTotal", this.partyCooldownCandidateMissingLogCount),
@@ -597,13 +625,18 @@ public sealed unsafe partial class Plugin
                 .Replace('\n', ' ')
                 .Trim();
 
-    private void LogPerformanceProfileRecordingError(Exception ex)
+    private void NotePerformanceProfileRecordingFailure(string stage, Exception? ex = null)
     {
         var nowUtc = DateTime.UtcNow;
-        if (nowUtc < this.performanceProfileNextErrorLogAtUtc)
+        this.performanceProfileFailureCount++;
+        this.performanceProfileLastErrorAtUtc = nowUtc;
+        this.performanceProfileLastError = ex is null ? stage : $"{stage}:{ex.GetType().Name}";
+        this.SetBugDiagnosticEvent($"performanceProfileFailed:{this.performanceProfileLastError}");
+
+        if (ex is null || nowUtc < this.performanceProfileNextErrorLogAtUtc)
             return;
 
         this.performanceProfileNextErrorLogAtUtc = nowUtc.AddSeconds(30);
-        Log.Debug(ex, "Failed to record FFXIVAura performance profile.");
+        Log.Error(ex, $"Failed to record FFXIVAura performance profile ({stage}).");
     }
 }

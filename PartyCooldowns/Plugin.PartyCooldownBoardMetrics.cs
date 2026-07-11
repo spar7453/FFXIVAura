@@ -274,10 +274,11 @@ public sealed unsafe partial class Plugin
             return GetPartyCooldownAllianceBoardContentHeight(rows, metrics);
 
         var height = metrics.Padding * 2f;
+        var memberRowGap = PartyCooldownBoardLayout.GetMemberRowGap(metrics.IconSize, metrics.Gap, metrics.IsCompact);
         for (var i = 0; i < rows.Count; i++)
         {
             if (i > 0)
-                height += metrics.Gap;
+                height += memberRowGap;
 
             height += GetPartyCooldownRowContentHeight(rows[i].Items.Count, metrics);
         }
@@ -293,6 +294,7 @@ public sealed unsafe partial class Plugin
         var renderedGroupCount = 0;
         var groupGap = Math.Max(8f, metrics.Gap * 2f);
         var headerHeight = GetPartyCooldownAllianceColumnHeaderHeight(metrics);
+        var memberRowGap = PartyCooldownBoardLayout.GetMemberRowGap(metrics.IconSize, metrics.Gap, metrics.IsCompact);
         for (var groupIndex = 0; groupIndex < PartyCooldownBoardLayout.AllianceColumnCount; groupIndex++)
         {
             var groupLabel = PartyCooldownAllianceGroups.GroupLabel(groupIndex);
@@ -304,7 +306,7 @@ public sealed unsafe partial class Plugin
                     continue;
 
                 if (groupMemberCount > 0)
-                    groupContentHeight += metrics.Gap;
+                    groupContentHeight += memberRowGap;
 
                 groupContentHeight += GetPartyCooldownRowContentHeight(row.Items.Count, metrics);
                 groupMemberCount++;

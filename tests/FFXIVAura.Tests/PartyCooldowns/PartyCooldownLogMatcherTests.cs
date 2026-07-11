@@ -30,6 +30,7 @@ internal static class PartyCooldownLogMatcherTests
     private static void PartyCooldownLogMatcherRecognizesCompletedActionUseTemplates()
     {
         True(PartyCooldownLogMatcher.IsCompletedActionUseTemplate("메론사와가 내단을 시전했습니다."), "Korean completed cast logs should match");
+        True(PartyCooldownLogMatcher.IsCompletedActionUseTemplate("메론사와가 내단을 사용했습니다."), "Korean completed use logs should match");
         True(PartyCooldownLogMatcher.IsCompletedActionUseTemplate("Melon uses Second Wind."), "English use logs should match");
         True(!PartyCooldownLogMatcher.IsCompletedActionUseTemplate("메론사와가 글레어를 시전합니다."), "cast-start logs should not start cooldowns");
     }
@@ -52,5 +53,6 @@ internal static class PartyCooldownLogMatcherTests
         var now = new DateTime(2026, 7, 7, 12, 0, 0, DateTimeKind.Utc);
         True(PartyCooldownLogMatcher.IsDuplicateUse(now, now.AddMilliseconds(500), TimeSpan.FromSeconds(1)), "logs inside the dedupe window should be duplicates");
         True(!PartyCooldownLogMatcher.IsDuplicateUse(now, now.AddSeconds(2), TimeSpan.FromSeconds(1)), "logs outside the dedupe window should be accepted");
+        True(!PartyCooldownLogMatcher.IsDuplicateUse(now, now.AddSeconds(-1), TimeSpan.FromSeconds(1)), "a backward clock adjustment should not suppress future uses");
     }
 }

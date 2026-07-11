@@ -198,7 +198,10 @@ public sealed unsafe partial class Plugin
 
     private bool IsStatusFromSelf(uint sourceId)
     {
-        return ObjectTable.LocalPlayer is not null && sourceId == ObjectTable.LocalPlayer.EntityId;
+        return StatusSourceOwnership.IsFromPlayer(
+            sourceId,
+            ObjectTable.LocalPlayer?.EntityId ?? 0,
+            this.GetGameObjectOwnerEntityId);
     }
 
     private (string Name, uint IconId) GetStatusDefinition(uint statusId)

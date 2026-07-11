@@ -75,6 +75,9 @@ public sealed unsafe partial class Plugin
         ImGui.TextUnformatted($"툴팁 렌더링: {this.performanceStats.TooltipRenderCount}");
         ImGui.TextUnformatted($"흑백 처리: {this.performanceStats.GrayscaleIconProcessCount}");
         ImGui.TextUnformatted($"프로파일 기록: {this.performanceProfileWriter.LastWriteMilliseconds:0.00} ms / 대기 {this.performanceProfileWriter.PendingCount} / 실패 {this.performanceProfileWriter.FailedCount}");
+        if (this.performanceProfileFailureCount > 0)
+            ImGui.TextDisabled($"프로파일 최근 오류: {this.performanceProfileLastError} / 누적 {this.performanceProfileFailureCount}");
+
         ImGui.TextUnformatted($"설정 저장: {this.configSaveWorker.LastSaveMilliseconds:0.00} ms / 대기 {this.configSaveWorker.PendingCount} / 성공 {this.configSaveWorker.CompletedCount} / 실패 {this.configSaveWorker.FailedCount}");
         if (this.config.ShowPartyCooldownLogObserver)
             this.DrawPartyCooldownLogObserver();

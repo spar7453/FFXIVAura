@@ -105,20 +105,22 @@ public sealed unsafe partial class Plugin
 
     private IEnumerable<AbilityDefinition> GetGameActionCandidates(string job, uint level)
     {
-        var key = $"{job}:{level}";
+        var key = job.Trim().ToUpperInvariant();
         if (!this.gameActionCandidatesCache.TryGetValue(key, out var cached))
         {
-            cached = this.BuildGameActionCandidates(job, level).ToList();
+            cached = this.BuildGameActionCandidates(key).ToList();
             if (this.gameActionCandidatesCache.Count >= AbilityCandidateCacheLimit)
                 this.gameActionCandidatesCache.Clear();
 
             this.gameActionCandidatesCache[key] = cached;
         }
 
-        return cached;
+        return level == uint.MaxValue
+            ? cached
+            : cached.Where(ability => ability.Level <= level);
     }
 
-    private IEnumerable<AbilityDefinition> BuildGameActionCandidates(string job, uint level)
+    private IEnumerable<AbilityDefinition> BuildGameActionCandidates(string job)
     {
         var classJobIds = JobInfo.ApplicableClassJobIds(job);
         if (classJobIds.Count == 0)
@@ -130,7 +132,7 @@ public sealed unsafe partial class Plugin
 
         foreach (var row in sheet)
         {
-            if (row.RowId == 0 || !classJobIds.Contains(row.ClassJob.RowId) || row.ClassJobLevel == 0 || row.ClassJobLevel > level)
+            if (row.RowId == 0 || !classJobIds.Contains(row.ClassJob.RowId) || row.ClassJobLevel == 0)
                 continue;
 
             var category = row.ActionCategory.RowId;

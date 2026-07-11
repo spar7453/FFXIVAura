@@ -101,8 +101,9 @@ public sealed unsafe partial class Plugin
             var job = JobInfo.Code(classJobId);
             var name = player.Name.ToString();
             members.Add(new PartyCooldownMemberSnapshot(
-                PartyCooldownMemberKey(0, player.EntityId, name, job),
+                PartyCooldownMemberKey(PlayerState.ContentId, player.EntityId, name, job),
                 player.EntityId,
+                PlayerState.ContentId,
                 (ushort)PlayerState.HomeWorld.RowId,
                 name,
                 ShortPartyMemberName(name),
@@ -382,6 +383,7 @@ public sealed unsafe partial class Plugin
             members.Add(new PartyCooldownMemberSnapshot(
                 key,
                 entityId,
+                member.ContentId,
                 (ushort)Math.Max(0, (int)member.HomeWorld),
                 name,
                 ShortPartyMemberName(name),
@@ -426,6 +428,7 @@ public sealed unsafe partial class Plugin
             var snapshot = new PartyCooldownMemberSnapshot(
                 key,
                 entityId,
+                contentId,
                 worldId,
                 name,
                 ShortPartyMemberName(name),
@@ -483,6 +486,7 @@ public sealed unsafe partial class Plugin
         => PartyCooldownRoster.CreateDisplayMembers(
             members,
             ObjectTable.LocalPlayer?.EntityId ?? 0,
+            PlayerState.ContentId,
             excludeLocalPlayer: true);
 
     private PartyCooldownRosterDiagnostics CreatePartyCooldownRosterDiagnostics(
@@ -495,6 +499,7 @@ public sealed unsafe partial class Plugin
             roster.Members,
             displayMembers,
             ObjectTable.LocalPlayer?.EntityId ?? 0,
+            PlayerState.ContentId,
             roster.AlliancePartyCount,
             roster.AllianceMemberCount,
             roster.HasAllianceSource,
@@ -646,7 +651,13 @@ public sealed unsafe partial class Plugin
             return entityId != 0;
 
         foreach (var status in this.statusSnapshotBuffer)
-            this.AddPartyCooldownStatusSample(entityId, status.SourceId, status.StatusId, status.RemainingTime, partyEntityIds);
+            this.AddPartyCooldownStatusSample(
+                entityId,
+                status.SourceId,
+                status.StatusId,
+                status.RemainingTime,
+                partyEntityIds,
+                fromPartyList: true);
 
         return true;
     }

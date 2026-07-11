@@ -18,6 +18,7 @@ internal sealed class PerformanceProfileWriter : IDisposable
     private long droppedCount;
     private long completedCount;
     private long failedCount;
+    private long lastCompletedAtUtcTicks;
     private bool disposed;
 
     public PerformanceProfileWriter()
@@ -38,6 +39,15 @@ internal sealed class PerformanceProfileWriter : IDisposable
     public long CompletedCount => Interlocked.Read(ref this.completedCount);
 
     public long FailedCount => Interlocked.Read(ref this.failedCount);
+
+    public DateTime LastCompletedAtUtc
+    {
+        get
+        {
+            var ticks = Interlocked.Read(ref this.lastCompletedAtUtcTicks);
+            return ticks > 0 ? new DateTime(ticks, DateTimeKind.Utc) : DateTime.MinValue;
+        }
+    }
 
     public double LastWriteMilliseconds
     {
@@ -101,6 +111,7 @@ internal sealed class PerformanceProfileWriter : IDisposable
                     Append(request);
 
                 Interlocked.Increment(ref this.completedCount);
+                Interlocked.Exchange(ref this.lastCompletedAtUtcTicks, DateTime.UtcNow.Ticks);
             }
             catch (Exception ex)
             {
@@ -151,8 +162,11 @@ internal sealed class PerformanceProfileWriter : IDisposable
         if (file.Length == 0)
             return;
 
-        using var reader = new StreamReader(path, FileEncoding, detectEncodingFromByteOrderMarks: true);
-        if (!string.Equals(reader.ReadLine(), header, StringComparison.Ordinal))
+        string? existingHeader;
+        using (var reader = new StreamReader(path, FileEncoding, detectEncodingFromByteOrderMarks: true))
+            existingHeader = reader.ReadLine();
+
+        if (!string.Equals(existingHeader, header, StringComparison.Ordinal))
             RotateToPrevious(path);
     }
 

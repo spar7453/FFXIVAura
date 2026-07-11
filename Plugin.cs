@@ -36,6 +36,9 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private static readonly TimeSpan ConfigSaveMaxCombatDeferDuration = TimeSpan.FromMinutes(10);
     private static readonly TimeSpan PartyCooldownCandidateMissingSampleInterval = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan PartyCooldownStatusCacheDuration = TimeSpan.FromMilliseconds(100);
+    private static readonly TimeSpan PartyCooldownCrossSignalDedupeWindow = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan PartyCooldownStatusMissingGrace = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan StatusSnapshotFailureRetention = TimeSpan.FromMilliseconds(500);
 
     [PluginService] private static IDalamudPluginInterface PluginInterface { get; set; } = null!;
     [PluginService] private static ICommandManager CommandManager { get; set; } = null!;
@@ -77,6 +80,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private readonly Dictionary<ulong, PartyCooldownActiveStatus> partyCooldownActiveStatusFrameCache = new();
     private readonly Dictionary<uint, uint[]> partyCooldownStatusIdsByActionId = new();
     private readonly Dictionary<uint, PartyCooldownDefinition> partyCooldownDefinitionsByActionId = new();
+    private readonly Dictionary<ulong, uint> partyCooldownMaxChargesByActionAndLevel = new();
     private readonly Dictionary<string, List<PartyCooldownDefinition>> partyCooldownDefinitionsByName = new(StringComparer.Ordinal);
     private readonly Dictionary<PartyCooldownCategory, List<PartyCooldownDefinition>> partyCooldownDefinitionsByCategory = new();
     private readonly Dictionary<string, IReadOnlyList<PartyCooldownDefinition>> partyCooldownEffectiveDefinitionsByScope = new(StringComparer.OrdinalIgnoreCase);
@@ -91,6 +95,8 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private readonly Dictionary<uint, PartyAuraAggregate> partyAuraFrameAllCache = new();
     private readonly Dictionary<uint, PartyAuraAggregate> partyAuraFrameOwnCache = new();
     private readonly List<StatusSnapshot> statusSnapshotBuffer = [];
+    private readonly StatusSnapshotFallbackCache statusSnapshotFallbackCache = new();
+    private readonly Dictionary<uint, uint> gameObjectOwnerFrameCache = new();
     private readonly ActionKeybindIndex actionKeybindIndex = new();
     private readonly Dictionary<uint, bool> hotbarVisibilityCache = new();
     private readonly Dictionary<string, HashSet<uint>> visibleAurasByScope = new(StringComparer.OrdinalIgnoreCase);
@@ -117,7 +123,8 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private bool partyAuraFrameAllCacheValid;
     private bool partyAuraFrameOwnCacheValid;
     private PartyCooldownFrameSnapshot? partyCooldownFrameSnapshot;
-    private HashSet<string>? partyCooldownLiveRuntimeKeysFrameCache;
+    private readonly HashSet<string> partyCooldownLiveRuntimeKeysFrameCache = new(StringComparer.OrdinalIgnoreCase);
+    private bool partyCooldownLiveRuntimeKeysFrameCacheValid;
     private bool overlayTooltipRequestedThisFrame;
     private int pendingStatusId;
     private Vector2 draggedOverlayMouseStart;
@@ -129,12 +136,15 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private DateTime keybindCacheRefreshAfter = DateTime.MinValue;
     private DateTime performanceProfileNextRecordAtUtc = DateTime.MinValue;
     private DateTime performanceProfileNextErrorLogAtUtc = DateTime.MinValue;
+    private DateTime performanceProfileLastErrorAtUtc = DateTime.MinValue;
     private DateTime lastBugDiagnosticEventAtUtc = DateTime.MinValue;
     private DateTime partyCooldownNextCandidateMissingObservationAtUtc = DateTime.MinValue;
     private DateTime partyCooldownActiveStatusIndexBuiltAtUtc = DateTime.MinValue;
     private ulong partyCooldownActiveStatusRosterHash;
     private long partyCooldownCandidateMissingLogCount;
     private long partyCooldownCandidateMissingObservationCount;
+    private long performanceProfileFailureCount;
+    private string performanceProfileLastError = string.Empty;
     private string lastBugDiagnosticEvent = string.Empty;
     private PluginConfig config;
     private bool configVisible;
@@ -206,7 +216,16 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     public void Dispose()
     {
         this.FlushConfigSave(force: true);
-        this.configSaveWorker.Dispose();
+        var finalSnapshot = this.configSavePending
+            ? PluginConfigClone.CreateSnapshot(this.config)
+            : null;
+        var finalConfigSaved = this.configSaveWorker.CompleteAndSaveLatest(finalSnapshot);
+        if (finalSnapshot is not null && finalConfigSaved)
+            this.configSavePending = false;
+
+        if (this.configSaveWorker.TakeLastError() is { } finalConfigSaveError)
+            Log.Error(finalConfigSaveError, "Failed to save the final FFXIVAura configuration snapshot during unload.");
+
         PluginInterface.UiBuilder.Draw -= this.Draw;
         PluginInterface.UiBuilder.OpenMainUi -= this.OpenConfig;
         PluginInterface.UiBuilder.OpenConfigUi -= this.OpenConfig;
@@ -327,6 +346,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
             {
                 this.visibleAbilityKeys.Clear();
                 this.transientSkillPositionsByGroup.Clear();
+                this.statusSnapshotFallbackCache.Clear();
             }
 
             if (!this.config.Enabled || !loggedInAndLoaded)
@@ -364,7 +384,9 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
         this.partyAuraFrameAllCacheValid = false;
         this.partyAuraFrameOwnCacheValid = false;
         this.partyCooldownFrameSnapshot = null;
-        this.partyCooldownLiveRuntimeKeysFrameCache = null;
+        this.partyCooldownLiveRuntimeKeysFrameCache.Clear();
+        this.partyCooldownLiveRuntimeKeysFrameCacheValid = false;
+        this.gameObjectOwnerFrameCache.Clear();
         this.overlayWindowDebugSnapshots.Clear();
         var grayscaleProfileStart = this.performanceProfiler.BeginSection(PerformanceProfileSection.GrayscaleProcessing);
         var grayscaleIconCount = this.ProcessGrayscaleIconQueue();

@@ -59,15 +59,17 @@ internal static class PartyCooldownRoster
     public static IReadOnlyList<PartyCooldownMemberSnapshot> CreateDisplayMembers(
         IReadOnlyList<PartyCooldownMemberSnapshot> members,
         uint localEntityId,
+        ulong localContentId,
         bool excludeLocalPlayer)
     {
-        if (!excludeLocalPlayer || localEntityId == 0)
+        if (!excludeLocalPlayer || (localEntityId == 0 && localContentId == 0))
             return members;
 
         var filtered = new List<PartyCooldownMemberSnapshot>(members.Count);
         foreach (var member in members)
         {
-            if (member.EntityId == localEntityId)
+            if ((localEntityId != 0 && member.EntityId == localEntityId)
+                || (localContentId != 0 && member.ContentId == localContentId))
                 continue;
 
             filtered.Add(member);
@@ -83,6 +85,7 @@ internal static class PartyCooldownRoster
         IReadOnlyList<PartyCooldownMemberSnapshot> members,
         IReadOnlyList<PartyCooldownMemberSnapshot> displayMembers,
         uint localEntityId,
+        ulong localContentId = 0,
         int alliancePartyCount = 0,
         int allianceMemberCount = 0,
         bool hasAllianceSource = false,
@@ -93,10 +96,11 @@ internal static class PartyCooldownRoster
         int crossRealmGroupCount = 0,
         int hudAllianceOrderCount = 0)
     {
-        var excludedLocalPlayer = localEntityId != 0
+        var hasLocalIdentity = localEntityId != 0 || localContentId != 0;
+        var excludedLocalPlayer = hasLocalIdentity
                                   && displayMembers.Count < members.Count
-                                  && members.Any(member => member.EntityId == localEntityId)
-                                  && displayMembers.All(member => member.EntityId != localEntityId);
+                                  && members.Any(member => IsLocalMember(member, localEntityId, localContentId))
+                                  && displayMembers.All(member => !IsLocalMember(member, localEntityId, localContentId));
         var allianceGroupAMemberCount = CountAllianceGroupMembers(members, PartyCooldownAllianceGroups.GroupLabel(0));
         var allianceGroupBMemberCount = CountAllianceGroupMembers(members, PartyCooldownAllianceGroups.GroupLabel(1));
         var allianceGroupCMemberCount = CountAllianceGroupMembers(members, PartyCooldownAllianceGroups.GroupLabel(2));
@@ -141,4 +145,8 @@ internal static class PartyCooldownRoster
 
         return count;
     }
+
+    private static bool IsLocalMember(PartyCooldownMemberSnapshot member, uint localEntityId, ulong localContentId)
+        => (localEntityId != 0 && member.EntityId == localEntityId)
+           || (localContentId != 0 && member.ContentId == localContentId);
 }

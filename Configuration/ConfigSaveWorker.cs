@@ -76,13 +76,17 @@ internal sealed class ConfigSaveWorker : IDisposable
         => Interlocked.Exchange(ref this.lastError, null);
 
     public void Dispose()
+        => this.CompleteAndSaveLatest(null);
+
+    public bool CompleteAndSaveLatest(PluginConfig? latestSnapshot)
     {
         if (this.disposed)
-            return;
+            return latestSnapshot is null;
 
         this.disposed = true;
         this.snapshots.Writer.TryComplete();
         this.worker.GetAwaiter().GetResult();
+        return latestSnapshot is null || this.SaveSynchronously(latestSnapshot);
     }
 
     private async Task ProcessSnapshotsAsync()
@@ -132,5 +136,46 @@ internal sealed class ConfigSaveWorker : IDisposable
                 Interlocked.Decrement(ref this.pendingCount);
             }
         }
+    }
+
+    private bool SaveSynchronously(PluginConfig snapshot)
+    {
+        var started = Stopwatch.GetTimestamp();
+        Exception? finalError = null;
+        var saved = false;
+        for (var attempt = 0; attempt < SaveAttemptCount; attempt++)
+        {
+            try
+            {
+                this.save(snapshot);
+                saved = true;
+                break;
+            }
+            catch (Exception ex)
+            {
+                finalError = ex;
+                if (attempt + 1 < SaveAttemptCount)
+                    Thread.Sleep(RetryDelay);
+            }
+        }
+
+        if (saved)
+        {
+            Interlocked.Increment(ref this.completedCount);
+        }
+        else
+        {
+            Interlocked.Increment(ref this.failedCount);
+            Interlocked.Exchange(ref this.lastError, finalError);
+        }
+
+        var milliseconds = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+        lock (this.metricsLock)
+        {
+            this.lastSaveMilliseconds = milliseconds;
+            this.maxSaveMilliseconds = Math.Max(this.maxSaveMilliseconds, milliseconds);
+        }
+
+        return saved;
     }
 }

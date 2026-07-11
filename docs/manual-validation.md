@@ -36,6 +36,7 @@ Use this checklist before pushing a build that changes overlay positioning, auto
 - Switch display condition to active only and confirm active aura icons auto-compact without row gaps.
 - Manually place aura icons in a non-active display condition, switch to active only, then switch back and confirm the manual positions are preserved.
 - Toggle party own-only filtering and confirm search/current candidates match the filter.
+- As Scholar, confirm an effect applied by the local fairy is included when party own-only filtering is enabled.
 - Enter combat, let a temporary buff/debuff appear, close the search window, then reopen search after it expires and confirm it can appear as a recent candidate.
 - With active-only aura search enabled, search for a status that is not currently visible, click the full-search switch button, and confirm older/recent candidates can appear.
 - With active-only aura search enabled, search by the granting skill name for a currently visible status and confirm the active result appears with its skill source tag.
@@ -58,13 +59,21 @@ Use this checklist before pushing a build that changes overlay positioning, auto
 - Click the reset button for that window's exclusions and confirm the preset entry appears again.
 - Enter synced content and confirm skills above the current effective level disappear.
 - Have a party member use a defensive, healer cooldown, or damage synergy skill and confirm the active border appears on that member's row.
+- With at least one member wrapping to a second icon line, confirm the job icon/name remains beside the first line and the next member is separated by a visibly larger gap than the wrapped-line gap.
+- Compare the caster's native party-list status timer with the board timer. A transient one-second boundary difference is acceptable, but the board must not remain consistently ahead.
+- For a skill with separate caster and recipient statuses, such as Divine Veil or Temperance, confirm the board follows the longest still-active related effect instead of switching to a shorter caster-only timer.
+- While an active party cooldown is counting down, confirm repeated party-list status samples do not freeze and then drop the board timer by several seconds at once.
+- Check a 20-second personal defensive such as Camouflage and confirm mid-duration party-list corrections do not make the board timer skip several seconds at once.
 - After the active effect expires, confirm the same icon turns grayscale and shows an estimated cooldown timer.
 - Have a Dark Knight use Oblation or a Gunbreaker use Aurora once and confirm the icon shows one remaining charge without turning grayscale. Use the second charge and confirm the icon then enters grayscale cooldown state.
+- Confirm a single Oblation or Aurora use observed by both combat log and active status consumes only one displayed charge.
+- During a brief party status-list interruption, confirm a returning Oblation or Aurora status does not consume another displayed charge.
 - Hover board icons with tooltips enabled and confirm the selected action tooltip mode appears near the cursor.
 - Enable the party cooldown log observer, then have a Scholar use fairy actions such as Whispering Dawn, Fey Illumination, or Fey Blessing.
 - Confirm the observer records the action as tracked on the Scholar row, not as an ignored pet source. The detail should mention owned summon/object matching when the log source is the fairy.
 - If two same-named pets or owned objects are present, confirm ambiguous ownership is ignored instead of starting cooldowns on the wrong party member.
 - During duty entry, zone transitions, and party member loading, confirm transient status-list reads do not close the overlay or produce repeated exceptions.
+- Confirm a transient status-list read failure does not make existing aura icons or active party-cooldown borders disappear for a frame.
 
 ## Performance Overlay
 
@@ -75,7 +84,10 @@ Use this checklist before pushing a build that changes overlay positioning, auto
 - During combat or a duty pull, watch for repeated spikes above the expected frame budget.
 - Confirm frame allocation, average allocation, and Gen0 collection values are shown and written to the CSV frame row.
 - With party cooldown boards visible, confirm `statusScansThisFrame` occurs periodically while intervening frames report `statusCacheHitsThisFrame`.
+- Confirm `activePartyListSource`, `activePartyListRecipient`, `activeObjectSource`, and `activeObjectRecipient` identify which status source supplied active board timers.
+- Enter and leave level-synced content, then compare the first transition frame with previous profiles. A new effective level should filter the cached job action list instead of rescanning the full Lumina Action sheet.
 - If running above 120 FPS, confirm the recent average remains stable instead of changing abruptly from sample capping.
 - Enable automatic CSV recording, change several settings, and confirm profile/config queue depth returns to zero with no failed or dropped work.
 - Reload the plugin after a queued settings change and confirm the latest settings were persisted.
 - Confirm `performance-profile.csv` rotates at the configured limit without a visible frame-time spike.
+- Start once with a profile file that has the previous CSV header and confirm it is moved to `performance-profile.previous.csv` before the new schema begins recording.

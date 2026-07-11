@@ -55,11 +55,11 @@ internal static class PartyCooldownMemberOrderingTests
                 Member(50, "RPR"),
                 Member(60, "BLM"),
             ]);
-        var displayMembers = PartyCooldownRoster.CreateDisplayMembers(sorted, localEntityId: 30, excludeLocalPlayer: true);
+        var displayMembers = PartyCooldownRoster.CreateDisplayMembers(sorted, localEntityId: 30, localContentId: 0, excludeLocalPlayer: true);
 
         Sequence([10u, 20u, 40u, 50u, 60u], displayMembers.Select(member => member.EntityId).ToList());
     }
 
     private static PartyCooldownMemberSnapshot Member(uint entityId, string job, string allianceGroup = "")
-        => new($"key-{entityId}", entityId, 0, $"member-{entityId}", $"m{entityId}", job, 0, allianceGroup);
+        => new($"key-{entityId}", entityId, 0, 0, $"member-{entityId}", $"m{entityId}", job, 0, allianceGroup);
 }

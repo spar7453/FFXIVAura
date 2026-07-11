@@ -5,6 +5,10 @@ on:
   pull_request:
   workflow_dispatch:
 
+concurrency:
+  group: ffxivaura-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-and-test:
     runs-on: windows-latest
@@ -43,7 +47,7 @@ jobs:
         run: dotnet run --project .\tests\FFXIVAura.Tests\FFXIVAura.Tests.csproj -c Release --no-restore
 
       - name: Build release package
-        run: dotnet build .\FFXIVAura.csproj -c Release --no-restore
+        run: dotnet build .\FFXIVAura.csproj -c Release --no-restore -warnaserror
 
       - name: Verify release package
         shell: pwsh
@@ -108,6 +112,23 @@ jobs:
 
           $sourcePackage = '.\bin\Release\FFXIVAura\latest.zip'
           $targetPackage = ".\plugin-repo\plugins\FFXIVAura\$version.zip"
+          $probeContent = Get-Content -Raw -Encoding UTF8 '.\plugin-repo\pluginmaster.json'
+          $probeEntry = [regex]::Match($probeContent, '(?ms)\{\s*"Author"\s*:\s*"spark",\s*"Name"\s*:\s*"FFXIVAura".*?(?=\r?\n\s*\},)')
+          if ($probeEntry.Success) {
+            $probeVersion = [regex]::Match($probeEntry.Value, '"AssemblyVersion"\s*:\s*"([^"]+)"')
+            if ($probeVersion.Success) {
+              try {
+                if ([version]$probeVersion.Groups[1].Value -gt [version]$version) {
+                  Write-Host "Skipping stale FFXIVAura $version deployment; repository already has $($probeVersion.Groups[1].Value)."
+                  exit 0
+                }
+              }
+              catch {
+                Write-Warning "Unable to compare plugin versions: $($_.Exception.Message)"
+              }
+            }
+          }
+
           New-Item -ItemType Directory -Force -Path (Split-Path -Parent $targetPackage) | Out-Null
           Copy-Item -LiteralPath $sourcePackage -Destination $targetPackage -Force
 

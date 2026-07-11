@@ -98,6 +98,15 @@ internal static class PartyCooldownBoardLayout
         return lineCount * iconSize + Math.Max(0, lineCount - 1) * gap;
     }
 
+    public static float GetMemberRowGap(float iconSize, float wrappedLineGap, bool compactAlliance = false)
+    {
+        var gap = Math.Max(0f, wrappedLineGap);
+        if (compactAlliance)
+            return gap;
+
+        return gap + Math.Clamp(Math.Max(0f, iconSize) * 0.08f, 2f, 4f);
+    }
+
     public static float GetRowContentHeight(int itemCount, float iconSize, float gap, int iconsPerLine = MaxIconsPerWrappedLine)
         => Math.Max(iconSize, GetIconContentHeight(itemCount, iconSize, gap, iconsPerLine));
 
@@ -108,7 +117,7 @@ internal static class PartyCooldownBoardLayout
         foreach (var itemCount in rowItemCounts)
         {
             if (rowCount > 0)
-                height += gap;
+                height += GetMemberRowGap(iconSize, gap);
 
             height += GetRowContentHeight(itemCount, iconSize, gap, iconsPerLine);
             rowCount++;
@@ -123,7 +132,8 @@ internal static class PartyCooldownBoardLayout
         float gap,
         float padding,
         float headerHeight,
-        int iconsPerLine = MaxIconsPerWrappedLine)
+        int iconsPerLine = MaxIconsPerWrappedLine,
+        bool compactAlliance = false)
     {
         var height = Math.Max(0f, padding) * 2f;
         var renderedGroupCount = 0;
@@ -139,7 +149,7 @@ internal static class PartyCooldownBoardLayout
                     continue;
 
                 if (groupMemberCount > 0)
-                    groupContentHeight += gap;
+                    groupContentHeight += GetMemberRowGap(iconSize, gap, compactAlliance);
 
                 groupContentHeight += GetRowContentHeight(row.ItemCount, iconSize, gap, iconsPerLine);
                 groupMemberCount++;

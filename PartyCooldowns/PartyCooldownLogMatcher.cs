@@ -27,6 +27,7 @@ internal static class PartyCooldownLogMatcher
 
     public static bool IsCompletedActionUseTemplate(string templateText)
         => templateText.Contains("시전했습니다", StringComparison.Ordinal)
+           || templateText.Contains("사용했습니다", StringComparison.Ordinal)
            || templateText.Contains("uses", StringComparison.OrdinalIgnoreCase)
            || templateText.Contains("used", StringComparison.OrdinalIgnoreCase);
 
@@ -34,5 +35,7 @@ internal static class PartyCooldownLogMatcher
         => sourceWorldId == 0 && matchCount > 1;
 
     public static bool IsDuplicateUse(DateTime lastTrackedAtUtc, DateTime nowUtc, TimeSpan dedupeWindow)
-        => lastTrackedAtUtc != DateTime.MinValue && nowUtc - lastTrackedAtUtc < dedupeWindow;
+        => lastTrackedAtUtc != DateTime.MinValue
+           && nowUtc >= lastTrackedAtUtc
+           && nowUtc - lastTrackedAtUtc < dedupeWindow;
 }

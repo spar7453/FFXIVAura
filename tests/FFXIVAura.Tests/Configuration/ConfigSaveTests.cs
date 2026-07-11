@@ -9,6 +9,7 @@ internal static class ConfigSaveTests
     [
         ("PluginConfigClone creates an independent snapshot", CreatesIndependentSnapshot),
         ("ConfigSaveWorker drains queued snapshots on dispose", DrainsQueuedSnapshotsOnDispose),
+        ("ConfigSaveWorker persists a final snapshot after draining", PersistsFinalSnapshotAfterDraining),
         ("ConfigSaveWorker retries a transient save failure", RetriesTransientSaveFailure),
         ("ConfigSaveWorker reports failed saves", ReportsFailedSaves),
     ];
@@ -64,6 +65,19 @@ internal static class ConfigSaveTests
         Equal(0L, worker.CompletedCount);
         Equal(1L, worker.FailedCount);
         True(worker.TakeLastError() is InvalidOperationException, "save exception should be observable");
+    }
+
+    private static void PersistsFinalSnapshotAfterDraining()
+    {
+        var savedNames = new List<string>();
+        using var worker = new ConfigSaveWorker(snapshot => savedNames.Add(snapshot.ActiveWindowId));
+        True(worker.TryEnqueue(new PluginConfig { ActiveWindowId = "queued" }), "queued snapshot should be accepted");
+
+        True(
+            worker.CompleteAndSaveLatest(new PluginConfig { ActiveWindowId = "final" }),
+            "final snapshot should be persisted after the queue drains");
+
+        Sequence(["queued", "final"], savedNames);
     }
 
     private static void RetriesTransientSaveFailure()

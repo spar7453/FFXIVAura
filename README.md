@@ -45,8 +45,9 @@ The goal is simple: show only the skills, buffs, debuffs, charges, cooldowns, an
   - Ready/missing only
 - Aura search and tracking for recently seen buffs/debuffs.
 - Aura search by status name, status ID, action name, or action ID, with result tags for active, recently seen, action-granted skill names, status-list, and same-name status IDs.
-- Party aura options for own-only filtering and party member count display.
-- Party cooldown boards show each party member in the in-game party-list order with job icon, short name, ready skills, active borders, and estimated cooldown timers after active effects end. Alliance boards use A/B/C columns with up to eight members stacked vertically in each party column.
+- Party aura options for own-only filtering and party member count display. Effects applied by the local player's owned summon are treated as the player's own effects.
+- Party cooldown boards show each party member in the in-game party-list order with job icon, short name, ready skills, active borders, and estimated cooldown timers after active effects end. Alliance boards use vertically stacked A/B/C sections with up to eight members in each party.
+- Wrapped cooldown rows keep a tight gap within one member and a wider gap before the next member; the job icon and name stay aligned with that member's first icon line.
 - Party defensive, healing cooldown, and damage synergy boards are separated so healer cooldowns do not crowd the defensive board.
 - Party cooldown presets show all configured job skills by default, and each window can exclude unneeded preset entries from settings.
 - Party cooldown replacement groups hide lower-level actions after the current effective level unlocks their upgraded action.
@@ -101,6 +102,10 @@ Open the settings window with `/fa`.
 - Party cooldown boards read the current party roster and use the game's cross-realm alliance UI data for the authoritative A/B/C group and member order. Party/flat alliance slots remain a compatibility fallback while that data is loading.
 - Alliance boards stack A, B, and C vertically with up to eight member rows per group. If the full board would exceed the overlay height limit, rendering temporarily compacts icon size, spacing, and labels without changing the saved window settings.
 - Multi-charge party cooldowns are estimated per charge. A skill remains usable while at least one charge is available, and its current charge count is shown on the icon.
+- Combat-log and active-status observations for the same charge use are merged even when they arrive out of order.
+- A short, identity-scoped last-good status snapshot prevents transient Dalamud status-list read failures from making aura and party-cooldown icons flicker.
+- Active party-cooldown timers prefer the caster's native party-list status, then another party-list recipient, and use object-table status data only as a fallback.
+- Coarse party-list status updates are interpolated from a stable end time, so active timers decrease continuously without extending or shortening on noisy intermediate samples. Only a confirmed use or near-full-duration reapplication resets the end time.
 - In party cooldown windows, uncheck preset entries in the settings list to exclude skills you do not want that window to track.
 
 The most common per-window controls are available directly on the unlocked overlay:
@@ -125,7 +130,7 @@ The general settings include a detailed profiling option for local debugging. Wh
 
 Use this only while diagnosing performance. Keep it disabled for normal play unless you are actively checking a problem.
 
-For longer development sessions, enable `프로파일 자동 기록` in the general settings. The plugin writes `performance-profile.csv` to the Dalamud plugin config directory once per configured interval. File writes and configuration saves run through bounded background queues so disk latency does not stall overlay rendering. Queue depth, dropped work, completion/failure counts, and write duration are included in diagnostics. Rows are stored in long format with `frame`, `section`, `window`, and `diagnostic` scopes, so the same file can be filtered by total frame time, profiler section, overlay window, runtime state, frame allocation, or Gen0 activity. Diagnostic rows include player level/combat/loading state, overlay/window settings, cache sizes, aura cache state, party cooldown log/runtime counts, party status-scan/cache-hit counts, grayscale queue state, tooltip activity, per-window display decision counts, and the last notable debug event. When the file reaches the configured size limit, the previous file is rotated to `performance-profile.previous.csv`.
+For longer development sessions, enable `프로파일 자동 기록` in the general settings. The plugin writes `performance-profile.csv` to the Dalamud plugin config directory once per configured interval. File writes and configuration saves run through bounded background queues so disk latency does not stall overlay rendering; plugin unload drains queued saves and persists the latest pending snapshot last. Queue depth, dropped work, completion/failure counts, and write duration are included in diagnostics. Rows are stored in long format with `frame`, `section`, `window`, and `diagnostic` scopes, so the same file can be filtered by total frame time, profiler section, overlay window, runtime state, frame allocation, or Gen0 activity. Diagnostic rows include player level/combat/loading state, overlay/window settings, cache sizes, status fallback and owned-object source counts, aura cache state, party cooldown log/runtime counts, party status-scan/cache-hit counts, grayscale queue state, tooltip activity, per-window display decision counts, and the last notable debug event. When the file reaches the configured size limit, the previous file is rotated to `performance-profile.previous.csv`.
 
 When automatic recording is enabled, party cooldown log observations are kept even if the on-screen log observer is hidden. Tracked actions and actionable errors use a separate bounded history from ordinary unrecognized action samples, so normal combat traffic cannot evict the records needed for debugging. Tooltip hover/render counts, temporary skill layout count, and cross-realm alliance group diagnostics are recorded so these runtime fixes can be verified in game.
 
@@ -200,7 +205,7 @@ dotnet build -c Release --no-restore
 dotnet run --project .\tests\FFXIVAura.Tests\FFXIVAura.Tests.csproj -c Release --no-restore
 ```
 
-Release builds generate `bin/Release/FFXIVAura/latest.zip`. GitHub Actions repeats the locked restore, test run, release build, and package upload on pushes and pull requests.
+Release builds generate `bin/Release/FFXIVAura/latest.zip`. GitHub Actions repeats the locked restore, warning-as-error test/build run, release build, and package upload on pushes and pull requests. Runs for the same branch are serialized by cancellation, and deployment refuses to replace a newer repository version with an older one.
 
 The test suite validates party cooldown data shape, status ID coverage for duration-based entries, synced-level replacement selection, and the currently curated `replacementGroup` mappings.
 

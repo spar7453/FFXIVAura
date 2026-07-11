@@ -9,6 +9,7 @@ internal static class PerformanceProfileWriterTests
     [
         ("PerformanceProfileWriter appends header and rows in order", AppendsHeaderAndRowsInOrder),
         ("PerformanceProfileWriter rotates oversized files", RotatesOversizedFiles),
+        ("PerformanceProfileWriter rotates files with an old header", RotatesMismatchedHeader),
         ("PerformanceProfileWriter reports write failures", ReportsWriteFailures),
     ];
 
@@ -64,6 +65,27 @@ internal static class PerformanceProfileWriterTests
             Equal(0L, writer.CompletedCount);
             Equal(1L, writer.FailedCount);
             True(writer.TakeLastError() is not null, "write exception should be observable");
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    private static void RotatesMismatchedHeader()
+    {
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            var path = Path.Combine(directory, PerformanceProfileCsv.FileName);
+            File.WriteAllText(path, "old-header\nold-data\n");
+            using (var writer = new PerformanceProfileWriter())
+                True(writer.TryEnqueueAppend(path, "new-header", "new-data\n", 1024), "new schema row should be queued");
+
+            var previousPath = Path.Combine(directory, PerformanceProfileCsv.PreviousFileName);
+            True(File.Exists(previousPath), "old schema profile should be rotated");
+            Sequence(["old-header", "old-data"], File.ReadAllLines(previousPath));
+            Sequence(["new-header", "new-data"], File.ReadAllLines(path));
         }
         finally
         {

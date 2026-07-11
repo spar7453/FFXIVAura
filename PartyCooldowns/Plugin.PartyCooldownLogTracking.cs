@@ -5,7 +5,7 @@ namespace FFXIVAura;
 
 public sealed unsafe partial class Plugin
 {
-    private static readonly TimeSpan PartyCooldownLogDedupeWindow = TimeSpan.FromSeconds(1);
+    private static readonly TimeSpan PartyCooldownLogDedupeWindow = TimeSpan.FromMilliseconds(500);
 
     private void OnLogMessage(ILogMessage message)
     {
@@ -412,7 +412,9 @@ public sealed unsafe partial class Plugin
             nowUtc,
             definition.Cooldown,
             this.GetPartyCooldownMaxCharges(definition, this.GetCurrentEffectiveLevel()),
-            PartyCooldownLogDedupeWindow);
+            PartyCooldownUseObservationSource.CombatLog,
+            PartyCooldownLogDedupeWindow,
+            PartyCooldownCrossSignalDedupeWindow);
     }
 
     private static string ExtractLogParameterText(ReadOnlySeString value)
