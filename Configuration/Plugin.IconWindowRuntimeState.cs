@@ -11,6 +11,10 @@ public sealed unsafe partial class Plugin
         RemoveScopedRuntimeKeys(this.transientSkillPositionsByGroup, windowId);
         RemoveScopedRuntimeKeys(this.visibleAurasByScope, windowId);
         RemoveScopedRuntimeKeys(this.auraFirstSeenByScope, windowId);
+        RemoveScopedRuntimeKeys(this.auraSearchStateRevisionByScope, windowId);
+        this.auraSearchResultCacheByWindow.Remove(windowId);
+        this.trackedAuraGroupCache.Remove(windowId);
+        this.partyCooldownAllianceLayoutPreviewByWindow.Remove(windowId);
         if (string.Equals(this.auraSearchWindowId, windowId, StringComparison.OrdinalIgnoreCase))
             this.CloseAuraSearchWindow();
     }
@@ -27,6 +31,24 @@ public sealed unsafe partial class Plugin
         PruneScopedRuntimeKeys(this.transientSkillPositionsByGroup, windowIds);
         PruneScopedRuntimeKeys(this.visibleAurasByScope, windowIds);
         PruneScopedRuntimeKeys(this.auraFirstSeenByScope, windowIds);
+        PruneScopedRuntimeKeys(this.auraSearchStateRevisionByScope, windowIds);
+        foreach (var key in this.auraSearchResultCacheByWindow.Keys.ToList())
+        {
+            if (!windowIds.Contains(key, StringComparer.OrdinalIgnoreCase))
+                this.auraSearchResultCacheByWindow.Remove(key);
+        }
+
+        foreach (var key in this.trackedAuraGroupCache.Keys.ToList())
+        {
+            if (!windowIds.Contains(key, StringComparer.OrdinalIgnoreCase))
+                this.trackedAuraGroupCache.Remove(key);
+        }
+
+        foreach (var key in this.partyCooldownAllianceLayoutPreviewByWindow.Keys.ToList())
+        {
+            if (!windowIds.Contains(key, StringComparer.OrdinalIgnoreCase))
+                this.partyCooldownAllianceLayoutPreviewByWindow.Remove(key);
+        }
         if (!string.IsNullOrWhiteSpace(this.auraSearchWindowId)
             && !windowIds.Contains(this.auraSearchWindowId, StringComparer.OrdinalIgnoreCase))
         {

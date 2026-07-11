@@ -52,7 +52,10 @@ public sealed unsafe partial class Plugin
             this.QueueConfigSave();
 
         if (!frame.HasDisplayItems && this.config.LockOverlay)
+        {
+            this.RememberOverlayWindowDiagnostics(iconWindow, frame);
             return;
+        }
 
         var visible = frame.DisplayAbilities;
         var auras = frame.DisplayAuras;
@@ -169,7 +172,8 @@ public sealed unsafe partial class Plugin
         IReadOnlyList<AbilityDefinition> visible,
         IReadOnlyList<AuraState> auras,
         Vector2 areaOrigin,
-        Vector2 areaSize)
+        Vector2 areaSize,
+        IconWindowLayoutBinding? layoutBinding = null)
     {
         const float handleSize = 18f;
 
@@ -193,13 +197,24 @@ public sealed unsafe partial class Plugin
             return;
 
         var delta = ImGui.GetIO().MouseDelta;
-        var nextWidth = Math.Clamp(Math.Max(iconWindow.Width, areaSize.X) + delta.X, MinOverlayWidth, MaxOverlayWidth);
-        var nextHeight = Math.Clamp(Math.Max(iconWindow.Height, areaSize.Y) + delta.Y, MinOverlayHeight, MaxOverlayHeight);
-        if (Math.Abs(nextWidth - iconWindow.Width) <= 0.1f && Math.Abs(nextHeight - iconWindow.Height) <= 0.1f)
+        var currentWidth = layoutBinding?.Width ?? iconWindow.Width;
+        var currentHeight = layoutBinding?.Height ?? iconWindow.Height;
+        var nextWidth = Math.Clamp(Math.Max(currentWidth, areaSize.X) + delta.X, MinOverlayWidth, MaxOverlayWidth);
+        var nextHeight = Math.Clamp(Math.Max(currentHeight, areaSize.Y) + delta.Y, MinOverlayHeight, MaxOverlayHeight);
+        if (Math.Abs(nextWidth - currentWidth) <= 0.1f && Math.Abs(nextHeight - currentHeight) <= 0.1f)
             return;
 
-        iconWindow.Width = nextWidth;
-        iconWindow.Height = nextHeight;
+        if (layoutBinding is null)
+        {
+            iconWindow.Width = nextWidth;
+            iconWindow.Height = nextHeight;
+        }
+        else
+        {
+            var activeLayout = layoutBinding.Value;
+            activeLayout.Width = nextWidth;
+            activeLayout.Height = nextHeight;
+        }
         this.SetBugDiagnosticEvent($"windowResized:{iconWindow.Id}:{nextWidth:0}x{nextHeight:0}");
         if (iconWindow.Role == IconWindowRole.SkillCooldowns)
             this.NormalizeIconPositionsAfterResize(iconWindow, job, visible, new Vector2(nextWidth, nextHeight));

@@ -251,6 +251,8 @@ internal static class PluginConfigNormalizer
                 changed = true;
             }
 
+            changed |= NormalizeAllianceLayout(window, options);
+
             if (window.ActiveOrderRow < 0)
             {
                 window.ActiveOrderRow = 0;
@@ -258,6 +260,11 @@ internal static class PluginConfigNormalizer
             }
 
             changed |= ConfigMapNormalizer.NormalizeStatusIds(window.TrackedStatusIds);
+            changed |= ConfigMapNormalizer.NormalizeStatusIds(window.ExactTrackedStatusIds);
+            var trackedStatusIds = window.TrackedStatusIds.ToHashSet();
+            if (window.ExactTrackedStatusIds.RemoveAll(statusId => !trackedStatusIds.Contains(statusId)) > 0)
+                changed = true;
+
             window.ExcludedPartyCooldownIds = ConfigMapNormalizer.NormalizeStringList(
                 window.ExcludedPartyCooldownIds,
                 out var excludedPartyCooldownIdsChanged);
@@ -294,6 +301,71 @@ internal static class PluginConfigNormalizer
         if (config.WindowCounter != windowCounter)
         {
             config.WindowCounter = windowCounter;
+            changed = true;
+        }
+
+        return changed;
+    }
+
+    private static bool NormalizeAllianceLayout(IconWindowConfig window, PluginConfigNormalizationOptions options)
+    {
+        var changed = false;
+        if (window.AllianceLayout is null)
+        {
+            if (!IconWindowRoles.IsPartyCooldownRole(window.Role))
+                return false;
+
+            window.AllianceLayout = IconWindowLayoutBinding.CreateConfig(window);
+            changed = true;
+        }
+
+        var layout = window.AllianceLayout!;
+        var position = ConfigValueNormalizer.NormalizePosition(layout.Position, window.Position, options.DefaultOverlayPosition);
+        if (!ConfigValueNormalizer.IsFinitePosition(layout.Position)
+            || Vector2.DistanceSquared(layout.Position, position) > 0.25f)
+        {
+            layout.Position = position;
+            changed = true;
+        }
+
+        var width = ConfigValueNormalizer.NormalizeDimension(layout.Width, window.Width, options.MinOverlayWidth, options.MaxOverlayWidth);
+        if (!ConfigValueNormalizer.IsFiniteValue(layout.Width) || Math.Abs(layout.Width - width) > 0.1f)
+        {
+            layout.Width = width;
+            changed = true;
+        }
+
+        var height = ConfigValueNormalizer.NormalizeDimension(layout.Height, window.Height, options.MinOverlayHeight, options.MaxOverlayHeight);
+        if (!ConfigValueNormalizer.IsFiniteValue(layout.Height) || Math.Abs(layout.Height - height) > 0.1f)
+        {
+            layout.Height = height;
+            changed = true;
+        }
+
+        var iconSize = ConfigValueNormalizer.NormalizeScalar(layout.IconSize, window.IconSize, options.MinIconSize, options.MaxIconSize);
+        if (!ConfigValueNormalizer.IsFiniteValue(layout.IconSize) || Math.Abs(layout.IconSize - iconSize) > 0.1f)
+        {
+            layout.IconSize = iconSize;
+            changed = true;
+        }
+
+        var gap = ConfigValueNormalizer.NormalizeScalar(layout.Gap, window.Gap, options.MinGap, options.MaxGap, allowZero: true);
+        if (!ConfigValueNormalizer.IsFiniteValue(layout.Gap) || Math.Abs(layout.Gap - gap) > 0.1f)
+        {
+            layout.Gap = gap;
+            changed = true;
+        }
+
+        var fontScale = ConfigValueNormalizer.NormalizeScalar(layout.FontScale, window.FontScale, options.MinFontScale, options.MaxFontScale);
+        if (!ConfigValueNormalizer.IsFiniteValue(layout.FontScale) || Math.Abs(layout.FontScale - fontScale) > 0.01f)
+        {
+            layout.FontScale = fontScale;
+            changed = true;
+        }
+
+        if (!Enum.IsDefined(typeof(IconAlignment), layout.Alignment))
+        {
+            layout.Alignment = window.Alignment;
             changed = true;
         }
 
@@ -410,6 +482,12 @@ internal static class PluginConfigNormalizer
         if (window.TrackedStatusIds is null)
         {
             window.TrackedStatusIds = [];
+            changed = true;
+        }
+
+        if (window.ExactTrackedStatusIds is null)
+        {
+            window.ExactTrackedStatusIds = [];
             changed = true;
         }
 

@@ -19,6 +19,7 @@ internal static class PartyCooldownBoardLayoutTests
         ("PartyCooldownBoardLayout computes one vertical alliance stack width", PartyCooldownBoardLayoutComputesAllianceGridWidth),
         ("PartyCooldownBoardLayout accounts for every vertical alliance row", PartyCooldownBoardLayoutAccountsForFullAllianceHeight),
         ("PartyCooldownBoardLayout compacts oversized alliance spacing", PartyCooldownBoardLayoutCompactsAllianceSpacing),
+        ("PartyCooldownBoardLayout preserves readable alliance icons using display height", PartyCooldownBoardLayoutPreservesReadableAllianceIconsUsingDisplayHeight),
         ("PartyCooldownBoardLayout builds member-scoped icon interaction ids", PartyCooldownBoardLayoutBuildsMemberScopedIconInteractionIds),
     ];
 
@@ -71,10 +72,10 @@ internal static class PartyCooldownBoardLayoutTests
 
     private static void PartyCooldownBoardLayoutCompactsAllianceSpacing()
     {
-        Near(1.25f, PartyCooldownBoardLayout.GetCompactAllianceGap(16, 40, 16));
-        Near(0.7f, PartyCooldownBoardLayout.GetCompactAllianceFontScale(2, 40, 16));
-        Near(0.75f, PartyCooldownBoardLayout.GetCompactAllianceGap(0, 40, 16));
-        Near(0.65f, PartyCooldownBoardLayout.GetCompactAllianceFontScale(0, 40, 16));
+        Near(1.25f, PartyCooldownBoardLayout.GetCompactAllianceGap(16, 40, 24));
+        Near(0.7f, PartyCooldownBoardLayout.GetCompactAllianceFontScale(2, 40, 24));
+        Near(0.75f, PartyCooldownBoardLayout.GetCompactAllianceGap(0, 40, 24));
+        Near(0.65f, PartyCooldownBoardLayout.GetCompactAllianceFontScale(0, 40, 24));
 
         var worstCaseRows = Enumerable.Range(0, 3)
             .SelectMany(group => Enumerable.Repeat((PartyCooldownAllianceGroups.GroupLabel(group), 9), 8))
@@ -87,7 +88,16 @@ internal static class PartyCooldownBoardLayoutTests
             18f,
             PartyCooldownBoardLayout.MaxIconsPerWrappedLine,
             compactAlliance: true);
-        True(compactHeight <= 900f, $"compact worst-case board should fit, got {compactHeight}");
+        var displayHeightLimit = PartyCooldownBoardLayout.GetAllianceBoardHeightLimit(900f, 1320f, 8f);
+        True(compactHeight <= displayHeightLimit, $"compact worst-case board should fit a tall display, got {compactHeight}");
+    }
+
+    private static void PartyCooldownBoardLayoutPreservesReadableAllianceIconsUsingDisplayHeight()
+    {
+        Near(24f, PartyCooldownBoardLayout.MinAllianceIconSize);
+        Near(1304f, PartyCooldownBoardLayout.GetAllianceBoardHeightLimit(900f, 1320f, 8f));
+        Near(900f, PartyCooldownBoardLayout.GetAllianceBoardHeightLimit(900f, 720f, 8f));
+        Near(900f, PartyCooldownBoardLayout.GetAllianceBoardHeightLimit(900f, float.NaN, 8f));
     }
 
     private static void PartyCooldownBoardLayoutFallsBackWhenTheBoardIsNarrow()

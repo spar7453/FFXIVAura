@@ -22,6 +22,8 @@ public sealed unsafe partial class Plugin
         int LocalAllianceGroupIndex,
         int RawLocalAllianceGroupIndex,
         int HudLocalAllianceGroupIndex,
+        int ObservedHudLocalAllianceGroupIndex,
+        bool UsedRetainedHudAllianceGroup,
         int CrossRealmGroupCount,
         int HudAllianceOrderCount);
 
@@ -29,6 +31,8 @@ public sealed unsafe partial class Plugin
         int LocalGroupIndex,
         int RawLocalGroupIndex,
         int HudLocalGroupIndex,
+        int ObservedHudGroupIndex,
+        bool UsedRetainedHudGroup,
         int GroupCount);
 
     private readonly record struct HudRosterEntityOrder(
@@ -37,6 +41,8 @@ public sealed unsafe partial class Plugin
         int AllianceMemberCount);
 
     private static readonly TimeSpan PartyCooldownHudAllianceOrderRetention = TimeSpan.FromSeconds(3);
+    private static readonly TimeSpan PartyCooldownHudAllianceGroupRetentionDuration = TimeSpan.FromSeconds(3);
+    private readonly PartyCooldownAllianceGroupRetention partyCooldownHudAllianceGroupRetention = new();
     private uint[] partyCooldownLastCompleteHudAllianceOrder = [];
     private DateTime partyCooldownHudAllianceOrderExpiresAtUtc = DateTime.MinValue;
 
@@ -48,9 +54,12 @@ public sealed unsafe partial class Plugin
         var partyListHeader = this.GetPartyListHeader();
         var partyListLength = partyListHeader.Length;
         var hasAllianceSource = partyListHeader.IsAlliance;
+        if (!hasAllianceSource)
+            this.partyCooldownHudAllianceGroupRetention.Reset();
+
         var crossRealmHeader = hasAllianceSource
             ? this.GetCrossRealmAllianceHeader()
-            : new CrossRealmAllianceHeader(-1, -1, -1, 0);
+            : new CrossRealmAllianceHeader(-1, -1, -1, -1, false, 0);
         var localAllianceGroupIndex = crossRealmHeader.LocalGroupIndex;
         var capacity = Math.Max(hasAllianceSource ? AllianceGroupCount * AllianceGroupMemberSlotCount : partyListLength, 1);
         var members = new List<PartyCooldownMemberSnapshot>(capacity);
@@ -158,6 +167,8 @@ public sealed unsafe partial class Plugin
             localAllianceGroupIndex,
             crossRealmHeader.RawLocalGroupIndex,
             crossRealmHeader.HudLocalGroupIndex,
+            crossRealmHeader.ObservedHudGroupIndex,
+            crossRealmHeader.UsedRetainedHudGroup,
             crossRealmHeader.GroupCount,
             hudRosterOrder.AllianceMemberCount);
     }
@@ -200,43 +211,72 @@ public sealed unsafe partial class Plugin
 
     private CrossRealmAllianceHeader GetCrossRealmAllianceHeader()
     {
+        var observedHudGroupIndex = this.ReadHudAllianceGroupIndex();
+        var hudResolution = this.partyCooldownHudAllianceGroupRetention.Resolve(
+            observedHudGroupIndex,
+            isAlliance: true,
+            DateTime.UtcNow,
+            PartyCooldownHudAllianceGroupRetentionDuration);
         try
         {
             var proxy = InfoProxyCrossRealm.Instance();
             if (proxy is null)
-                return new CrossRealmAllianceHeader(-1, -1, -1, 0);
+            {
+                return new CrossRealmAllianceHeader(
+                    hudResolution.GroupIndex,
+                    -1,
+                    hudResolution.GroupIndex,
+                    hudResolution.ObservedGroupIndex,
+                    hudResolution.UsedRetainedValue,
+                    0);
+            }
 
             var groupCount = Math.Clamp((int)proxy->GroupCount, 0, AllianceGroupCount);
             if (groupCount < 2)
-                return new CrossRealmAllianceHeader(-1, -1, -1, groupCount);
+            {
+                return new CrossRealmAllianceHeader(
+                    hudResolution.GroupIndex,
+                    -1,
+                    hudResolution.GroupIndex,
+                    hudResolution.ObservedGroupIndex,
+                    hudResolution.UsedRetainedValue,
+                    groupCount);
+            }
 
             var rawLocalGroupIndex = proxy->LocalPlayerGroupIndex < AllianceGroupCount
                 ? proxy->LocalPlayerGroupIndex
                 : -1;
-            var hudLocalGroupIndex = this.GetHudAllianceGroupIndex();
+            var hudLocalGroupIndex = hudResolution.GroupIndex;
             var memberLocalGroupIndex = GetCrossRealmLocalMemberGroupIndex(
                 proxy,
                 ObjectTable.LocalPlayer?.EntityId ?? 0,
                 PlayerState.ContentId);
-            var localGroupIndex = hudLocalGroupIndex >= 0
-                ? hudLocalGroupIndex
-                : memberLocalGroupIndex >= 0
-                    ? memberLocalGroupIndex
-                    : rawLocalGroupIndex;
+            var localGroupIndex = PartyCooldownAllianceGroups.ResolveLocalGroupIndex(
+                hudLocalGroupIndex,
+                memberLocalGroupIndex,
+                rawLocalGroupIndex);
             return new CrossRealmAllianceHeader(
                 localGroupIndex,
                 rawLocalGroupIndex,
                 hudLocalGroupIndex,
+                hudResolution.ObservedGroupIndex,
+                hudResolution.UsedRetainedValue,
                 groupCount);
         }
         catch (Exception ex)
         {
             this.SetBugDiagnosticEvent($"partyCooldownCrossRealmHeaderReadFailed:{ex.GetType().Name}");
-            return new CrossRealmAllianceHeader(-1, -1, -1, 0);
+            return new CrossRealmAllianceHeader(
+                hudResolution.GroupIndex,
+                -1,
+                hudResolution.GroupIndex,
+                hudResolution.ObservedGroupIndex,
+                hudResolution.UsedRetainedValue,
+                0);
         }
     }
 
-    private int GetHudAllianceGroupIndex()
+    private int ReadHudAllianceGroupIndex()
     {
         try
         {
@@ -507,6 +547,8 @@ public sealed unsafe partial class Plugin
             roster.LocalAllianceGroupIndex,
             roster.RawLocalAllianceGroupIndex,
             roster.HudLocalAllianceGroupIndex,
+            roster.ObservedHudLocalAllianceGroupIndex,
+            roster.UsedRetainedHudAllianceGroup,
             roster.CrossRealmGroupCount,
             roster.HudAllianceOrderCount);
 

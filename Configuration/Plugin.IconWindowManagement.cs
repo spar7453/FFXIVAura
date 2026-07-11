@@ -25,6 +25,7 @@ public sealed unsafe partial class Plugin
             AuraDisplayCondition = activeWindow.AuraDisplayCondition,
             PartyCooldownDisplayCondition = activeWindow.PartyCooldownDisplayCondition,
             Alignment = activeWindow.Alignment,
+            AllianceLayout = IconWindowLayoutBinding.CloneConfig(activeWindow.AllianceLayout),
             HighlightReady = activeWindow.HighlightReady,
             HighlightAdjusted = activeWindow.HighlightAdjusted,
             ShowKeybindText = activeWindow.ShowKeybindText,
@@ -33,13 +34,24 @@ public sealed unsafe partial class Plugin
             ShowPartyAuraCount = activeWindow.ShowPartyAuraCount,
             AuraSearch = activeWindow.AuraSearch,
             AuraSearchActiveOnly = activeWindow.AuraSearchActiveOnly,
+            AuraSearchShowIndividualIds = activeWindow.AuraSearchShowIndividualIds,
             TrackedStatusIds = activeWindow.TrackedStatusIds.ToList(),
+            ExactTrackedStatusIds = activeWindow.ExactTrackedStatusIds.ToList(),
             ExcludedPartyCooldownIds = activeWindow.ExcludedPartyCooldownIds.ToList(),
             TrackedByJob = IconWindowClone.CloneStringListMap(activeWindow.TrackedByJob),
             ExcludedByJob = IconWindowClone.CloneStringListMap(activeWindow.ExcludedByJob),
             IconPositionsByJob = IconWindowClone.CloneVector2Map(activeWindow.IconPositionsByJob),
             AuraPositionsByRole = IconWindowClone.CloneAuraPositionsForWindow(activeWindow.AuraPositionsByRole, activeWindow.Id, id),
         };
+
+        if (window.AllianceLayout is not null && activeWindow.AllianceLayout is not null)
+        {
+            var positionOffset = window.Position - activeWindow.Position;
+            var allianceSize = new Vector2(window.AllianceLayout.Width, window.AllianceLayout.Height);
+            window.AllianceLayout.Position = ClampOverlayWindowPosition(
+                activeWindow.AllianceLayout.Position + positionOffset,
+                allianceSize);
+        }
 
         this.config.IconWindows.Add(window);
         this.config.ActiveWindowId = id;

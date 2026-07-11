@@ -4,17 +4,18 @@ public sealed unsafe partial class Plugin
 {
     private void ShowAuraTooltip(AuraState aura)
     {
+        var statusId = aura.TooltipStatusId;
         if (!this.config.ShowTooltips)
         {
-            this.tooltipDiagnostics.RecordDisabledSkip(TooltipDiagnosticKind.Aura, aura.StatusId.ToString(), 0);
+            this.tooltipDiagnostics.RecordDisabledSkip(TooltipDiagnosticKind.Aura, statusId.ToString(), 0);
             return;
         }
 
         this.MarkOverlayTooltipRequested();
         this.performanceStats.CountTooltipRender();
-        this.tooltipDiagnostics.RecordTooltipRequest(TooltipDiagnosticKind.Aura, aura.StatusId.ToString(), 0);
-        this.SetBugDiagnosticEvent($"tooltipAura:{aura.StatusId}");
-        ShowTextTooltipAtMouse(this.GetStatusTooltipText(aura.StatusId));
+        this.tooltipDiagnostics.RecordTooltipRequest(TooltipDiagnosticKind.Aura, statusId.ToString(), 0);
+        this.SetBugDiagnosticEvent($"tooltipAura:{aura.StatusId}:{statusId}");
+        ShowTextTooltipAtMouse(this.GetStatusTooltipText(statusId));
     }
 
     private void MarkOverlayTooltipRequested()

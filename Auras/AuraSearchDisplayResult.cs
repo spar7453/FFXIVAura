@@ -10,8 +10,11 @@ internal readonly record struct AuraSearchDisplayResult(
     bool FromStatusSheet,
     DateTime SeenAtUtc,
     string SourceActionNames = "",
-    int SameNameCount = 1)
+    int SameNameCount = 1,
+    byte StatusCategory = 0)
 {
+    public AuraStatusGroupKey GroupKey => AuraStatusGroupKey.Create(this.Name, this.IconId, this.StatusCategory);
+
     public AuraSearchDisplayResult Merge(AuraSearchDisplayResult other)
     {
         var name = string.IsNullOrWhiteSpace(this.Name) ? other.Name : this.Name;
@@ -20,6 +23,7 @@ internal readonly record struct AuraSearchDisplayResult(
         {
             Name = name,
             IconId = iconId,
+            StatusCategory = this.StatusCategory == 0 ? other.StatusCategory : this.StatusCategory,
             IsCurrent = this.IsCurrent || other.IsCurrent,
             WasRecentlySeen = this.WasRecentlySeen || other.WasRecentlySeen,
             FromAction = this.FromAction || other.FromAction,
@@ -56,7 +60,10 @@ internal readonly record struct AuraSearchDisplayResult(
 
 internal static class AuraSearchDisplayResults
 {
-    public static List<AuraSearchDisplayResult> MergeAndSort(IEnumerable<AuraSearchDisplayResult> candidates, string query)
+    public static List<AuraSearchDisplayResult> MergeAndSort(
+        IEnumerable<AuraSearchDisplayResult> candidates,
+        string query,
+        bool separateSameNameIds = false)
     {
         var trimmedQuery = query?.Trim() ?? string.Empty;
         var hasIdQuery = uint.TryParse(trimmedQuery, out var idQuery);
@@ -71,28 +78,51 @@ internal static class AuraSearchDisplayResults
                 : candidate;
         }
 
-        var sameNameCounts = new Dictionary<string, int>(StringComparer.CurrentCultureIgnoreCase);
+        var sameNameCounts = new Dictionary<AuraStatusGroupKey, int>();
         foreach (var result in byId.Values)
         {
-            if (string.IsNullOrWhiteSpace(result.Name))
+            if (!result.GroupKey.IsValid)
                 continue;
 
-            sameNameCounts.TryGetValue(result.Name, out var count);
-            sameNameCounts[result.Name] = count + 1;
+            sameNameCounts.TryGetValue(result.GroupKey, out var count);
+            sameNameCounts[result.GroupKey] = count + 1;
         }
 
         var results = new List<AuraSearchDisplayResult>(byId.Count);
         foreach (var result in byId.Values)
         {
-            var sameNameCount = !string.IsNullOrWhiteSpace(result.Name)
-                                && sameNameCounts.TryGetValue(result.Name, out var count)
+            var sameNameCount = result.GroupKey.IsValid
+                                && sameNameCounts.TryGetValue(result.GroupKey, out var count)
                 ? count
                 : 1;
             results.Add(result.WithSameNameCount(sameNameCount));
         }
 
         results.Sort((left, right) => Compare(left, right, trimmedQuery, hasIdQuery, idQuery));
-        return results;
+        if (separateSameNameIds || hasIdQuery)
+            return results;
+
+        var groupedResults = new List<AuraSearchDisplayResult>(results.Count);
+        var resultIndexByGroup = new Dictionary<AuraStatusGroupKey, int>();
+        foreach (var result in results)
+        {
+            var key = result.GroupKey;
+            if (!key.IsValid || !resultIndexByGroup.TryGetValue(key, out var existingIndex))
+            {
+                if (key.IsValid)
+                    resultIndexByGroup[key] = groupedResults.Count;
+
+                groupedResults.Add(result);
+                continue;
+            }
+
+            groupedResults[existingIndex] = groupedResults[existingIndex]
+                .Merge(result)
+                .WithSameNameCount(result.SameNameCount);
+        }
+
+        groupedResults.Sort((left, right) => Compare(left, right, trimmedQuery, hasIdQuery, idQuery));
+        return groupedResults;
     }
 
     private static int Compare(AuraSearchDisplayResult left, AuraSearchDisplayResult right, string query, bool hasIdQuery, uint idQuery)

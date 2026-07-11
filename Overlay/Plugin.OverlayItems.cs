@@ -39,7 +39,7 @@ public sealed unsafe partial class Plugin
                 new OverlayItemSet(layoutAbilities, Array.Empty<AuraState>()));
         }
 
-        this.UpdateCurrentAuraSeenTimes(iconWindow);
+        this.UpdateCurrentAuraSeenTimes(iconWindow, this.auraSeenStatusIdBuffer);
         var layoutAuras = this.GetLayoutAuras(iconWindow).ToList();
         var displayAuras = layoutAuras
             .Where(aura => this.ShouldDisplayAura(aura, iconWindow))
@@ -88,8 +88,7 @@ public sealed unsafe partial class Plugin
 
     private IEnumerable<AuraState> GetLayoutAuras(IconWindowConfig iconWindow)
     {
-        return iconWindow.TrackedStatusIds
-            .Distinct()
-            .Select(statusId => this.GetAuraState(iconWindow, statusId));
+        return this.GetTrackedAuraGroups(iconWindow)
+            .Select(group => this.GetAuraState(iconWindow, group));
     }
 }

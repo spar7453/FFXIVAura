@@ -228,7 +228,14 @@ public sealed unsafe partial class Plugin
                + padding * 2f;
     }
 
-    private void DrawOverlayAlignmentControls(IconWindowConfig iconWindow, string job, uint level, Vector2 areaOrigin, Vector2 areaSize, OverlayControlLayout layout)
+    private void DrawOverlayAlignmentControls(
+        IconWindowConfig iconWindow,
+        string job,
+        uint level,
+        Vector2 areaOrigin,
+        Vector2 areaSize,
+        OverlayControlLayout layout,
+        IconWindowLayoutBinding? layoutBinding = null)
     {
         const float padding = 6f;
         const string leftLabel = "\uC67C\uCABD";
@@ -262,16 +269,17 @@ public sealed unsafe partial class Plugin
 
             ImGui.SetCursorPos(new Vector2(padding, padding));
 
-            if (this.DrawOverlayControlButton(iconWindow.Alignment == IconAlignment.Left, leftLabel))
-                this.ApplyOverlayAlignment(iconWindow, job, level, IconAlignment.Left);
+            var alignment = layoutBinding?.Alignment ?? iconWindow.Alignment;
+            if (this.DrawOverlayControlButton(alignment == IconAlignment.Left, leftLabel))
+                this.ApplyOverlayAlignment(iconWindow, job, level, IconAlignment.Left, layoutBinding);
 
             ImGui.SameLine();
-            if (this.DrawOverlayControlButton(iconWindow.Alignment == IconAlignment.Center, centerLabel))
-                this.ApplyOverlayAlignment(iconWindow, job, level, IconAlignment.Center);
+            if (this.DrawOverlayControlButton(alignment == IconAlignment.Center, centerLabel))
+                this.ApplyOverlayAlignment(iconWindow, job, level, IconAlignment.Center, layoutBinding);
 
             ImGui.SameLine();
-            if (this.DrawOverlayControlButton(iconWindow.Alignment == IconAlignment.Right, rightLabel))
-                this.ApplyOverlayAlignment(iconWindow, job, level, IconAlignment.Right);
+            if (this.DrawOverlayControlButton(alignment == IconAlignment.Right, rightLabel))
+                this.ApplyOverlayAlignment(iconWindow, job, level, IconAlignment.Right, layoutBinding);
 
             ImGui.PopStyleColor(3);
             ImGui.PopStyleVar(2);
@@ -329,8 +337,24 @@ public sealed unsafe partial class Plugin
         return clicked;
     }
 
-    private void ApplyOverlayAlignment(IconWindowConfig iconWindow, string job, uint level, IconAlignment alignment)
+    private void ApplyOverlayAlignment(
+        IconWindowConfig iconWindow,
+        string job,
+        uint level,
+        IconAlignment alignment,
+        IconWindowLayoutBinding? layoutBinding = null)
     {
+        if (layoutBinding is not null)
+        {
+            var activeLayout = layoutBinding.Value;
+            if (activeLayout.Alignment == alignment)
+                return;
+
+            activeLayout.Alignment = alignment;
+            this.QueueConfigSave();
+            return;
+        }
+
         if (iconWindow.Alignment == alignment)
             return;
 

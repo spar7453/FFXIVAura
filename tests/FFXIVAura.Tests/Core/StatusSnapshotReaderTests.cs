@@ -10,6 +10,7 @@ internal static class StatusSnapshotReaderTests
     public static IReadOnlyList<(string Name, Action Run)> Cases { get; } =
     [
         ("StatusSnapshotReader reads valid statuses", ReadsValidStatuses),
+        ("StatusSnapshotReader rejects unavailable status collections", RejectsUnavailableStatusCollections),
         ("StatusSnapshotReader clears output on status read failure", ClearsOutputOnStatusReadFailure),
         ("StatusSnapshotReader clears output on enumeration failure", ClearsOutputOnEnumerationFailure),
     ];
@@ -32,6 +33,16 @@ internal static class StatusSnapshotReaderTests
         Equal(456u, output[0].SourceId);
         Equal((ushort)7, output[0].Param);
         Near(8.5f, output[0].RemainingTime);
+    }
+
+    private static void RejectsUnavailableStatusCollections()
+    {
+        var output = new List<StatusSnapshot> { new(1, 2, 3, 4) };
+        var ok = StatusSnapshotReader.ReadTo(null, output, out var error);
+
+        True(!ok, "an unavailable status collection should use the last-good fallback");
+        True(error is InvalidOperationException, "the unavailable collection should report a read error");
+        Equal(0, output.Count);
     }
 
     private static void ClearsOutputOnStatusReadFailure()

@@ -108,7 +108,16 @@ public sealed unsafe partial class Plugin
         var key = job.Trim().ToUpperInvariant();
         if (!this.gameActionCandidatesCache.TryGetValue(key, out var cached))
         {
-            cached = this.BuildGameActionCandidates(key).ToList();
+            var profileStart = this.performanceProfiler.BeginSection(PerformanceProfileSection.AbilityCandidateBuild);
+            try
+            {
+                cached = this.BuildGameActionCandidates(key).ToList();
+            }
+            finally
+            {
+                this.performanceProfiler.EndSection(PerformanceProfileSection.AbilityCandidateBuild, profileStart);
+            }
+
             if (this.gameActionCandidatesCache.Count >= AbilityCandidateCacheLimit)
                 this.gameActionCandidatesCache.Clear();
 

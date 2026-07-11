@@ -13,6 +13,7 @@ internal static class PartyCooldownAllianceGroupsTests
         ("PartyCooldownAllianceGroups labels alliance slots around local party", LabelsAllianceSlotsAroundLocalParty),
         ("PartyCooldownAllianceGroups maps normalized containers to displayed groups", MapsNormalizedContainersToDisplayedGroups),
         ("PartyCooldownAllianceGroups parses the HUD party title", ParsesHudPartyTitle),
+        ("PartyCooldownAllianceGroups prioritizes local group sources", PrioritizesLocalGroupSources),
         ("PartyCooldownAllianceGroups matches local member by stable content id", MatchesLocalMemberByContentId),
     ];
 
@@ -75,5 +76,13 @@ internal static class PartyCooldownAllianceGroupsTests
         Equal(2, PartyCooldownAllianceGroups.ParseGroupIndexFromPartyTypeText("Alliance Party C "));
         Equal(-1, PartyCooldownAllianceGroups.ParseGroupIndexFromPartyTypeText("대규모 파티"));
         Equal(-1, PartyCooldownAllianceGroups.ParseGroupIndexFromPartyTypeText("CAB"));
+    }
+
+    private static void PrioritizesLocalGroupSources()
+    {
+        Equal(1, PartyCooldownAllianceGroups.ResolveLocalGroupIndex(1, 2, 0));
+        Equal(2, PartyCooldownAllianceGroups.ResolveLocalGroupIndex(-1, 2, 0));
+        Equal(0, PartyCooldownAllianceGroups.ResolveLocalGroupIndex(-1, -1, 0));
+        Equal(-1, PartyCooldownAllianceGroups.ResolveLocalGroupIndex(-1, 3, 4));
     }
 }

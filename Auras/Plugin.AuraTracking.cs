@@ -38,29 +38,44 @@ public sealed unsafe partial class Plugin
             this.QueueConfigSave();
         }
 
+        var showIndividualIds = iconWindow.AuraSearchShowIndividualIds;
+        if (ImGui.Checkbox("ID\uBCC4 \uBCF4\uAE30", ref showIndividualIds))
+        {
+            iconWindow.AuraSearchShowIndividualIds = showIndividualIds;
+            this.QueueConfigSave();
+        }
+
         ImGui.SetNextItemWidth(120f);
         ImGui.InputInt("\uC0C1\uD0DC ID", ref this.pendingStatusId);
         ImGui.SameLine();
         if (ImGui.Button("\uC0C1\uD0DC \uCD94\uAC00") && this.pendingStatusId > 0)
         {
             var id = (uint)this.pendingStatusId;
-            if (this.TrackAura(iconWindow, id))
+            if (this.TrackAura(iconWindow, id, exact: true))
                 this.QueueConfigSave();
         }
 
         ImGui.BeginChild("FFXIVAuraTrackedAuraList", new Vector2(GetConfigContentWidth(), 220f), true);
-        for (var i = 0; i < iconWindow.TrackedStatusIds.Count; i++)
+        foreach (var group in this.GetTrackedAuraGroups(iconWindow))
         {
-            var statusId = iconWindow.TrackedStatusIds[i];
-            var definition = this.GetStatusDefinition(statusId);
-            ImGui.PushID($"aura-{statusId}");
-            this.DrawStatusListIcon(definition.IconId, 22f);
+            ImGui.PushID($"aura-{group.StatusId}");
+            this.DrawStatusListIcon(group.IconId, 22f);
             ImGui.SameLine(0f, 8f);
-            ImGui.TextUnformatted($"{definition.Name}  \uC0C1\uD0DC {statusId}");
+            ImGui.TextUnformatted(GetTrackedAuraLabel(group));
+            ImGui.SameLine();
+            if (ImGui.SmallButton(group.IsExact ? "그룹으로" : "이 ID만"))
+            {
+                if (this.SetAuraTrackingMode(iconWindow, group.StatusId, exact: !group.IsExact))
+                    this.QueueConfigSave();
+
+                ImGui.PopID();
+                break;
+            }
+
             ImGui.SameLine();
             if (ImGui.SmallButton("\uC0AD\uC81C"))
             {
-                this.UntrackAura(iconWindow, statusId);
+                this.UntrackAura(iconWindow, group);
                 this.QueueConfigSave();
                 ImGui.PopID();
                 break;
@@ -113,6 +128,14 @@ public sealed unsafe partial class Plugin
             this.QueueConfigSave();
         }
 
+        ImGui.SameLine();
+        var showIndividualIds = iconWindow.AuraSearchShowIndividualIds;
+        if (ImGui.Checkbox("ID\uBCC4 \uBCF4\uAE30", ref showIndividualIds))
+        {
+            iconWindow.AuraSearchShowIndividualIds = showIndividualIds;
+            this.QueueConfigSave();
+        }
+
         ImGui.Separator();
         var resultSize = ImGui.GetContentRegionAvail();
         resultSize.Y = Math.Max(120f, resultSize.Y);
@@ -160,32 +183,52 @@ public sealed unsafe partial class Plugin
         {
             ImGui.TableSetupColumn("##icon", ImGuiTableColumnFlags.WidthFixed, 30f);
             ImGui.TableSetupColumn("##status", ImGuiTableColumnFlags.WidthStretch);
-            ImGui.TableSetupColumn("##action", ImGuiTableColumnFlags.WidthFixed, 72f);
+            ImGui.TableSetupColumn(
+                "##action",
+                ImGuiTableColumnFlags.WidthFixed,
+                iconWindow.AuraSearchShowIndividualIds ? 92f : 72f);
             for (var index = 0; index < resultCount; index++)
             {
                 var result = results[index];
-                var alreadyTracked = iconWindow.TrackedStatusIds.Contains(result.StatusId);
+                var exact = iconWindow.AuraSearchShowIndividualIds;
+                var coverage = this.GetAuraTrackingCoverage(iconWindow, result.StatusId, exact);
                 ImGui.PushID($"status-search-{result.StatusId}");
                 ImGui.TableNextRow();
                 ImGui.TableSetColumnIndex(0);
                 this.DrawStatusListIcon(result.IconId, 22f);
 
                 ImGui.TableSetColumnIndex(1);
-                ImGui.TextUnformatted($"{result.Name}  \uC0C1\uD0DC {result.StatusId}");
+                ImGui.TextUnformatted(GetAuraSearchResultLabel(iconWindow, result));
                 var tags = AuraSearchDisplayResultFormatter.GetTagText(result);
                 if (!string.IsNullOrEmpty(tags))
                     ImGui.TextWrapped(tags);
 
                 ImGui.TableSetColumnIndex(2);
-                if (alreadyTracked)
+                if (exact && coverage == AuraTrackingCoverage.Group)
+                {
+                    if (ImGui.SmallButton("ID로 전환")
+                        && this.SetAuraTrackingMode(iconWindow, result.StatusId, exact: true))
+                    {
+                        this.QueueConfigSave();
+                    }
+                }
+                else if (!exact && coverage == AuraTrackingCoverage.Exact)
+                {
+                    if (ImGui.SmallButton("그룹으로")
+                        && this.SetAuraTrackingMode(iconWindow, result.StatusId, exact: false))
+                    {
+                        this.QueueConfigSave();
+                    }
+                }
+                else if (coverage != AuraTrackingCoverage.None)
                 {
                     ImGui.BeginDisabled();
-                    ImGui.SmallButton("\uCD94\uAC00\uB428");
+                    ImGui.SmallButton(exact ? "ID \uCD94\uAC00\uB428" : "\uCD94\uAC00\uB428");
                     ImGui.EndDisabled();
                 }
-                else if (ImGui.SmallButton("\uCD94\uAC00"))
+                else if (ImGui.SmallButton(exact ? "ID \uCD94\uAC00" : "\uCD94\uAC00"))
                 {
-                    if (this.TrackAura(iconWindow, result.StatusId))
+                    if (this.TrackAura(iconWindow, result.StatusId, exact))
                         this.QueueConfigSave();
                 }
 
@@ -217,21 +260,44 @@ public sealed unsafe partial class Plugin
             : "\uCD5C\uADFC \uAC10\uC9C0\uB41C \uBC84\uD504/\uB514\uBC84\uD504\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4.");
     }
 
-    private bool TrackAura(IconWindowConfig iconWindow, uint statusId)
+    private bool TrackAura(IconWindowConfig iconWindow, uint statusId, bool exact = false)
     {
-        if (iconWindow.TrackedStatusIds.Contains(statusId))
+        if (statusId == 0 || this.IsAuraTracked(iconWindow, statusId, exact))
             return false;
 
         iconWindow.TrackedStatusIds.Add(statusId);
+        if (exact)
+            iconWindow.ExactTrackedStatusIds.Add(statusId);
+
+        this.InvalidateTrackedAuraGroups(iconWindow);
         var auras = this.GetOverlayAuras(iconWindow, OverlayItemVisibility.Layout).ToList();
         this.EnsureAuraIconPositions(iconWindow, auras, new Vector2(iconWindow.Width, iconWindow.Height));
         return true;
     }
 
-    private void UntrackAura(IconWindowConfig iconWindow, uint statusId)
+    private void UntrackAura(IconWindowConfig iconWindow, AuraStatusGroup group)
     {
-        iconWindow.TrackedStatusIds.RemoveAll(id => id == statusId);
-        var positionKey = OverlayPositionKeys.Aura(statusId);
+        var exactStatusIds = iconWindow.ExactTrackedStatusIds.ToHashSet();
+        var positionStatusIds = group.MemberStatusIds.ToHashSet();
+        if (!group.IsExact)
+            positionStatusIds.ExceptWith(exactStatusIds);
+
+        var removedStatusIds = iconWindow.TrackedStatusIds
+            .Where(id => group.IsExact
+                ? id == group.StatusId && exactStatusIds.Contains(id)
+                : !exactStatusIds.Contains(id)
+                  && (positionStatusIds.Contains(id)
+                      || AuraStatusGroups.HaveSameIdentity(this.GetStatusDefinition(id).GroupKey, group.Key)))
+            .ToList();
+        if (removedStatusIds.Count == 0)
+            return;
+
+        iconWindow.TrackedStatusIds.RemoveAll(id => removedStatusIds.Contains(id));
+        iconWindow.ExactTrackedStatusIds.RemoveAll(id => removedStatusIds.Contains(id));
+        this.InvalidateTrackedAuraGroups(iconWindow);
+        foreach (var removedStatusId in removedStatusIds)
+            positionStatusIds.Add(removedStatusId);
+
         var groupPrefix = OverlayPositionKeys.WindowPrefix(iconWindow.Id);
         foreach (var groupKey in iconWindow.AuraPositionsByRole.Keys.ToList())
         {
@@ -241,9 +307,121 @@ public sealed unsafe partial class Plugin
             if (!iconWindow.AuraPositionsByRole.TryGetValue(groupKey, out var positions))
                 continue;
 
-            positions.Remove(positionKey);
+            foreach (var groupStatusId in positionStatusIds)
+                positions.Remove(OverlayPositionKeys.Aura(groupStatusId));
+
             if (positions.Count == 0)
                 iconWindow.AuraPositionsByRole.Remove(groupKey);
         }
+    }
+
+    private bool IsAuraTracked(IconWindowConfig iconWindow, uint statusId, bool exact)
+        => this.GetAuraTrackingCoverage(iconWindow, statusId, exact) != AuraTrackingCoverage.None;
+
+    private AuraTrackingCoverage GetAuraTrackingCoverage(IconWindowConfig iconWindow, uint statusId, bool exact)
+    {
+        if (statusId == 0)
+            return AuraTrackingCoverage.None;
+
+        var definition = this.GetStatusDefinition(statusId);
+        foreach (var group in this.GetTrackedAuraGroups(iconWindow))
+        {
+            var sameStatus = group.StatusId == statusId;
+            var sameIdentity = AuraStatusGroups.HaveSameIdentity(group.Key, definition.GroupKey);
+            if (exact)
+            {
+                if (group.IsExact && sameStatus)
+                    return AuraTrackingCoverage.Exact;
+
+                if (!group.IsExact && (sameStatus || sameIdentity))
+                    return AuraTrackingCoverage.Group;
+
+                continue;
+            }
+
+            if (sameStatus || sameIdentity)
+                return group.IsExact ? AuraTrackingCoverage.Exact : AuraTrackingCoverage.Group;
+        }
+
+        return AuraTrackingCoverage.None;
+    }
+
+    private bool SetAuraTrackingMode(IconWindowConfig iconWindow, uint statusId, bool exact)
+    {
+        if (statusId == 0)
+            return false;
+
+        var selectedKey = this.GetStatusDefinition(statusId).GroupKey;
+        var change = AuraTrackingModeTransitions.Apply(
+            iconWindow.TrackedStatusIds,
+            iconWindow.ExactTrackedStatusIds,
+            statusId,
+            exact,
+            trackedStatusId => AuraStatusGroups.HaveSameIdentity(
+                this.GetStatusDefinition(trackedStatusId).GroupKey,
+                selectedKey));
+        if (!change.Changed)
+            return false;
+
+        TransferAuraPositionToStatus(iconWindow, change.ReplacedStatusIds, statusId);
+        this.InvalidateTrackedAuraGroups(iconWindow);
+        var auras = this.GetOverlayAuras(iconWindow, OverlayItemVisibility.Layout).ToList();
+        this.EnsureAuraIconPositions(iconWindow, auras, new Vector2(iconWindow.Width, iconWindow.Height));
+        return true;
+    }
+
+    private static void TransferAuraPositionToStatus(
+        IconWindowConfig iconWindow,
+        IReadOnlyList<uint> replacedStatusIds,
+        uint statusId)
+    {
+        var groupPrefix = OverlayPositionKeys.WindowPrefix(iconWindow.Id);
+        var destinationKey = OverlayPositionKeys.Aura(statusId);
+        foreach (var (scopeKey, positions) in iconWindow.AuraPositionsByRole)
+        {
+            if (!scopeKey.StartsWith(groupPrefix, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            Vector2? preservedPosition = positions.TryGetValue(destinationKey, out var selectedPosition)
+                ? selectedPosition
+                : null;
+            foreach (var replacedStatusId in replacedStatusIds)
+            {
+                var positionKey = OverlayPositionKeys.Aura(replacedStatusId);
+                if (preservedPosition is null && positions.TryGetValue(positionKey, out var position))
+                    preservedPosition = position;
+
+                positions.Remove(positionKey);
+            }
+
+            if (preservedPosition is not null)
+                positions[destinationKey] = preservedPosition.Value;
+        }
+    }
+
+    private enum AuraTrackingCoverage
+    {
+        None,
+        Exact,
+        Group,
+    }
+
+    private static string GetTrackedAuraLabel(AuraStatusGroup group)
+        => group.IsExact
+            ? $"{group.Name}  \uC0C1\uD0DC {group.StatusId}  ID\uB9CC"
+            : group.MemberStatusIds.Count > 1
+            ? $"{group.Name}  \uC0C1\uD0DC ID {group.MemberStatusIds.Count}\uAC1C"
+            : $"{group.Name}  \uC0C1\uD0DC {group.StatusId}";
+
+    private static string GetAuraSearchResultLabel(
+        IconWindowConfig iconWindow,
+        AuraSearchDisplayResult result)
+    {
+        var grouped = result.SameNameCount > 1
+                      && !iconWindow.AuraSearchShowIndividualIds
+                      && !uint.TryParse(iconWindow.AuraSearch?.Trim(), out _);
+        return grouped
+            ? $"{result.Name}  \uC0C1\uD0DC ID {result.SameNameCount}\uAC1C"
+            : $"{result.Name}  \uC0C1\uD0DC {result.StatusId}";
     }
 }

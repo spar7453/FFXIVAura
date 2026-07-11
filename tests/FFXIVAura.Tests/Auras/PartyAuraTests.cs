@@ -9,6 +9,7 @@ internal static class PartyAuraTests
     [
         ("PartyAuraAggregator counts party members once", PartyAuraAggregatorCountsPartyMembersOnce),
         ("PartyAuraAggregator builds own-only aggregates", PartyAuraAggregatorBuildsOwnOnlyAggregates),
+        ("PartyAuraAggregator counts one member once across grouped IDs", CountsOneMemberOnceAcrossGroupedIds),
     ];
 
     private static void PartyAuraAggregatorCountsPartyMembersOnce()
@@ -44,5 +45,22 @@ internal static class PartyAuraTests
         Near(40, aggregate[42].Remaining);
         Equal((ushort)300, aggregate[42].Param);
         True(aggregate[42].FromSelf, "own-only aggregate should be marked from self");
+    }
+
+    private static void CountsOneMemberOnceAcrossGroupedIds()
+    {
+        var key = AuraStatusGroupKey.Create("천하무적", 100, 1);
+        var memberOneGroups = new Dictionary<AuraStatusGroupKey, bool>();
+        var memberTwoGroups = new Dictionary<AuraStatusGroupKey, bool>();
+        var aggregateGroups = new Dictionary<AuraStatusGroupKey, PartyAuraGroupAggregate>();
+
+        PartyAuraAggregator.AddMemberAuraGroup(memberOneGroups, key, fromSelf: false);
+        PartyAuraAggregator.AddMemberAuraGroup(memberOneGroups, key, fromSelf: true);
+        PartyAuraAggregator.AddMemberAuraGroup(memberTwoGroups, key, fromSelf: false);
+        PartyAuraAggregator.MergeMemberAuraGroups(memberOneGroups, aggregateGroups);
+        PartyAuraAggregator.MergeMemberAuraGroups(memberTwoGroups, aggregateGroups);
+
+        Equal(2, aggregateGroups[key].Count);
+        Equal(1, aggregateGroups[key].OwnCount);
     }
 }

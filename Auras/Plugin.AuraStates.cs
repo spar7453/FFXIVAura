@@ -7,9 +7,9 @@ public sealed unsafe partial class Plugin
         if (iconWindow.TrackedStatusIds.Count == 0)
             yield break;
 
-        foreach (var statusId in iconWindow.TrackedStatusIds.Distinct())
+        foreach (var group in this.GetTrackedAuraGroups(iconWindow))
         {
-            var aura = this.GetAuraState(iconWindow, statusId);
+            var aura = this.GetAuraState(iconWindow, group);
             if (!this.ShouldDisplayAura(aura, iconWindow))
                 continue;
 
@@ -23,6 +23,52 @@ public sealed unsafe partial class Plugin
     private static bool ShouldShowMissingAura(IconWindowConfig iconWindow)
         => iconWindow.ShowMissingAuras || iconWindow.DisplayCondition == IconDisplayCondition.ReadyOnly;
 
+    private IReadOnlyList<AuraStatusGroup> GetTrackedAuraGroups(IconWindowConfig iconWindow)
+    {
+        if (iconWindow.TrackedStatusIds.Count == 0)
+            return Array.Empty<AuraStatusGroup>();
+
+        var statusIndexBuilt = this.EnsureStatusIdentityIndex();
+        var statusIndexGeneration = this.statusIdentityIndexState.Generation;
+        if (statusIndexBuilt
+            && this.trackedAuraGroupCache.TryGetValue(iconWindow.Id, out var cached)
+            && cached.Matches(
+                iconWindow.TrackedStatusIds,
+                iconWindow.ExactTrackedStatusIds,
+                statusIndexGeneration))
+        {
+            return cached.Groups;
+        }
+
+        var groups = AuraStatusGroups.Build(
+            iconWindow.TrackedStatusIds,
+            iconWindow.ExactTrackedStatusIds,
+            this.GetStatusDefinition,
+            key => statusIndexBuilt
+                ? this.GetStatusIdsByGroup(key)
+                : iconWindow.TrackedStatusIds
+                    .Where(statusId => !iconWindow.ExactTrackedStatusIds.Contains(statusId)
+                                       && this.GetStatusDefinition(statusId).GroupKey == key)
+                    .ToArray());
+        if (statusIndexBuilt)
+        {
+            this.trackedAuraGroupCache[iconWindow.Id] = new AuraStatusGroupCacheEntry(
+                iconWindow.TrackedStatusIds.ToArray(),
+                iconWindow.ExactTrackedStatusIds.ToArray(),
+                statusIndexGeneration,
+                groups);
+        }
+        else
+        {
+            this.trackedAuraGroupCache.Remove(iconWindow.Id);
+        }
+
+        return groups;
+    }
+
+    private void InvalidateTrackedAuraGroups(IconWindowConfig iconWindow)
+        => this.trackedAuraGroupCache.Remove(iconWindow.Id);
+
     private bool ShouldDisplayAura(AuraState aura, IconWindowConfig iconWindow)
     {
         return iconWindow.DisplayCondition switch
@@ -35,30 +81,51 @@ public sealed unsafe partial class Plugin
         };
     }
 
-    private AuraState GetAuraState(IconWindowConfig iconWindow, uint statusId)
+    private AuraState GetAuraState(IconWindowConfig iconWindow, AuraStatusGroup group)
     {
-        var definition = this.GetStatusDefinition(statusId);
-        var active = iconWindow.Role switch
+        var builder = new AuraStatusGroupStateBuilder(group);
+        foreach (var statusId in group.MemberStatusIds)
+        {
+            var active = this.FindAuraStatus(iconWindow, statusId);
+            if (active is null)
+                continue;
+
+            var definition = this.GetStatusDefinition(statusId);
+            builder.Add(new AuraStatusGroupActiveState(
+                statusId,
+                definition.IconId,
+                active.Value.Remaining,
+                active.Value.Param,
+                active.Value.Count,
+                active.Value.OwnCount,
+                active.Value.FromSelf));
+        }
+
+        var state = builder.Build();
+        if (iconWindow.Role != IconWindowRole.PartyBuffs
+            || group.IsExact
+            || !group.Key.IsValid
+            || !this.GetPartyAuraGroupFrameIndex(iconWindow.PartyAurasOwnOnly).TryGetValue(group.Key, out var groupCount))
+        {
+            return state;
+        }
+
+        return state with
+        {
+            Count = groupCount.Count,
+            OwnCount = groupCount.OwnCount,
+        };
+    }
+
+    private (float Remaining, ushort Param, int Count, int OwnCount, bool FromSelf)? FindAuraStatus(
+        IconWindowConfig iconWindow,
+        uint statusId)
+        => iconWindow.Role switch
         {
             IconWindowRole.TargetDebuffs => this.FindStatusOnTarget(statusId),
             IconWindowRole.PartyBuffs => this.FindStatusOnParty(statusId, iconWindow.PartyAurasOwnOnly),
             _ => this.FindStatusOnPlayer(statusId),
         };
-
-        if (active is null)
-            return new AuraState(statusId, definition.Name, definition.IconId, 0f, 0, 0, 0, false, false);
-
-        return new AuraState(
-            statusId,
-            definition.Name,
-            definition.IconId,
-            Math.Max(0f, active.Value.Remaining),
-            active.Value.Param,
-            active.Value.Count,
-            active.Value.OwnCount,
-            true,
-            active.Value.FromSelf);
-    }
 
     private (float Remaining, ushort Param, int Count, int OwnCount, bool FromSelf)? FindStatusOnPlayer(uint statusId)
     {
@@ -145,7 +212,10 @@ public sealed unsafe partial class Plugin
         {
             if (!this.partyAuraFrameOwnCacheValid)
             {
-                this.RebuildPartyAuraFrameIndex(this.partyAuraFrameOwnCache, ownOnly: true);
+                this.RebuildPartyAuraFrameIndex(
+                    this.partyAuraFrameOwnCache,
+                    this.partyAuraGroupFrameOwnCache,
+                    ownOnly: true);
                 this.partyAuraFrameOwnCacheValid = true;
             }
 
@@ -154,21 +224,40 @@ public sealed unsafe partial class Plugin
 
         if (!this.partyAuraFrameAllCacheValid)
         {
-            this.RebuildPartyAuraFrameIndex(this.partyAuraFrameAllCache, ownOnly: false);
+            this.RebuildPartyAuraFrameIndex(
+                this.partyAuraFrameAllCache,
+                this.partyAuraGroupFrameAllCache,
+                ownOnly: false);
             this.partyAuraFrameAllCacheValid = true;
         }
 
         return this.partyAuraFrameAllCache;
     }
 
-    private void RebuildPartyAuraFrameIndex(Dictionary<uint, PartyAuraAggregate> aggregateAuras, bool ownOnly)
+    private Dictionary<AuraStatusGroupKey, PartyAuraGroupAggregate> GetPartyAuraGroupFrameIndex(bool ownOnly)
+    {
+        _ = this.GetPartyAuraFrameIndex(ownOnly);
+        return ownOnly
+            ? this.partyAuraGroupFrameOwnCache
+            : this.partyAuraGroupFrameAllCache;
+    }
+
+    private void RebuildPartyAuraFrameIndex(
+        Dictionary<uint, PartyAuraAggregate> aggregateAuras,
+        Dictionary<AuraStatusGroupKey, PartyAuraGroupAggregate> aggregateGroups,
+        bool ownOnly)
     {
         var profileStart = this.performanceProfiler.BeginSection(PerformanceProfileSection.AuraScan);
         try
         {
             aggregateAuras.Clear();
+            aggregateGroups.Clear();
+            _ = this.EnsureStatusIdentityIndex();
 
-            var memberAuras = new Dictionary<uint, PartyMemberAuraState>();
+            var memberAuras = this.partyMemberAuraFrameBuffer;
+            var memberGroups = this.partyMemberAuraGroupFrameBuffer;
+            memberAuras.Clear();
+            memberGroups.Clear();
             var partySlotCount = this.GetPartyListHeader().PartySlotCount;
             for (var i = 0; i < partySlotCount; i++)
             {
@@ -177,6 +266,7 @@ public sealed unsafe partial class Plugin
                     continue;
 
                 memberAuras.Clear();
+                memberGroups.Clear();
                 if (!this.TryReadPartyMemberStatusSnapshots(member, "partyAura", out _))
                     continue;
 
@@ -187,8 +277,20 @@ public sealed unsafe partial class Plugin
                     PartyAuraAggregator.AddMemberStatus(memberAuras, sample, ownOnly);
                 }
 
+                foreach (var (statusId, memberAura) in memberAuras)
+                {
+                    PartyAuraAggregator.AddMemberAuraGroup(
+                        memberGroups,
+                        this.GetStatusDefinition(statusId).GroupKey,
+                        memberAura.FromSelf);
+                }
+
                 PartyAuraAggregator.MergeMemberAuras(memberAuras, aggregateAuras);
+                PartyAuraAggregator.MergeMemberAuraGroups(memberGroups, aggregateGroups);
             }
+
+            memberAuras.Clear();
+            memberGroups.Clear();
         }
         finally
         {
@@ -204,12 +306,12 @@ public sealed unsafe partial class Plugin
             this.GetGameObjectOwnerEntityId);
     }
 
-    private (string Name, uint IconId) GetStatusDefinition(uint statusId)
+    private AuraStatusDefinition GetStatusDefinition(uint statusId)
     {
         if (this.statusDefinitionCache.TryGetValue(statusId, out var cached))
             return cached;
 
-        var definition = ($"Status {statusId}", 0u);
+        var definition = new AuraStatusDefinition($"Status {statusId}", 0u, 0);
         var shouldCache = false;
         try
         {
@@ -218,7 +320,10 @@ public sealed unsafe partial class Plugin
             {
                 var row = sheet.GetRow(statusId);
                 var name = row.Name.ExtractText();
-                definition = (string.IsNullOrWhiteSpace(name) ? $"Status {statusId}" : name, row.Icon);
+                definition = new AuraStatusDefinition(
+                    string.IsNullOrWhiteSpace(name) ? $"Status {statusId}" : name,
+                    row.Icon,
+                    row.StatusCategory);
                 shouldCache = true;
             }
         }

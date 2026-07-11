@@ -125,17 +125,54 @@ public sealed unsafe partial class Plugin
 
     private bool DrawOverlayWindowSettings(IconWindowConfig activeWindow, string job, uint level)
     {
+        if (!IconWindowRoles.IsPartyCooldownRole(activeWindow.Role))
+            return this.DrawOverlayWindowLayoutSettings(activeWindow, IconWindowLayoutBinding.Regular(activeWindow), job, level);
+
+        var changed = false;
+        if (!ImGui.BeginTabBar($"FFXIVAuraPartyLayoutTabs##{activeWindow.Id}"))
+            return false;
+
+        if (ImGui.BeginTabItem("8인 일반 파티"))
+        {
+            this.SetPartyCooldownLayoutPreview(activeWindow, useAllianceLayout: false);
+            changed |= this.DrawOverlayWindowLayoutSettings(
+                activeWindow,
+                IconWindowLayoutBinding.Regular(activeWindow),
+                job,
+                level);
+            ImGui.EndTabItem();
+        }
+
+        if (ImGui.BeginTabItem("24인 연합 파티"))
+        {
+            this.SetPartyCooldownLayoutPreview(activeWindow, useAllianceLayout: true);
+            var allianceLayout = IconWindowLayoutBinding.PartyCooldown(activeWindow, useAllianceLayout: true, out var created);
+            changed |= created;
+            changed |= this.DrawOverlayWindowLayoutSettings(activeWindow, allianceLayout, job, level);
+            ImGui.EndTabItem();
+        }
+
+        ImGui.EndTabBar();
+        return changed;
+    }
+
+    private bool DrawOverlayWindowLayoutSettings(
+        IconWindowConfig activeWindow,
+        IconWindowLayoutBinding layoutBinding,
+        string job,
+        uint level)
+    {
         var changed = false;
 
-        var previousIconSize = activeWindow.IconSize;
-        var previousGap = activeWindow.Gap;
-        var previousWidth = activeWindow.Width;
-        var previousHeight = activeWindow.Height;
-        var iconSize = activeWindow.IconSize;
-        var gap = activeWindow.Gap;
-        var overlayWidth = activeWindow.Width;
-        var overlayHeight = activeWindow.Height;
-        var fontScale = activeWindow.FontScale;
+        var previousIconSize = layoutBinding.IconSize;
+        var previousGap = layoutBinding.Gap;
+        var previousWidth = layoutBinding.Width;
+        var previousHeight = layoutBinding.Height;
+        var iconSize = layoutBinding.IconSize;
+        var gap = layoutBinding.Gap;
+        var overlayWidth = layoutBinding.Width;
+        var overlayHeight = layoutBinding.Height;
+        var fontScale = layoutBinding.FontScale;
 
         changed |= ImGui.SliderFloat("아이콘 크기", ref iconSize, MinIconSize, MaxIconSize, "%.0f");
         changed |= ImGui.SliderFloat("간격", ref gap, MinGap, MaxGap, "%.0f");
@@ -145,11 +182,11 @@ public sealed unsafe partial class Plugin
 
         if (changed)
         {
-            activeWindow.IconSize = iconSize;
-            activeWindow.Gap = gap;
-            activeWindow.Width = overlayWidth;
-            activeWindow.Height = overlayHeight;
-            activeWindow.FontScale = fontScale;
+            layoutBinding.IconSize = iconSize;
+            layoutBinding.Gap = gap;
+            layoutBinding.Width = overlayWidth;
+            layoutBinding.Height = overlayHeight;
+            layoutBinding.FontScale = fontScale;
 
             var layoutChanged = Math.Abs(previousIconSize - iconSize) > 0.1f
                                 || Math.Abs(previousGap - gap) > 0.1f
@@ -241,13 +278,18 @@ public sealed unsafe partial class Plugin
         if (statuslessAtLevel > 0)
             ImGui.TextDisabled($"\uC0C1\uD0DC \uCD94\uC801 \uC5C6\uC74C: {statuslessAtLevel}\uAC1C");
 
-        var recommendedHeight = this.GetEstimatedPartyCooldownBoardHeight(activeWindow, level);
-        if (recommendedHeight > activeWindow.Height + 0.5f)
+        var useAllianceLayout = this.ShouldUsePartyCooldownAllianceLayout(activeWindow);
+        var activeLayout = IconWindowLayoutBinding.PartyCooldown(activeWindow, useAllianceLayout, out var layoutCreated);
+        if (layoutCreated)
+            this.QueueConfigSave();
+
+        var recommendedHeight = this.GetEstimatedPartyCooldownBoardHeight(activeWindow, activeLayout, level);
+        if (recommendedHeight > activeLayout.Height + 0.5f)
         {
-            ImGui.TextDisabled($"\uD604\uC7AC \uB192\uC774 {activeWindow.Height:0}\uC5D0\uC11C \uC544\uB798 \uD589\uC774 \uC798\uB9B4 \uC218 \uC788\uC2B5\uB2C8\uB2E4. \uAD8C\uC7A5 {recommendedHeight:0}");
+            ImGui.TextDisabled($"\uD604\uC7AC \uB192\uC774 {activeLayout.Height:0}\uC5D0\uC11C \uC544\uB798 \uD589\uC774 \uC798\uB9B4 \uC218 \uC788\uC2B5\uB2C8\uB2E4. \uAD8C\uC7A5 {recommendedHeight:0}");
             if (ImGui.Button("\uAD8C\uC7A5 \uB192\uC774 \uC801\uC6A9"))
             {
-                activeWindow.Height = Math.Clamp(recommendedHeight, MinOverlayHeight, MaxOverlayHeight);
+                activeLayout.Height = Math.Clamp(recommendedHeight, MinOverlayHeight, MaxOverlayHeight);
                 this.QueueConfigSave();
             }
         }

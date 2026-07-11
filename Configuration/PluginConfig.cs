@@ -51,6 +51,7 @@ public sealed class IconWindowConfig
     public IconDisplayCondition AuraDisplayCondition { get; set; } = IconDisplayCondition.Always;
     public IconDisplayCondition PartyCooldownDisplayCondition { get; set; } = IconDisplayCondition.Always;
     public IconAlignment Alignment { get; set; } = IconAlignment.Center;
+    public IconWindowLayoutConfig? AllianceLayout { get; set; }
     public bool HighlightReady { get; set; }
     public bool HighlightAdjusted { get; set; } = true;
     public bool ShowKeybindText { get; set; } = true;
@@ -59,12 +60,25 @@ public sealed class IconWindowConfig
     public bool ShowPartyAuraCount { get; set; } = true;
     public string AuraSearch { get; set; } = string.Empty;
     public bool AuraSearchActiveOnly { get; set; } = true;
+    public bool AuraSearchShowIndividualIds { get; set; }
     public List<uint> TrackedStatusIds { get; set; } = new();
+    public List<uint> ExactTrackedStatusIds { get; set; } = new();
     public List<string> ExcludedPartyCooldownIds { get; set; } = new();
     public Dictionary<string, List<string>> TrackedByJob { get; set; } = new();
     public Dictionary<string, List<string>> ExcludedByJob { get; set; } = new();
     public Dictionary<string, Dictionary<string, System.Numerics.Vector2>> IconPositionsByJob { get; set; } = new();
     public Dictionary<string, Dictionary<string, System.Numerics.Vector2>> AuraPositionsByRole { get; set; } = new();
+}
+
+public sealed class IconWindowLayoutConfig
+{
+    public System.Numerics.Vector2 Position { get; set; } = new(520, 280);
+    public float Width { get; set; } = 760f;
+    public float Height { get; set; } = 170f;
+    public float IconSize { get; set; } = 42f;
+    public float Gap { get; set; } = 5f;
+    public float FontScale { get; set; } = 1f;
+    public IconAlignment Alignment { get; set; } = IconAlignment.Center;
 }
 
 public enum IconWindowRole

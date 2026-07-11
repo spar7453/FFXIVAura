@@ -9,4 +9,8 @@ public readonly record struct AuraState(
     int Count,
     int OwnCount,
     bool Present,
-    bool FromSelf);
+    bool FromSelf,
+    uint ActiveStatusId = 0)
+{
+    public uint TooltipStatusId => this.ActiveStatusId == 0 ? this.StatusId : this.ActiveStatusId;
+}

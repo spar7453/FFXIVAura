@@ -36,6 +36,8 @@ internal readonly record struct PartyCooldownRosterDiagnostics(
     int LocalAllianceGroupIndex,
     int RawLocalAllianceGroupIndex,
     int HudLocalAllianceGroupIndex,
+    int ObservedHudLocalAllianceGroupIndex,
+    bool UsedRetainedHudAllianceGroup,
     int CrossRealmGroupCount,
     int HudAllianceOrderCount);
 
@@ -93,6 +95,8 @@ internal static class PartyCooldownRoster
         int localAllianceGroupIndex = -1,
         int rawLocalAllianceGroupIndex = -1,
         int hudLocalAllianceGroupIndex = -1,
+        int observedHudLocalAllianceGroupIndex = -1,
+        bool usedRetainedHudAllianceGroup = false,
         int crossRealmGroupCount = 0,
         int hudAllianceOrderCount = 0)
     {
@@ -128,6 +132,8 @@ internal static class PartyCooldownRoster
             Math.Clamp(localAllianceGroupIndex, -1, 2),
             Math.Clamp(rawLocalAllianceGroupIndex, -1, 2),
             Math.Clamp(hudLocalAllianceGroupIndex, -1, 2),
+            Math.Clamp(observedHudLocalAllianceGroupIndex, -1, 2),
+            usedRetainedHudAllianceGroup,
             Math.Clamp(crossRealmGroupCount, 0, 3),
             Math.Clamp(hudAllianceOrderCount, 0, 40));
     }

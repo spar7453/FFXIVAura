@@ -93,6 +93,20 @@ internal static class PartyCooldownAllianceGroups
         return -1;
     }
 
+    public static int ResolveLocalGroupIndex(
+        int hudGroupIndex,
+        int memberGroupIndex,
+        int rawGroupIndex)
+    {
+        if (IsValidGroupIndex(hudGroupIndex))
+            return hudGroupIndex;
+
+        if (IsValidGroupIndex(memberGroupIndex))
+            return memberGroupIndex;
+
+        return IsValidGroupIndex(rawGroupIndex) ? rawGroupIndex : -1;
+    }
+
     public static bool IsLocalMember(
         uint memberEntityId,
         ulong memberContentId,

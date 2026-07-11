@@ -1,3 +1,4 @@
+using System.Numerics;
 using FFXIVAura;
 using static FFXIVAura.Tests.TestAssert;
 
@@ -25,7 +26,14 @@ internal static class ConfigSaveTests
                 {
                     Id = "win1",
                     Name = "main",
+                    AuraSearchShowIndividualIds = true,
+                    AllianceLayout = new IconWindowLayoutConfig
+                    {
+                        Position = new Vector2(100, 200),
+                        IconSize = 36,
+                    },
                     TrackedStatusIds = [10],
+                    ExactTrackedStatusIds = [10],
                     TrackedByJob = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase)
                     {
                         ["WAR"] = ["rampart"],
@@ -37,11 +45,20 @@ internal static class ConfigSaveTests
         var snapshot = PluginConfigClone.CreateSnapshot(source);
         source.IconWindows[0].Name = "changed";
         source.IconWindows[0].TrackedStatusIds.Add(20);
+        source.IconWindows[0].ExactTrackedStatusIds.Clear();
         source.IconWindows[0].TrackedByJob["WAR"].Add("reprisal");
+        var sourceAllianceLayout = source.IconWindows[0].AllianceLayout!;
+        sourceAllianceLayout.Position = new Vector2(300, 400);
+        sourceAllianceLayout.IconSize = 24;
 
         Equal("main", snapshot.IconWindows[0].Name);
+        True(snapshot.IconWindows[0].AuraSearchShowIndividualIds, "aura ID-view preference should be copied");
         Sequence([10u], snapshot.IconWindows[0].TrackedStatusIds);
+        Sequence([10u], snapshot.IconWindows[0].ExactTrackedStatusIds);
         Sequence(["rampart"], snapshot.IconWindows[0].TrackedByJob["WAR"]);
+        var snapshotAllianceLayout = snapshot.IconWindows[0].AllianceLayout!;
+        Vector(new Vector2(100, 200), snapshotAllianceLayout.Position);
+        Near(36, snapshotAllianceLayout.IconSize);
     }
 
     private static void DrainsQueuedSnapshotsOnDispose()

@@ -14,6 +14,7 @@ internal static class PerformanceProfilerTests
         ("PerformanceProfiler caps recent samples", CapsRecentSamples),
         ("PerformanceProfiler prunes recent samples without new calls", PrunesRecentSamplesWithoutNewCalls),
         ("PerformanceProfiler resets when toggled", ResetsWhenToggled),
+        ("PerformanceProfiler labels every profile section", LabelsEveryProfileSection),
     ];
 
     private static void IgnoresRecordsWhileDisabled()
@@ -151,5 +152,15 @@ internal static class PerformanceProfilerTests
         Equal(0, snapshot.SampleFrameCount);
         Equal(0L, snapshot.TotalCallCount);
         Near(0, snapshot.MaxMilliseconds);
+    }
+
+    private static void LabelsEveryProfileSection()
+    {
+        var profiler = new PerformanceProfiler();
+        for (var value = 0; value < (int)PerformanceProfileSection.Count; value++)
+        {
+            var snapshot = profiler.GetSnapshot((PerformanceProfileSection)value);
+            True(!string.IsNullOrWhiteSpace(snapshot.Label), $"profile section {value} should have a label");
+        }
     }
 }

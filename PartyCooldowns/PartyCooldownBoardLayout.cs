@@ -5,7 +5,7 @@ internal static class PartyCooldownBoardLayout
     public const int MaxIconsPerWrappedLine = 5;
     public const int AllianceColumnCount = 3;
     public const int AllianceMemberColumnCount = 1;
-    public const float MinAllianceIconSize = 16f;
+    public const float MinAllianceIconSize = 24f;
 
     public static bool HideEmptyRows(PartyCooldownCategory category)
         => category is PartyCooldownCategory.Healing or PartyCooldownCategory.Synergy;
@@ -79,6 +79,16 @@ internal static class PartyCooldownBoardLayout
 
     public static bool ShouldUseAllianceGrid(int allianceGroupCount)
         => allianceGroupCount >= 2;
+
+    public static float GetAllianceBoardHeightLimit(float configuredMaxHeight, float displayHeight, float displayMargin)
+    {
+        var fallbackHeight = Math.Max(0f, configuredMaxHeight);
+        if (!float.IsFinite(displayHeight) || displayHeight <= 0f)
+            return fallbackHeight;
+
+        var availableDisplayHeight = Math.Max(0f, displayHeight - Math.Max(0f, displayMargin) * 2f);
+        return Math.Max(fallbackHeight, availableDisplayHeight);
+    }
 
     public static float GetCompactAllianceGap(float configuredGap, float configuredIconSize, float renderIconSize)
     {

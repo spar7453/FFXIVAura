@@ -19,6 +19,9 @@ internal sealed class PerformanceProfiler
         "툴팁 렌더링",
         "흑백 처리",
         "\uC124\uC815 \uC800\uC7A5",
+        "스킬 후보 구성",
+        "오라 인덱스 구성",
+        "오라 검색",
     ];
 
     private readonly SectionStats[] sections;

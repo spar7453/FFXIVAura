@@ -13,6 +13,9 @@ internal enum PerformanceProfileSection
     TooltipRendering,
     GrayscaleProcessing,
     ConfigSave,
+    AbilityCandidateBuild,
+    AuraIndexBuild,
+    AuraSearch,
     Count,
 }
 

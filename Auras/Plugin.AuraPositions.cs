@@ -98,7 +98,9 @@ public sealed unsafe partial class Plugin
 
     private bool RemoveStaleAuraIconPositions(IconWindowConfig iconWindow, Dictionary<string, Vector2> positions)
     {
-        var trackedStatusIds = iconWindow.TrackedStatusIds.ToHashSet();
+        var trackedStatusIds = this.GetTrackedAuraGroups(iconWindow)
+            .Select(group => group.StatusId)
+            .ToHashSet();
         var changed = false;
         foreach (var key in positions.Keys.ToList())
         {

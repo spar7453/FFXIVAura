@@ -3,25 +3,108 @@ namespace FFXIVAura;
 public sealed unsafe partial class Plugin
 {
     private const int AuraSeenHistoryLimit = 512;
+    private static readonly TimeSpan AuraStatusIndexRetryDelay = TimeSpan.FromSeconds(1);
 
     private IReadOnlyList<AuraSearchDisplayResult> SearchStatuses(string search, IconWindowConfig iconWindow)
     {
-        var query = search?.Trim() ?? string.Empty;
-        var currentStatusIds = this.UpdateCurrentAuraSeenTimes(iconWindow);
-        var currentStatusIdSet = currentStatusIds.ToHashSet();
-        var candidates = new List<AuraSearchDisplayResult>();
-        this.AddCurrentStatusSearchResults(candidates, query, iconWindow, currentStatusIds);
-        if (iconWindow.AuraSearchActiveOnly)
-            return AuraSearchDisplayResults.MergeAndSort(candidates, query);
-
-        this.AddRecentStatusSearchResults(candidates, query, iconWindow, currentStatusIdSet);
-        if (query.Length > 0)
+        var profileStart = this.performanceProfiler.BeginSection(PerformanceProfileSection.AuraSearch);
+        try
         {
-            this.AddActionGrantedStatusSearchResults(candidates, query);
-            this.AddAllStatusSearchResults(candidates, query);
+            var query = search?.Trim() ?? string.Empty;
+            this.UpdateCurrentAuraSeenTimes(iconWindow, this.auraSearchCurrentStatusIdBuffer);
+            this.auraSearchCurrentStatusIdSetBuffer.Clear();
+            foreach (var statusId in this.auraSearchCurrentStatusIdBuffer)
+                this.auraSearchCurrentStatusIdSetBuffer.Add(statusId);
+
+            var cacheKey = this.CreateAuraSearchResultCacheKey(iconWindow, query);
+            if (this.auraSearchResultCacheByWindow.TryGetValue(iconWindow.Id, out var cached)
+                && cached.Key == cacheKey)
+            {
+                this.auraSearchResultCacheHitCount++;
+                return cached.Results;
+            }
+
+            this.auraSearchResultCacheMissCount++;
+            var candidates = new List<AuraSearchDisplayResult>();
+            this.AddCurrentStatusSearchResults(candidates, query, iconWindow, this.auraSearchCurrentStatusIdBuffer);
+            IReadOnlyList<AuraSearchDisplayResult> results;
+            if (iconWindow.AuraSearchActiveOnly)
+            {
+                results = this.FinalizeAuraSearchResults(candidates, query, iconWindow);
+            }
+            else
+            {
+                this.AddRecentStatusSearchResults(candidates, query, iconWindow, this.auraSearchCurrentStatusIdSetBuffer);
+                if (query.Length > 0)
+                {
+                    this.AddActionGrantedStatusSearchResults(candidates, query);
+                    this.AddAllStatusSearchResults(candidates, query);
+                }
+
+                results = this.FinalizeAuraSearchResults(candidates, query, iconWindow);
+            }
+
+            if (this.CanCacheAuraSearchResults(iconWindow, query))
+            {
+                cacheKey = this.CreateAuraSearchResultCacheKey(iconWindow, query);
+                if (this.auraSearchResultCacheByWindow.Count >= AuraSearchResultCacheLimit
+                    && !this.auraSearchResultCacheByWindow.ContainsKey(iconWindow.Id))
+                {
+                    this.auraSearchResultCacheByWindow.Clear();
+                }
+
+                this.auraSearchResultCacheByWindow[iconWindow.Id] = new AuraSearchResultCacheEntry(cacheKey, results);
+            }
+            else
+            {
+                this.auraSearchResultCacheByWindow.Remove(iconWindow.Id);
+            }
+
+            return results;
+        }
+        finally
+        {
+            this.performanceProfiler.EndSection(PerformanceProfileSection.AuraSearch, profileStart);
+        }
+    }
+
+    private AuraSearchResultCacheKey CreateAuraSearchResultCacheKey(IconWindowConfig iconWindow, string query)
+    {
+        var scopeKey = RuntimeScopeKeys.AuraSeen(iconWindow);
+        return new AuraSearchResultCacheKey(
+            query,
+            iconWindow.Role,
+            iconWindow.AuraSearchActiveOnly,
+            iconWindow.AuraSearchShowIndividualIds,
+            iconWindow.Role == IconWindowRole.PartyBuffs && iconWindow.PartyAurasOwnOnly,
+            this.auraSearchStateRevisionByScope.GetValueOrDefault(scopeKey),
+            this.statusIdentityIndexState.Generation,
+            this.actionGrantedStatusSearchIndexState.Generation);
+    }
+
+    private bool CanCacheAuraSearchResults(IconWindowConfig iconWindow, string query)
+        => this.statusIdentityIndexState.IsBuilt
+           && (iconWindow.AuraSearchActiveOnly
+               || query.Length == 0
+               || (this.allStatusSearchIndexBuilt
+                   && this.actionGrantedStatusSearchIndexState.IsBuilt));
+
+    private IReadOnlyList<AuraSearchDisplayResult> FinalizeAuraSearchResults(
+        IEnumerable<AuraSearchDisplayResult> candidates,
+        string query,
+        IconWindowConfig iconWindow)
+    {
+        var separateSameNameIds = iconWindow.AuraSearchShowIndividualIds
+                                  || uint.TryParse(query, out _);
+        var results = AuraSearchDisplayResults.MergeAndSort(candidates, query, separateSameNameIds);
+        for (var index = 0; index < results.Count; index++)
+        {
+            var knownCount = this.GetStatusIdsByGroup(results[index].GroupKey).Count;
+            if (knownCount > results[index].SameNameCount)
+                results[index] = results[index].WithSameNameCount(knownCount);
         }
 
-        return AuraSearchDisplayResults.MergeAndSort(candidates, query);
+        return results;
     }
 
     private void AddCurrentStatusSearchResults(List<AuraSearchDisplayResult> results, string query, IconWindowConfig iconWindow, IReadOnlyList<uint> currentStatusIds)
@@ -49,17 +132,15 @@ public sealed unsafe partial class Plugin
                 FromAction: !string.IsNullOrEmpty(sourceActionNames),
                 FromStatusSheet: false,
                 SeenAtUtc: this.GetAuraSeenTime(iconWindow, statusId),
-                SourceActionNames: sourceActionNames));
+                SourceActionNames: sourceActionNames,
+                StatusCategory: definition.StatusCategory));
         }
     }
 
     private void AddActionGrantedStatusSearchResults(List<AuraSearchDisplayResult> results, string query)
     {
-        foreach (var entry in this.GetActionGrantedStatusSearchIndex())
+        foreach (var entry in this.GetActionGrantedStatusSearchMatches(query))
         {
-            if (!AuraSearchIndex.Matches(entry, query))
-                continue;
-
             results.Add(new AuraSearchDisplayResult(
                 entry.StatusId,
                 entry.Name,
@@ -69,13 +150,14 @@ public sealed unsafe partial class Plugin
                 FromAction: true,
                 FromStatusSheet: false,
                 SeenAtUtc: DateTime.MinValue,
-                SourceActionNames: entry.PrimarySearchText));
+                SourceActionNames: entry.PrimarySearchText,
+                StatusCategory: entry.StatusCategory));
         }
     }
 
     private void AddAllStatusSearchResults(List<AuraSearchDisplayResult> results, string query)
     {
-        foreach (var result in AuraSearchIndex.Search(this.GetAllStatusSearchIndex(), query))
+        foreach (var result in this.GetAllStatusSearchMatches(query))
         {
             results.Add(new AuraSearchDisplayResult(
                 result.StatusId,
@@ -85,47 +167,86 @@ public sealed unsafe partial class Plugin
                 WasRecentlySeen: false,
                 FromAction: false,
                 FromStatusSheet: true,
-                SeenAtUtc: DateTime.MinValue));
+                SeenAtUtc: DateTime.MinValue,
+                StatusCategory: result.StatusCategory));
         }
     }
 
     private IReadOnlyList<AuraSearchIndexEntry> GetActionGrantedStatusSearchIndex()
     {
-        if (this.actionGrantedStatusSearchIndexBuilt)
+        if (this.actionGrantedStatusSearchIndexState.IsBuilt)
             return this.actionGrantedStatusSearchIndex;
 
-        this.actionGrantedStatusSearchIndex.Clear();
-        var sheet = DataManager.GetExcelSheet<GameAction>();
-        if (sheet is null)
-        {
-            this.actionGrantedStatusSearchIndexBuilt = true;
+        if (!this.EnsureStatusIdentityIndex())
             return this.actionGrantedStatusSearchIndex;
-        }
 
-        foreach (var action in sheet)
+        var nowUtc = DateTime.UtcNow;
+        if (!this.actionGrantedStatusSearchIndexState.ShouldAttempt(nowUtc))
+            return this.actionGrantedStatusSearchIndex;
+
+        var profileStart = this.performanceProfiler.BeginSection(PerformanceProfileSection.AuraIndexBuild);
+        try
         {
-            if (action.RowId == 0 || action.StatusGainSelf.RowId == 0)
-                continue;
+            var sheet = DataManager.GetExcelSheet<GameAction>();
+            if (sheet is null)
+            {
+                this.actionGrantedStatusSearchIndexState.MarkFailed(nowUtc, AuraStatusIndexRetryDelay);
+                return this.actionGrantedStatusSearchIndex;
+            }
 
-            var actionName = action.Name.ExtractText();
-            if (string.IsNullOrWhiteSpace(actionName))
-                continue;
+            var nextIndex = new List<AuraSearchIndexEntry>();
+            var nextIndexByStatusId = new Dictionary<uint, List<AuraSearchIndexEntry>>();
+            foreach (var action in sheet)
+            {
+                if (action.RowId == 0 || action.StatusGainSelf.RowId == 0)
+                    continue;
 
-            var statusId = action.StatusGainSelf.RowId;
-            var definition = this.GetStatusDefinition(statusId);
-            if (!this.IsSearchableStatusName(definition.Name))
-                continue;
+                var actionName = action.Name.ExtractText();
+                if (string.IsNullOrWhiteSpace(actionName))
+                    continue;
 
-            this.actionGrantedStatusSearchIndex.Add(new AuraSearchIndexEntry(
-                statusId,
-                definition.Name,
-                definition.IconId,
-                actionName,
-                action.RowId.ToString(),
-                $"{definition.Name} {statusId}"));
+                var statusId = action.StatusGainSelf.RowId;
+                var definition = this.GetStatusDefinition(statusId);
+                if (!this.IsSearchableStatusName(definition.Name))
+                    continue;
+
+                var entry = new AuraSearchIndexEntry(
+                    statusId,
+                    definition.Name,
+                    definition.IconId,
+                    actionName,
+                    action.RowId.ToString(),
+                    $"{definition.Name} {statusId}",
+                    definition.StatusCategory);
+                nextIndex.Add(entry);
+                if (!nextIndexByStatusId.TryGetValue(statusId, out var statusEntries))
+                {
+                    statusEntries = [];
+                    nextIndexByStatusId[statusId] = statusEntries;
+                }
+
+                statusEntries.Add(entry);
+            }
+
+            this.actionGrantedStatusSearchIndex.Clear();
+            this.actionGrantedStatusSearchIndex.AddRange(nextIndex);
+            this.actionGrantedStatusSearchIndexByStatusId.Clear();
+            foreach (var (statusId, entries) in nextIndexByStatusId)
+                this.actionGrantedStatusSearchIndexByStatusId[statusId] = entries;
+
+            this.actionGrantedAuraSearchQueryCache.Clear();
+            this.actionGrantedStatusSearchIndexState.MarkSucceeded();
+        }
+        catch (Exception ex)
+        {
+            this.actionGrantedStatusSearchIndexState.MarkFailed(nowUtc, AuraStatusIndexRetryDelay);
+            Log.Debug(ex, "Failed to build the action-granted aura search index.");
+        }
+        finally
+        {
+            this.performanceProfiler.EndSection(PerformanceProfileSection.AuraIndexBuild, profileStart);
         }
 
-        this.actionGrantedStatusSearchIndexBuilt = true;
         return this.actionGrantedStatusSearchIndex;
     }
 
@@ -134,34 +255,171 @@ public sealed unsafe partial class Plugin
         if (this.allStatusSearchIndexBuilt)
             return this.allStatusSearchIndex;
 
-        this.allStatusSearchIndex.Clear();
-        var sheet = DataManager.GetExcelSheet<GameStatus>();
-        if (sheet is null)
+        if (!this.EnsureStatusIdentityIndex())
+            return this.allStatusSearchIndex;
+
+        var profileStart = this.performanceProfiler.BeginSection(PerformanceProfileSection.AuraIndexBuild);
+        try
         {
+            var nextSearchIndex = new List<AuraSearchIndexEntry>(this.statusIdentityStatusIds.Count);
+            foreach (var statusId in this.statusIdentityStatusIds)
+            {
+                if (!this.statusDefinitionCache.TryGetValue(statusId, out var definition)
+                    || definition.IconId == 0)
+                {
+                    continue;
+                }
+
+                nextSearchIndex.Add(new AuraSearchIndexEntry(
+                    statusId,
+                    definition.Name,
+                    definition.IconId,
+                    definition.Name,
+                    statusId.ToString(),
+                    StatusCategory: definition.StatusCategory));
+            }
+
+            this.allStatusSearchIndex.Clear();
+            this.allStatusSearchIndex.AddRange(nextSearchIndex);
+            this.allStatusSearchQueryCache.Clear();
             this.allStatusSearchIndexBuilt = true;
             return this.allStatusSearchIndex;
         }
-
-        foreach (var status in sheet)
+        finally
         {
-            if (status.RowId == 0 || status.Icon == 0)
-                continue;
-
-            var name = status.Name.ExtractText();
-            if (!this.IsSearchableStatusName(name))
-                continue;
-
-            this.statusDefinitionCache.TryAdd(status.RowId, (name, status.Icon));
-            this.allStatusSearchIndex.Add(new AuraSearchIndexEntry(
-                status.RowId,
-                name,
-                status.Icon,
-                name,
-                status.RowId.ToString()));
+            this.performanceProfiler.EndSection(PerformanceProfileSection.AuraIndexBuild, profileStart);
         }
+    }
 
-        this.allStatusSearchIndexBuilt = true;
-        return this.allStatusSearchIndex;
+    private IReadOnlyList<AuraSearchIndexEntry> GetActionGrantedStatusSearchMatches(string query)
+    {
+        var normalizedQuery = query?.Trim() ?? string.Empty;
+        if (normalizedQuery.Length == 0)
+            return Array.Empty<AuraSearchIndexEntry>();
+
+        if (this.actionGrantedAuraSearchQueryCache.TryGetValue(normalizedQuery, out var cached))
+            return cached;
+
+        var index = this.GetActionGrantedStatusSearchIndex();
+        if (!this.actionGrantedStatusSearchIndexState.IsBuilt)
+            return Array.Empty<AuraSearchIndexEntry>();
+
+        var matches = index
+            .Where(entry => AuraSearchIndex.Matches(entry, normalizedQuery))
+            .ToArray();
+        AddAuraSearchQueryCacheEntry(this.actionGrantedAuraSearchQueryCache, normalizedQuery, matches);
+        return matches;
+    }
+
+    private IReadOnlyList<AuraSearchResult> GetAllStatusSearchMatches(string query)
+    {
+        var normalizedQuery = query?.Trim() ?? string.Empty;
+        if (normalizedQuery.Length == 0)
+            return Array.Empty<AuraSearchResult>();
+
+        if (this.allStatusSearchQueryCache.TryGetValue(normalizedQuery, out var cached))
+            return cached;
+
+        var index = this.GetAllStatusSearchIndex();
+        if (!this.allStatusSearchIndexBuilt)
+            return Array.Empty<AuraSearchResult>();
+
+        var matches = AuraSearchIndex.Search(index, normalizedQuery).ToArray();
+        AddAuraSearchQueryCacheEntry(this.allStatusSearchQueryCache, normalizedQuery, matches);
+        return matches;
+    }
+
+    private static void AddAuraSearchQueryCacheEntry<T>(
+        Dictionary<string, IReadOnlyList<T>> cache,
+        string query,
+        IReadOnlyList<T> results)
+    {
+        if (cache.Count >= AuraSearchQueryCacheLimit)
+            cache.Clear();
+
+        cache[query] = results;
+    }
+
+    private bool EnsureStatusIdentityIndex()
+    {
+        if (this.statusIdentityIndexState.IsBuilt)
+            return true;
+
+        var nowUtc = DateTime.UtcNow;
+        if (!this.statusIdentityIndexState.ShouldAttempt(nowUtc))
+            return false;
+
+        var profileStart = this.performanceProfiler.BeginSection(PerformanceProfileSection.AuraIndexBuild);
+        try
+        {
+            var sheet = DataManager.GetExcelSheet<GameStatus>();
+            if (sheet is null)
+            {
+                this.statusIdentityIndexState.MarkFailed(nowUtc, AuraStatusIndexRetryDelay);
+                return false;
+            }
+
+            var nextDefinitions = new Dictionary<uint, AuraStatusDefinition>();
+            var nextStatusIds = new List<uint>();
+            var nextStatusIdsByGroup = new Dictionary<AuraStatusGroupKey, List<uint>>();
+            foreach (var status in sheet)
+            {
+                if (status.RowId == 0)
+                    continue;
+
+                var name = status.Name.ExtractText();
+                if (!this.IsSearchableStatusName(name))
+                    continue;
+
+                var definition = new AuraStatusDefinition(name, status.Icon, status.StatusCategory);
+                nextDefinitions[status.RowId] = definition;
+                nextStatusIds.Add(status.RowId);
+                if (!nextStatusIdsByGroup.TryGetValue(definition.GroupKey, out var statusIds))
+                {
+                    statusIds = [];
+                    nextStatusIdsByGroup[definition.GroupKey] = statusIds;
+                }
+
+                statusIds.Add(status.RowId);
+            }
+
+            foreach (var (statusId, definition) in nextDefinitions)
+                this.statusDefinitionCache[statusId] = definition;
+
+            this.statusIdentityStatusIds.Clear();
+            this.statusIdentityStatusIds.AddRange(nextStatusIds);
+            this.statusIdsByGroupIndex.Clear();
+            foreach (var (key, statusIds) in nextStatusIdsByGroup)
+                this.statusIdsByGroupIndex[key] = statusIds;
+
+            this.statusIdentityIndexState.MarkSucceeded();
+            this.trackedAuraGroupCache.Clear();
+            this.allStatusSearchIndex.Clear();
+            this.allStatusSearchQueryCache.Clear();
+            this.allStatusSearchIndexBuilt = false;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            this.statusIdentityIndexState.MarkFailed(nowUtc, AuraStatusIndexRetryDelay);
+            Log.Debug(ex, "Failed to build the aura status identity index.");
+            return false;
+        }
+        finally
+        {
+            this.performanceProfiler.EndSection(PerformanceProfileSection.AuraIndexBuild, profileStart);
+        }
+    }
+
+    private IReadOnlyList<uint> GetStatusIdsByGroup(AuraStatusGroupKey key)
+    {
+        if (!key.IsValid)
+            return Array.Empty<uint>();
+
+        _ = this.EnsureStatusIdentityIndex();
+        return this.statusIdsByGroupIndex.TryGetValue(key, out var statusIds)
+            ? statusIds
+            : Array.Empty<uint>();
     }
 
     private void AddRecentStatusSearchResults(List<AuraSearchDisplayResult> results, string query, IconWindowConfig iconWindow, HashSet<uint> currentStatusIds)
@@ -195,16 +453,18 @@ public sealed unsafe partial class Plugin
                 FromAction: !string.IsNullOrEmpty(sourceActionNames),
                 FromStatusSheet: false,
                 SeenAtUtc: seenAt,
-                SourceActionNames: sourceActionNames));
+                SourceActionNames: sourceActionNames,
+                StatusCategory: definition.StatusCategory));
         }
     }
 
-    private IReadOnlyList<uint> UpdateCurrentAuraSeenTimes(IconWindowConfig iconWindow)
+    private void UpdateCurrentAuraSeenTimes(IconWindowConfig iconWindow, List<uint> output)
     {
-        var currentStatusIds = this.GetCurrentStatusIds(iconWindow)
-            .ToList();
-        this.UpdateAuraSeenTimes(iconWindow, currentStatusIds);
-        return currentStatusIds;
+        output.Clear();
+        foreach (var statusId in this.GetCurrentStatusIds(iconWindow))
+            output.Add(statusId);
+
+        this.UpdateAuraSeenTimes(iconWindow, output);
     }
 
     private string GetActionGrantedSourceNames(uint statusId, string query)
@@ -212,8 +472,12 @@ public sealed unsafe partial class Plugin
         if (string.IsNullOrWhiteSpace(query))
             return string.Empty;
 
+        _ = this.GetActionGrantedStatusSearchIndex();
+        if (!this.actionGrantedStatusSearchIndexByStatusId.TryGetValue(statusId, out var statusEntries))
+            return string.Empty;
+
         var names = new List<string>();
-        foreach (var entry in this.GetActionGrantedStatusSearchIndex())
+        foreach (var entry in statusEntries)
         {
             if (entry.StatusId != statusId || !AuraSearchIndex.Matches(entry, query))
                 continue;
@@ -240,6 +504,9 @@ public sealed unsafe partial class Plugin
             this.auraFirstSeenByScope[scopeKey] = seenTimes;
         }
 
+        if (AuraSearchStatusSets.HaveSameMembers(previous, currentStatusIds))
+            return;
+
         var now = DateTime.UtcNow;
         foreach (var statusId in currentStatusIds)
         {
@@ -252,6 +519,7 @@ public sealed unsafe partial class Plugin
             previous.Add(statusId);
 
         this.PruneAuraSeenTimes(seenTimes);
+        this.auraSearchStateRevisionByScope[scopeKey] = this.auraSearchStateRevisionByScope.GetValueOrDefault(scopeKey) + 1;
     }
 
     private void PruneAuraSeenTimes(Dictionary<uint, DateTime> seenTimes)

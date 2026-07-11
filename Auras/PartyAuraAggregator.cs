@@ -18,6 +18,10 @@ internal readonly record struct PartyAuraAggregate(
     int OwnCount,
     bool FromSelf);
 
+internal readonly record struct PartyAuraGroupAggregate(
+    int Count,
+    int OwnCount);
+
 internal static class PartyAuraAggregator
 {
     public static void AddMemberStatus(
@@ -64,6 +68,37 @@ internal static class PartyAuraAggregator
                 existing.Count + 1,
                 existing.OwnCount + (memberAura.FromSelf ? 1 : 0),
                 existing.FromSelf || memberAura.FromSelf);
+        }
+    }
+
+    public static void AddMemberAuraGroup(
+        Dictionary<AuraStatusGroupKey, bool> memberGroups,
+        AuraStatusGroupKey key,
+        bool fromSelf)
+    {
+        if (!key.IsValid)
+            return;
+
+        memberGroups[key] = memberGroups.TryGetValue(key, out var existingFromSelf)
+            ? existingFromSelf || fromSelf
+            : fromSelf;
+    }
+
+    public static void MergeMemberAuraGroups(
+        Dictionary<AuraStatusGroupKey, bool> memberGroups,
+        Dictionary<AuraStatusGroupKey, PartyAuraGroupAggregate> aggregateGroups)
+    {
+        foreach (var (key, fromSelf) in memberGroups)
+        {
+            if (!aggregateGroups.TryGetValue(key, out var existing))
+            {
+                aggregateGroups[key] = new PartyAuraGroupAggregate(1, fromSelf ? 1 : 0);
+                continue;
+            }
+
+            aggregateGroups[key] = new PartyAuraGroupAggregate(
+                existing.Count + 1,
+                existing.OwnCount + (fromSelf ? 1 : 0));
         }
     }
 }

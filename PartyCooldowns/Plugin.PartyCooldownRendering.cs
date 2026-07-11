@@ -12,23 +12,28 @@ public sealed unsafe partial class Plugin
             itemCount += row.Items.Count;
         this.performanceStats.CountOverlayWindow(itemCount, 0);
 
+        var useAllianceLayout = this.ShouldUsePartyCooldownAllianceLayout(iconWindow, rows);
+        var layoutBinding = IconWindowLayoutBinding.PartyCooldown(iconWindow, useAllianceLayout, out var layoutCreated);
+        if (layoutCreated)
+            this.QueueConfigSave();
+
+        var displayLayout = GetPartyCooldownBoardDisplayLayout(layoutBinding, rows);
+        this.RememberPartyCooldownWindowLayoutDiagnostics(iconWindow, displayLayout.Metrics);
         if (itemCount == 0 && this.config.LockOverlay)
             return;
 
-        var displayLayout = GetPartyCooldownBoardDisplayLayout(iconWindow, rows);
-        this.RememberPartyCooldownWindowLayoutDiagnostics(iconWindow, displayLayout.Metrics);
         var areaSize = displayLayout.Size;
         var windowSize = areaSize;
-        var clampedPosition = ClampOverlayWindowPosition(iconWindow.Position, windowSize);
-        var positionWasClamped = Vector2.DistanceSquared(iconWindow.Position, clampedPosition) > 0.25f;
+        var clampedPosition = ClampOverlayWindowPosition(layoutBinding.Position, windowSize);
+        var positionWasClamped = Vector2.DistanceSquared(layoutBinding.Position, clampedPosition) > 0.25f;
         if (positionWasClamped)
         {
-            iconWindow.Position = clampedPosition;
+            layoutBinding.Position = clampedPosition;
             this.SetBugDiagnosticEvent($"windowClamped:{iconWindow.Id}");
             this.QueueConfigSave();
         }
 
-        ImGui.SetNextWindowPos(iconWindow.Position, positionWasClamped ? ImGuiCond.Always : ImGuiCond.FirstUseEver);
+        ImGui.SetNextWindowPos(layoutBinding.Position, positionWasClamped ? ImGuiCond.Always : ImGuiCond.FirstUseEver);
         ImGui.SetNextWindowBgAlpha(0f);
         ImGui.SetNextWindowSize(windowSize, ImGuiCond.Always);
         var flags = ImGuiWindowFlags.NoTitleBar
@@ -39,7 +44,8 @@ public sealed unsafe partial class Plugin
             flags |= ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoInputs;
 
         ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, Vector2.Zero);
-        if (!ImGui.Begin($"FFXIVAuraOverlay-{iconWindow.Id}", flags))
+        var layoutModeId = useAllianceLayout ? "alliance" : "party";
+        if (!ImGui.Begin($"FFXIVAuraOverlay-{iconWindow.Id}-{layoutModeId}", flags))
         {
             ImGui.End();
             ImGui.PopStyleVar();
@@ -47,14 +53,14 @@ public sealed unsafe partial class Plugin
         }
 
         var windowPosition = ImGui.GetWindowPos();
-        if (!this.config.LockOverlay && Vector2.DistanceSquared(iconWindow.Position, windowPosition) > 0.25f)
+        if (!this.config.LockOverlay && Vector2.DistanceSquared(layoutBinding.Position, windowPosition) > 0.25f)
         {
-            iconWindow.Position = windowPosition;
+            layoutBinding.Position = windowPosition;
             this.QueueConfigSave();
         }
         else
         {
-            iconWindow.Position = windowPosition;
+            layoutBinding.Position = windowPosition;
         }
 
         ImGui.SetWindowFontScale(displayLayout.Metrics.FontScale);
@@ -63,10 +69,10 @@ public sealed unsafe partial class Plugin
         if (!this.config.LockOverlay)
             this.DrawOverlayEditStage(ImGui.GetWindowDrawList(), areaOrigin, areaOrigin + areaSize);
 
-        this.DrawPartyCooldownRows(iconWindow, rows, areaOrigin, areaSize, displayLayout.Metrics);
+        this.DrawPartyCooldownRows(iconWindow, rows, areaOrigin, areaSize, displayLayout.Metrics, layoutBinding.Alignment);
 
         if (!this.config.LockOverlay)
-            this.HandleOverlayResize(iconWindow, job, Array.Empty<AbilityDefinition>(), Array.Empty<AuraState>(), areaOrigin, areaSize);
+            this.HandleOverlayResize(iconWindow, job, Array.Empty<AbilityDefinition>(), Array.Empty<AuraState>(), areaOrigin, areaSize, layoutBinding);
 
         ImGui.End();
         ImGui.PopStyleVar();
@@ -77,7 +83,7 @@ public sealed unsafe partial class Plugin
             this.DrawOverlayRoleControls(iconWindow, job, level, areaOrigin, areaSize, controlLayout);
             this.DrawOverlayDisplayConditionControl(iconWindow, areaOrigin, areaSize, controlLayout);
             this.DrawOverlayNameControl(iconWindow, areaOrigin, areaSize, controlLayout);
-            this.DrawOverlayAlignmentControls(iconWindow, job, level, areaOrigin, areaSize, controlLayout);
+            this.DrawOverlayAlignmentControls(iconWindow, job, level, areaOrigin, areaSize, controlLayout, layoutBinding);
         }
     }
 
@@ -86,15 +92,16 @@ public sealed unsafe partial class Plugin
         IReadOnlyList<PartyCooldownMemberRow> rows,
         Vector2 areaOrigin,
         Vector2 areaSize,
-        PartyCooldownBoardRenderMetrics metrics)
+        PartyCooldownBoardRenderMetrics metrics,
+        IconAlignment alignment)
     {
         var draw = ImGui.GetWindowDrawList();
 
         draw.PushClipRect(areaOrigin, areaOrigin + areaSize, true);
         if (metrics.UseAllianceGrid)
-            this.DrawPartyCooldownAllianceStack(iconWindow, rows, draw, areaOrigin, areaSize, metrics);
+            this.DrawPartyCooldownAllianceStack(iconWindow, rows, draw, areaOrigin, areaSize, metrics, alignment);
         else
-            this.DrawPartyCooldownLinearRows(iconWindow, rows, draw, areaOrigin, areaSize, metrics);
+            this.DrawPartyCooldownLinearRows(iconWindow, rows, draw, areaOrigin, areaSize, metrics, alignment);
 
         draw.PopClipRect();
     }
@@ -105,7 +112,8 @@ public sealed unsafe partial class Plugin
         ImDrawListPtr draw,
         Vector2 areaOrigin,
         Vector2 areaSize,
-        PartyCooldownBoardRenderMetrics metrics)
+        PartyCooldownBoardRenderMetrics metrics,
+        IconAlignment alignment)
     {
         var rowStartX = areaOrigin.X + metrics.Padding;
         var iconAreaStartX = rowStartX + metrics.LabelWidth;
@@ -127,7 +135,8 @@ public sealed unsafe partial class Plugin
                 rowY,
                 areaMaxX,
                 showAllianceGroup: true,
-                metrics);
+                metrics,
+                alignment);
             rowY += contentHeight + memberRowGap;
         }
     }
@@ -138,7 +147,8 @@ public sealed unsafe partial class Plugin
         ImDrawListPtr draw,
         Vector2 areaOrigin,
         Vector2 areaSize,
-        PartyCooldownBoardRenderMetrics metrics)
+        PartyCooldownBoardRenderMetrics metrics,
+        IconAlignment alignment)
     {
         var headerHeight = GetPartyCooldownAllianceColumnHeaderHeight(metrics);
         var groupY = areaOrigin.Y + metrics.Padding;
@@ -195,7 +205,8 @@ public sealed unsafe partial class Plugin
                     rowY,
                     groupX + metrics.AllianceCellWidth,
                     showAllianceGroup: false,
-                    metrics);
+                    metrics,
+                    alignment);
                 rowY += contentHeight + memberRowGap;
             }
 
@@ -212,7 +223,8 @@ public sealed unsafe partial class Plugin
         float rowY,
         float areaMaxX,
         bool showAllianceGroup,
-        PartyCooldownBoardRenderMetrics metrics)
+        PartyCooldownBoardRenderMetrics metrics,
+        IconAlignment alignment)
     {
         var iconSize = metrics.IconSize;
         var gap = metrics.Gap;
@@ -251,7 +263,7 @@ public sealed unsafe partial class Plugin
         for (var lineIndex = 0; lineIndex < lineCount; lineIndex++)
         {
             var lineItemCount = PartyCooldownBoardLayout.GetLineItemCount(row.Items.Count, lineIndex, metrics.IconsPerLine);
-            var lineStartX = iconAreaStartX + PartyCooldownBoardLayout.GetLineStartOffset(iconWindow.Alignment, lineItemCount, iconSize, gap, metrics.IconsPerLine);
+            var lineStartX = iconAreaStartX + PartyCooldownBoardLayout.GetLineStartOffset(alignment, lineItemCount, iconSize, gap, metrics.IconsPerLine);
             var lineY = rowY + lineIndex * (iconSize + gap);
 
             for (var column = 0; column < lineItemCount; column++)

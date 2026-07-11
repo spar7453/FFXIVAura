@@ -40,7 +40,8 @@ Use this checklist before pushing a build that changes overlay positioning, auto
 - Enter combat, let a temporary buff/debuff appear, close the search window, then reopen search after it expires and confirm it can appear as a recent candidate.
 - With active-only aura search enabled, search for a status that is not currently visible, click the full-search switch button, and confirm older/recent candidates can appear.
 - With active-only aura search enabled, search by the granting skill name for a currently visible status and confirm the active result appears with its skill source tag.
-- Search for a status name that has multiple IDs and confirm same-name results show distinct IDs and a same-name hint.
+- Search for a status name that has multiple IDs. Confirm normal mode shows one grouped result with an ID-count hint, then enable `ID별 보기` and confirm the individual IDs appear.
+- Add a grouped aura, convert it to `이 ID만`, then convert it back with `그룹으로`. Confirm the tracked order and icon position are preserved.
 - Search by status name, status ID, action name, and action ID for an action-granted status. Confirm the same result keeps the action source tag.
 - Resize the aura search window and confirm the result list expands or shrinks with the window.
 - Confirm search results tag active, recently seen, action-granted skill names, and status-list candidates correctly.
@@ -49,6 +50,10 @@ Use this checklist before pushing a build that changes overlay positioning, auto
 ## Party Cooldown Boards
 
 - Create one Party Defensives window, one Party Healing Cooldowns window, and one Party Damage Synergies window.
+- Configure different positions, icon sizes, gaps, and alignments in the `8-player regular party` and `24-player alliance` layout tabs.
+- With no party formed, switch between those tabs and confirm the unlocked overlay moves to the corresponding editable position. Close settings and confirm automatic selection resumes.
+- Enter and leave alliance content and confirm that the appropriate layout is restored without overwriting the other layout.
+- During alliance HUD reloads and area transitions, confirm that the board does not briefly jump to the regular-party position.
 - Join a party and confirm rows follow the in-game party list order.
 - Join 24-player alliance content and confirm rows follow the in-game alliance list order with A/B/C labels on the correct parties.
 - Confirm the local party label matches the in-game party-list title (for example, `연합 파티 B` must appear under B).
@@ -85,6 +90,8 @@ Use this checklist before pushing a build that changes overlay positioning, auto
 - Confirm frame allocation, average allocation, and Gen0 collection values are shown and written to the CSV frame row.
 - With party cooldown boards visible, confirm `statusScansThisFrame` occurs periodically while intervening frames report `statusCacheHitsThisFrame`.
 - Confirm `activePartyListSource`, `activePartyListRecipient`, `activeObjectSource`, and `activeObjectRecipient` identify which status source supplied active board timers.
+- Confirm cold login/zone frames record `스킬 후보 구성` and `오라 인덱스 구성` separately, and that the work occurs while the overlay is hidden when zone-load hiding is enabled.
+- Open aura search, type the same query for several seconds, and confirm `actionAuraQueryCache` and `statusSearchQueryCache` remain bounded, `auraSearchResultCacheHits` increases faster than `auraSearchResultCacheMisses`, and `오라 검색` timing settles after the first query frame.
 - Enter and leave level-synced content, then compare the first transition frame with previous profiles. A new effective level should filter the cached job action list instead of rescanning the full Lumina Action sheet.
 - If running above 120 FPS, confirm the recent average remains stable instead of changing abruptly from sample capping.
 - Enable automatic CSV recording, change several settings, and confirm profile/config queue depth returns to zero with no failed or dropped work.

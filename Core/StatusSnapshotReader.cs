@@ -7,7 +7,10 @@ internal static class StatusSnapshotReader
         output.Clear();
         error = null;
         if (statuses is null)
-            return true;
+        {
+            error = new InvalidOperationException("Status collection is unavailable.");
+            return false;
+        }
 
         try
         {

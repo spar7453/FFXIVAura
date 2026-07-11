@@ -83,6 +83,8 @@ internal static class PartyCooldownRosterTests
             localAllianceGroupIndex: 1,
             rawLocalAllianceGroupIndex: 0,
             hudLocalAllianceGroupIndex: 1,
+            observedHudLocalAllianceGroupIndex: -1,
+            usedRetainedHudAllianceGroup: true,
             crossRealmGroupCount: 3,
             hudAllianceOrderCount: 16);
 
@@ -102,6 +104,8 @@ internal static class PartyCooldownRosterTests
         Equal(1, diagnostics.LocalAllianceGroupIndex);
         Equal(0, diagnostics.RawLocalAllianceGroupIndex);
         Equal(1, diagnostics.HudLocalAllianceGroupIndex);
+        Equal(-1, diagnostics.ObservedHudLocalAllianceGroupIndex);
+        True(diagnostics.UsedRetainedHudAllianceGroup, "retained HUD group usage should be captured");
         Equal(3, diagnostics.CrossRealmGroupCount);
         Equal(16, diagnostics.HudAllianceOrderCount);
     }

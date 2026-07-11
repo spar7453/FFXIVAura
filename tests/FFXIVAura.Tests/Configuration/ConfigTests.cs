@@ -13,6 +13,7 @@ internal static class ConfigTests
         ("ConfigMapNormalizer normalizes string list maps", ConfigMapNormalizerNormalizesStringListMaps),
         ("ConfigMapNormalizer normalizes vector maps", ConfigMapNormalizerNormalizesVectorMaps),
         ("PluginConfigNormalizer migrates legacy root config", PluginConfigNormalizerMigratesLegacyRootConfig),
+        ("PluginConfigNormalizer creates a separate alliance layout for party boards", PluginConfigNormalizerCreatesAllianceLayoutForPartyBoards),
         ("PluginConfigNormalizer repairs window ids and values", PluginConfigNormalizerRepairsWindowIdsAndValues),
         ("PluginConfigNormalizer repairs performance profile settings", PluginConfigNormalizerRepairsPerformanceProfileSettings),
     ];
@@ -145,6 +146,7 @@ internal static class ConfigTests
                     AuraDisplayCondition = (IconDisplayCondition)997,
                     Alignment = (IconAlignment)999,
                     TrackedStatusIds = [0, 5, 5],
+                    ExactTrackedStatusIds = [0, 5, 5, 7],
                     ExcludedPartyCooldownIds = [" rampart ", "Rampart", "", "reprisal"],
                     TrackedByJob = new Dictionary<string, List<string>>
                     {
@@ -199,6 +201,7 @@ internal static class ConfigTests
         Equal(IconDisplayCondition.Always, repaired.AuraDisplayCondition);
         Equal(IconAlignment.Center, repaired.Alignment);
         Sequence([5u], repaired.TrackedStatusIds);
+        Sequence([5u], repaired.ExactTrackedStatusIds);
         Sequence(["rampart", "reprisal"], repaired.ExcludedPartyCooldownIds);
         Sequence(["jump"], repaired.TrackedByJob["DRG"]);
 
@@ -207,6 +210,69 @@ internal static class ConfigTests
         Equal(IconDisplayCondition.CoolingOnly, duplicate.AuraDisplayCondition);
         True(duplicate.AuraPositionsByRole.ContainsKey("win3:PartyBuffs"), "duplicate window aura positions should be remapped");
         True(!duplicate.AuraPositionsByRole.ContainsKey("win2:PartyBuffs"), "old duplicate aura position key should be removed");
+    }
+
+    private static void PluginConfigNormalizerCreatesAllianceLayoutForPartyBoards()
+    {
+        var config = new PluginConfigData
+        {
+            ActiveWindowId = "win1",
+            WindowCounter = 2,
+            IconWindows =
+            [
+                new IconWindowConfig
+                {
+                    Id = "win1",
+                    Name = "party",
+                    Role = IconWindowRole.PartyDefensives,
+                    Position = new Vector2(25, 35),
+                    Width = 360,
+                    Height = 280,
+                    IconSize = 44,
+                    Gap = 6,
+                    FontScale = 1.1f,
+                    Alignment = IconAlignment.Right,
+                },
+                new IconWindowConfig
+                {
+                    Id = "win2",
+                    Name = "skill",
+                    Role = IconWindowRole.SkillCooldowns,
+                },
+            ],
+        };
+
+        var changed = PluginConfigNormalizer.Normalize(config, TestData.ConfigOptions());
+
+        True(changed, "legacy party board should receive an alliance layout");
+        var regular = config.IconWindows[0];
+        var alliance = regular.AllianceLayout!;
+        Vector(regular.Position, alliance.Position);
+        Near(regular.Width, alliance.Width);
+        Near(regular.Height, alliance.Height);
+        Near(regular.IconSize, alliance.IconSize);
+        Near(regular.Gap, alliance.Gap);
+        Near(regular.FontScale, alliance.FontScale);
+        Equal(regular.Alignment, alliance.Alignment);
+        True(config.IconWindows[1].AllianceLayout is null, "non-party windows should not add unused alliance settings");
+
+        alliance.Position = new Vector2(float.NaN, 1);
+        alliance.Width = float.PositiveInfinity;
+        alliance.Height = -1;
+        alliance.IconSize = 999;
+        alliance.Gap = -1;
+        alliance.FontScale = float.NaN;
+        alliance.Alignment = (IconAlignment)999;
+        changed = PluginConfigNormalizer.Normalize(config, TestData.ConfigOptions());
+
+        True(changed, "invalid alliance layout values should be repaired");
+        Vector(regular.Position, alliance.Position);
+        Near(regular.Width, alliance.Width);
+        Near(regular.Height, alliance.Height);
+        Near(72, alliance.IconSize);
+        Near(regular.Gap, alliance.Gap);
+        Near(regular.FontScale, alliance.FontScale);
+        Equal(regular.Alignment, alliance.Alignment);
     }
 
     private static void PluginConfigNormalizerRepairsPerformanceProfileSettings()

@@ -1,6 +1,10 @@
 namespace FFXIVAura;
 
-internal readonly record struct AuraSearchResult(uint StatusId, string Name, uint IconId);
+internal readonly record struct AuraSearchResult(
+    uint StatusId,
+    string Name,
+    uint IconId,
+    byte StatusCategory);
 
 internal readonly record struct AuraSearchIndexEntry(
     uint StatusId,
@@ -8,9 +12,10 @@ internal readonly record struct AuraSearchIndexEntry(
     uint IconId,
     string PrimarySearchText,
     string SecondarySearchText,
-    string AdditionalSearchText = "")
+    string AdditionalSearchText = "",
+    byte StatusCategory = 0)
 {
-    public AuraSearchResult Result => new(this.StatusId, this.Name, this.IconId);
+    public AuraSearchResult Result => new(this.StatusId, this.Name, this.IconId, this.StatusCategory);
 
     public string SearchText { get; } = BuildSearchText(PrimarySearchText, SecondarySearchText, AdditionalSearchText);
 

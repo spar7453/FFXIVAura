@@ -13,6 +13,8 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private const float MinOverlayHeight = 40f;
     private const float MaxOverlayHeight = 900f;
     private const int AbilityCandidateCacheLimit = 512;
+    private const int AuraSearchQueryCacheLimit = 16;
+    private const int AuraSearchResultCacheLimit = 4;
     private const int MinPerformanceProfileRecordIntervalSeconds = 1;
     private const int MaxPerformanceProfileRecordIntervalSeconds = 60;
     private const int MinPerformanceProfileMaxFileMegabytes = 1;
@@ -38,6 +40,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private static readonly TimeSpan PartyCooldownStatusCacheDuration = TimeSpan.FromMilliseconds(100);
     private static readonly TimeSpan PartyCooldownCrossSignalDedupeWindow = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan PartyCooldownStatusMissingGrace = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan PartyCooldownAllianceLayoutRetention = TimeSpan.FromSeconds(3);
     private static readonly TimeSpan StatusSnapshotFailureRetention = TimeSpan.FromMilliseconds(500);
 
     [PluginService] private static IDalamudPluginInterface PluginInterface { get; set; } = null!;
@@ -68,12 +71,25 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private readonly Dictionary<uint, byte> actionEquivalenceGroupCache = new();
     private readonly Dictionary<uint, GameAction> actionRowCache = new();
     private readonly Dictionary<uint, OverlayActionTooltipModel> actionTooltipModelCache = new();
-    private readonly Dictionary<uint, (string Name, uint IconId)> statusDefinitionCache = new();
+    private readonly Dictionary<uint, AuraStatusDefinition> statusDefinitionCache = new();
     private readonly Dictionary<uint, string> statusTooltipTextCache = new();
     private readonly Dictionary<string, Dictionary<uint, DateTime>> auraFirstSeenByScope = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, long> auraSearchStateRevisionByScope = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, AuraSearchResultCacheEntry> auraSearchResultCacheByWindow = new(StringComparer.OrdinalIgnoreCase);
+    private readonly List<uint> auraSearchCurrentStatusIdBuffer = [];
+    private readonly HashSet<uint> auraSearchCurrentStatusIdSetBuffer = [];
+    private readonly List<uint> auraSeenStatusIdBuffer = [];
     private readonly Dictionary<string, List<AbilityDefinition>> gameActionCandidatesCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<AuraSearchIndexEntry> actionGrantedStatusSearchIndex = [];
     private readonly List<AuraSearchIndexEntry> allStatusSearchIndex = [];
+    private readonly Dictionary<uint, List<AuraSearchIndexEntry>> actionGrantedStatusSearchIndexByStatusId = new();
+    private readonly Dictionary<string, IReadOnlyList<AuraSearchIndexEntry>> actionGrantedAuraSearchQueryCache = new(StringComparer.CurrentCultureIgnoreCase);
+    private readonly Dictionary<string, IReadOnlyList<AuraSearchResult>> allStatusSearchQueryCache = new(StringComparer.CurrentCultureIgnoreCase);
+    private readonly List<uint> statusIdentityStatusIds = [];
+    private readonly Dictionary<AuraStatusGroupKey, List<uint>> statusIdsByGroupIndex = new();
+    private readonly Dictionary<string, AuraStatusGroupCacheEntry> trackedAuraGroupCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly AuraStatusIndexBuildState statusIdentityIndexState = new();
+    private readonly AuraStatusIndexBuildState actionGrantedStatusSearchIndexState = new();
     private readonly Dictionary<string, CooldownState> cooldownFrameCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, IReadOnlyList<AbilityDefinition>> jobCandidatesCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, PartyCooldownRuntimeState> partyCooldownRuntimeStates = new(StringComparer.OrdinalIgnoreCase);
@@ -87,13 +103,19 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private readonly Dictionary<PartyCooldownCategory, IReadOnlyList<PartyCooldownDefinition>> partyCooldownPresetDefinitionsByCategory = new();
     private readonly Dictionary<string, IReadOnlyList<PartyCooldownDefinition>> partyCooldownEffectiveDefinitionsByCategoryAndLevel = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> partyCooldownCanonicalDefinitionIdById = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, bool> partyCooldownAllianceLayoutPreviewByWindow = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<uint, int> partyCooldownLogActionParamIndexByLogMessageId = new();
     private readonly PartyCooldownLogObservationBuffer partyCooldownLogObservations = new(64, 8);
+    private readonly PartyCooldownLayoutModeTracker partyCooldownLayoutModeTracker = new(PartyCooldownAllianceLayoutRetention);
     private readonly List<string> partyCooldownRuntimePruneBuffer = [];
     private readonly Dictionary<uint, CharacterAuraAggregate> playerAuraFrameCache = new();
     private readonly Dictionary<uint, CharacterAuraAggregate> targetAuraFrameCache = new();
     private readonly Dictionary<uint, PartyAuraAggregate> partyAuraFrameAllCache = new();
     private readonly Dictionary<uint, PartyAuraAggregate> partyAuraFrameOwnCache = new();
+    private readonly Dictionary<AuraStatusGroupKey, PartyAuraGroupAggregate> partyAuraGroupFrameAllCache = new();
+    private readonly Dictionary<AuraStatusGroupKey, PartyAuraGroupAggregate> partyAuraGroupFrameOwnCache = new();
+    private readonly Dictionary<uint, PartyMemberAuraState> partyMemberAuraFrameBuffer = new();
+    private readonly Dictionary<AuraStatusGroupKey, bool> partyMemberAuraGroupFrameBuffer = new();
     private readonly List<StatusSnapshot> statusSnapshotBuffer = [];
     private readonly StatusSnapshotFallbackCache statusSnapshotFallbackCache = new();
     private readonly Dictionary<uint, uint> gameObjectOwnerFrameCache = new();
@@ -115,7 +137,6 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private bool auraSearchWindowVisible;
     private bool configSavePending;
     private bool configWasVisible;
-    private bool actionGrantedStatusSearchIndexBuilt;
     private bool allStatusSearchIndexBuilt;
     private bool keybindCacheDirty = true;
     private bool playerAuraFrameCacheValid;
@@ -143,6 +164,8 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private ulong partyCooldownActiveStatusRosterHash;
     private long partyCooldownCandidateMissingLogCount;
     private long partyCooldownCandidateMissingObservationCount;
+    private long auraSearchResultCacheHitCount;
+    private long auraSearchResultCacheMissCount;
     private long performanceProfileFailureCount;
     private string performanceProfileLastError = string.Empty;
     private string lastBugDiagnosticEvent = string.Empty;
@@ -176,6 +199,12 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
         if (this.config.Version < 3)
         {
             this.config.Version = 3;
+            configChanged |= this.EnsureIconWindows();
+        }
+
+        if (this.config.Version < 4)
+        {
+            this.config.Version = 4;
             configChanged |= this.EnsureIconWindows();
         }
 
@@ -355,8 +384,16 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                 return;
             }
 
+            if (loginStarted)
+            {
+                this.WarmOverlayRuntimeData();
+                this.FlushConfigSave(force: false);
+                return;
+            }
+
             if (this.config.HideDuringZoneLoad && this.IsLoading())
             {
+                this.WarmOverlayRuntimeData();
                 this.FlushConfigSave(force: false);
                 return;
             }
