@@ -25,6 +25,7 @@ public sealed unsafe partial class Plugin
             AuraDisplayCondition = activeWindow.AuraDisplayCondition,
             PartyCooldownDisplayCondition = activeWindow.PartyCooldownDisplayCondition,
             Alignment = activeWindow.Alignment,
+            FourPlayerLayout = IconWindowLayoutBinding.CloneConfig(activeWindow.FourPlayerLayout),
             AllianceLayout = IconWindowLayoutBinding.CloneConfig(activeWindow.AllianceLayout),
             HighlightReady = activeWindow.HighlightReady,
             HighlightAdjusted = activeWindow.HighlightAdjusted,
@@ -43,6 +44,15 @@ public sealed unsafe partial class Plugin
             IconPositionsByJob = IconWindowClone.CloneVector2Map(activeWindow.IconPositionsByJob),
             AuraPositionsByRole = IconWindowClone.CloneAuraPositionsForWindow(activeWindow.AuraPositionsByRole, activeWindow.Id, id),
         };
+
+        if (window.FourPlayerLayout is not null && activeWindow.FourPlayerLayout is not null)
+        {
+            var positionOffset = window.Position - activeWindow.Position;
+            var fourPlayerSize = new Vector2(window.FourPlayerLayout.Width, window.FourPlayerLayout.Height);
+            window.FourPlayerLayout.Position = ClampOverlayWindowPosition(
+                activeWindow.FourPlayerLayout.Position + positionOffset,
+                fourPlayerSize);
+        }
 
         if (window.AllianceLayout is not null && activeWindow.AllianceLayout is not null)
         {

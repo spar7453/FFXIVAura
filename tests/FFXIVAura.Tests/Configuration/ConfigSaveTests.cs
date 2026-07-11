@@ -20,6 +20,7 @@ internal static class ConfigSaveTests
         var source = new PluginConfig
         {
             ActiveWindowId = "win1",
+            PartyCooldownLayoutEditMode = PartyCooldownLayoutEditMode.Alliance,
             IconWindows =
             [
                 new IconWindowConfig
@@ -27,6 +28,11 @@ internal static class ConfigSaveTests
                     Id = "win1",
                     Name = "main",
                     AuraSearchShowIndividualIds = true,
+                    FourPlayerLayout = new IconWindowLayoutConfig
+                    {
+                        Position = new Vector2(50, 75),
+                        IconSize = 40,
+                    },
                     AllianceLayout = new IconWindowLayoutConfig
                     {
                         Position = new Vector2(100, 200),
@@ -47,15 +53,22 @@ internal static class ConfigSaveTests
         source.IconWindows[0].TrackedStatusIds.Add(20);
         source.IconWindows[0].ExactTrackedStatusIds.Clear();
         source.IconWindows[0].TrackedByJob["WAR"].Add("reprisal");
+        var sourceFourPlayerLayout = source.IconWindows[0].FourPlayerLayout!;
+        sourceFourPlayerLayout.Position = new Vector2(500, 600);
+        sourceFourPlayerLayout.IconSize = 28;
         var sourceAllianceLayout = source.IconWindows[0].AllianceLayout!;
         sourceAllianceLayout.Position = new Vector2(300, 400);
         sourceAllianceLayout.IconSize = 24;
 
         Equal("main", snapshot.IconWindows[0].Name);
+        Equal(PartyCooldownLayoutEditMode.Alliance, snapshot.PartyCooldownLayoutEditMode);
         True(snapshot.IconWindows[0].AuraSearchShowIndividualIds, "aura ID-view preference should be copied");
         Sequence([10u], snapshot.IconWindows[0].TrackedStatusIds);
         Sequence([10u], snapshot.IconWindows[0].ExactTrackedStatusIds);
         Sequence(["rampart"], snapshot.IconWindows[0].TrackedByJob["WAR"]);
+        var snapshotFourPlayerLayout = snapshot.IconWindows[0].FourPlayerLayout!;
+        Vector(new Vector2(50, 75), snapshotFourPlayerLayout.Position);
+        Near(40, snapshotFourPlayerLayout.IconSize);
         var snapshotAllianceLayout = snapshot.IconWindows[0].AllianceLayout!;
         Vector(new Vector2(100, 200), snapshotAllianceLayout.Position);
         Near(36, snapshotAllianceLayout.IconSize);

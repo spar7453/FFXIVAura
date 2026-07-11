@@ -103,12 +103,26 @@ internal readonly struct IconWindowLayoutBinding
         return new IconWindowLayoutBinding(window, null);
     }
 
-    public static IconWindowLayoutBinding PartyCooldown(IconWindowConfig window, bool useAllianceLayout, out bool created)
+    public static IconWindowLayoutBinding PartyCooldown(
+        IconWindowConfig window,
+        PartyCooldownLayoutEditMode mode,
+        out bool created)
     {
         ArgumentNullException.ThrowIfNull(window);
         created = false;
-        if (!useAllianceLayout)
+        if (mode == PartyCooldownLayoutEditMode.EightPlayer)
             return Regular(window);
+
+        if (mode == PartyCooldownLayoutEditMode.FourPlayer)
+        {
+            if (window.FourPlayerLayout is null)
+            {
+                window.FourPlayerLayout = CreateConfig(window);
+                created = true;
+            }
+
+            return new IconWindowLayoutBinding(window, window.FourPlayerLayout);
+        }
 
         if (window.AllianceLayout is null)
         {

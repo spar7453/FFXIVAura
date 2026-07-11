@@ -21,6 +21,7 @@ Use this checklist before pushing a build that changes overlay positioning, auto
 
 ## Overlay Editing
 
+- Keep settings open, click each unlocked overlay body, and confirm the active window selector and settings content switch to the clicked window.
 - Add a second overlay window, rename it, change its role, and delete it.
 - Confirm deleting an overlay window opens a confirmation popup, and cancel leaves the window unchanged.
 - Add another window and confirm the deleted window number is reused when available.
@@ -50,11 +51,12 @@ Use this checklist before pushing a build that changes overlay positioning, auto
 ## Party Cooldown Boards
 
 - Create one Party Defensives window, one Party Healing Cooldowns window, and one Party Damage Synergies window.
-- Configure different positions, icon sizes, gaps, and alignments in the `8-player regular party` and `24-player alliance` layout tabs.
-- With no party formed, switch between those tabs and confirm the unlocked overlay moves to the corresponding editable position. Close settings and confirm automatic selection resumes.
+- Select the shared `4-player dungeon`, `8-player regular party`, or `24-player alliance` edit mode, then switch between defensive, healing, and synergy windows and confirm every selected window continues editing the same mode.
+- With no party formed, switch the shared mode and confirm unlocked party-board overlays move to their corresponding editable positions. Close settings and confirm automatic selection resumes.
 - Enter and leave alliance content and confirm that the appropriate layout is restored without overwriting the other layout.
 - During alliance HUD reloads and area transitions, confirm that the board does not briefly jump to the regular-party position.
 - Join a party and confirm rows follow the in-game party list order.
+- Enter a 4-player dungeon and confirm party boards use their 4-player position and size; leave or join an 8-player party and confirm each stored layout returns independently.
 - Join 24-player alliance content and confirm rows follow the in-game alliance list order with A/B/C labels on the correct parties.
 - Confirm the local party label matches the in-game party-list title (for example, `연합 파티 B` must appear under B).
 - Confirm A/B/C are three vertically stacked party sections and each party contains up to eight member rows in party-list slot order.
@@ -79,6 +81,7 @@ Use this checklist before pushing a build that changes overlay positioning, auto
 - If two same-named pets or owned objects are present, confirm ambiguous ownership is ignored instead of starting cooldowns on the wrong party member.
 - During duty entry, zone transitions, and party member loading, confirm transient status-list reads do not close the overlay or produce repeated exceptions.
 - Confirm a transient status-list read failure does not make existing aura icons or active party-cooldown borders disappear for a frame.
+- On a party buff window, watch a short timed mitigation such as Sacred Soil. Confirm its timer decreases smoothly between party-list updates and the icon disappears after expiry even if the party list briefly retains a stale status slot.
 
 ## Performance Overlay
 

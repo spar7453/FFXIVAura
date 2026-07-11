@@ -37,6 +37,8 @@ public sealed unsafe partial class Plugin
             if (ImGui.BeginTabItem("오버레이/추적"))
             {
                 ImGui.TextDisabled($"현재 창 크기 설정: {GetIconWindowDisplayName(activeWindow)}");
+                changed |= this.DrawPartyCooldownLayoutEditMode();
+                ImGui.Separator();
                 changed |= this.DrawOverlayWindowSettings(activeWindow, job, level);
                 ImGui.Separator();
                 this.DrawTrackingSettings(activeWindow, job, level);
@@ -128,32 +130,57 @@ public sealed unsafe partial class Plugin
         if (!IconWindowRoles.IsPartyCooldownRole(activeWindow.Role))
             return this.DrawOverlayWindowLayoutSettings(activeWindow, IconWindowLayoutBinding.Regular(activeWindow), job, level);
 
+        var layoutBinding = IconWindowLayoutBinding.PartyCooldown(
+            activeWindow,
+            this.config.PartyCooldownLayoutEditMode,
+            out var created);
+        return created | this.DrawOverlayWindowLayoutSettings(activeWindow, layoutBinding, job, level);
+    }
+
+    private bool DrawPartyCooldownLayoutEditMode()
+    {
+        var mode = this.config.PartyCooldownLayoutEditMode;
         var changed = false;
-        if (!ImGui.BeginTabBar($"FFXIVAuraPartyLayoutTabs##{activeWindow.Id}"))
+        ImGui.TextUnformatted("\uD30C\uD2F0 \uBCF4\uB4DC \uD3B8\uC9D1 \uB808\uC774\uC544\uC6C3");
+
+        changed |= DrawPartyCooldownLayoutModeButton(
+            ref mode,
+            PartyCooldownLayoutEditMode.FourPlayer,
+            "4\uC778 \uB358\uC804");
+        ImGui.SameLine();
+        changed |= DrawPartyCooldownLayoutModeButton(
+            ref mode,
+            PartyCooldownLayoutEditMode.EightPlayer,
+            "8\uC778 \uC77C\uBC18");
+        ImGui.SameLine();
+        changed |= DrawPartyCooldownLayoutModeButton(
+            ref mode,
+            PartyCooldownLayoutEditMode.Alliance,
+            "24\uC778 \uC5F0\uD569");
+
+        if (changed)
+            this.config.PartyCooldownLayoutEditMode = mode;
+
+        return changed;
+    }
+
+    private static bool DrawPartyCooldownLayoutModeButton(
+        ref PartyCooldownLayoutEditMode mode,
+        PartyCooldownLayoutEditMode candidate,
+        string label)
+    {
+        var selected = mode == candidate;
+        if (selected)
+            ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.14f, 0.5f, 0.58f, 0.96f));
+
+        var clicked = ImGui.Button(label, new Vector2(110f, 0f));
+        if (selected)
+            ImGui.PopStyleColor();
+        if (!clicked || selected)
             return false;
 
-        if (ImGui.BeginTabItem("8인 일반 파티"))
-        {
-            this.SetPartyCooldownLayoutPreview(activeWindow, useAllianceLayout: false);
-            changed |= this.DrawOverlayWindowLayoutSettings(
-                activeWindow,
-                IconWindowLayoutBinding.Regular(activeWindow),
-                job,
-                level);
-            ImGui.EndTabItem();
-        }
-
-        if (ImGui.BeginTabItem("24인 연합 파티"))
-        {
-            this.SetPartyCooldownLayoutPreview(activeWindow, useAllianceLayout: true);
-            var allianceLayout = IconWindowLayoutBinding.PartyCooldown(activeWindow, useAllianceLayout: true, out var created);
-            changed |= created;
-            changed |= this.DrawOverlayWindowLayoutSettings(activeWindow, allianceLayout, job, level);
-            ImGui.EndTabItem();
-        }
-
-        ImGui.EndTabBar();
-        return changed;
+        mode = candidate;
+        return true;
     }
 
     private bool DrawOverlayWindowLayoutSettings(
@@ -278,8 +305,8 @@ public sealed unsafe partial class Plugin
         if (statuslessAtLevel > 0)
             ImGui.TextDisabled($"\uC0C1\uD0DC \uCD94\uC801 \uC5C6\uC74C: {statuslessAtLevel}\uAC1C");
 
-        var useAllianceLayout = this.ShouldUsePartyCooldownAllianceLayout(activeWindow);
-        var activeLayout = IconWindowLayoutBinding.PartyCooldown(activeWindow, useAllianceLayout, out var layoutCreated);
+        var layoutMode = this.GetPartyCooldownLayoutMode();
+        var activeLayout = IconWindowLayoutBinding.PartyCooldown(activeWindow, layoutMode, out var layoutCreated);
         if (layoutCreated)
             this.QueueConfigSave();
 

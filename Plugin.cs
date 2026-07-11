@@ -103,7 +103,6 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private readonly Dictionary<PartyCooldownCategory, IReadOnlyList<PartyCooldownDefinition>> partyCooldownPresetDefinitionsByCategory = new();
     private readonly Dictionary<string, IReadOnlyList<PartyCooldownDefinition>> partyCooldownEffectiveDefinitionsByCategoryAndLevel = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> partyCooldownCanonicalDefinitionIdById = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, bool> partyCooldownAllianceLayoutPreviewByWindow = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<uint, int> partyCooldownLogActionParamIndexByLogMessageId = new();
     private readonly PartyCooldownLogObservationBuffer partyCooldownLogObservations = new(64, 8);
     private readonly PartyCooldownLayoutModeTracker partyCooldownLayoutModeTracker = new(PartyCooldownAllianceLayoutRetention);
@@ -116,6 +115,9 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private readonly Dictionary<AuraStatusGroupKey, PartyAuraGroupAggregate> partyAuraGroupFrameOwnCache = new();
     private readonly Dictionary<uint, PartyMemberAuraState> partyMemberAuraFrameBuffer = new();
     private readonly Dictionary<AuraStatusGroupKey, bool> partyMemberAuraGroupFrameBuffer = new();
+    private readonly Dictionary<ulong, PartyAuraTimerState> partyAuraTimerStates = new();
+    private readonly HashSet<ulong> partyAuraTimerLiveKeys = [];
+    private readonly List<ulong> partyAuraTimerPruneBuffer = [];
     private readonly List<StatusSnapshot> statusSnapshotBuffer = [];
     private readonly StatusSnapshotFallbackCache statusSnapshotFallbackCache = new();
     private readonly Dictionary<uint, uint> gameObjectOwnerFrameCache = new();
@@ -166,6 +168,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private long partyCooldownCandidateMissingObservationCount;
     private long auraSearchResultCacheHitCount;
     private long auraSearchResultCacheMissCount;
+    private long partyAuraExpiredStatusSuppressedCount;
     private long performanceProfileFailureCount;
     private string performanceProfileLastError = string.Empty;
     private string lastBugDiagnosticEvent = string.Empty;
@@ -205,6 +208,18 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
         if (this.config.Version < 4)
         {
             this.config.Version = 4;
+            configChanged |= this.EnsureIconWindows();
+        }
+
+        if (this.config.Version < 5)
+        {
+            this.config.Version = 5;
+            configChanged |= this.EnsureIconWindows();
+        }
+
+        if (this.config.Version < 6)
+        {
+            this.config.Version = 6;
             configChanged |= this.EnsureIconWindows();
         }
 
@@ -328,6 +343,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
 
     private void OnZoneInit(ZoneInitEventArgs args)
     {
+        this.partyAuraTimerStates.Clear();
         this.zoneLoadHiddenUntil = DateTime.UtcNow.AddMilliseconds(900);
     }
 

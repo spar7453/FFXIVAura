@@ -256,8 +256,10 @@ public sealed unsafe partial class Plugin
 
             var memberAuras = this.partyMemberAuraFrameBuffer;
             var memberGroups = this.partyMemberAuraGroupFrameBuffer;
+            var observedAtUtc = DateTime.UtcNow;
             memberAuras.Clear();
             memberGroups.Clear();
+            this.partyAuraTimerLiveKeys.Clear();
             var partySlotCount = this.GetPartyListHeader().PartySlotCount;
             for (var i = 0; i < partySlotCount; i++)
             {
@@ -267,13 +269,37 @@ public sealed unsafe partial class Plugin
 
                 memberAuras.Clear();
                 memberGroups.Clear();
-                if (!this.TryReadPartyMemberStatusSnapshots(member, "partyAura", out _))
+                if (!this.TryReadPartyMemberStatusSnapshots(member, "partyAura", out var memberEntityId))
                     continue;
 
                 foreach (var status in this.statusSnapshotBuffer)
                 {
+                    var timerKey = ((ulong)memberEntityId << 32) | status.StatusId;
+                    this.partyAuraTimerLiveKeys.Add(timerKey);
+                    var remaining = status.RemainingTime;
+                    if (remaining > 0f)
+                    {
+                        if (!this.partyAuraTimerStates.TryGetValue(timerKey, out var timerState))
+                        {
+                            timerState = new PartyAuraTimerState();
+                            this.partyAuraTimerStates[timerKey] = timerState;
+                        }
+
+                        remaining = PartyAuraTimerTracker.Update(timerState, observedAtUtc, remaining);
+                        if (remaining <= 0f)
+                        {
+                            this.partyAuraExpiredStatusSuppressedCount++;
+                            continue;
+                        }
+                    }
+                    else if (this.partyAuraTimerStates.ContainsKey(timerKey))
+                    {
+                        this.partyAuraExpiredStatusSuppressedCount++;
+                        continue;
+                    }
+
                     var fromSelf = this.IsStatusFromSelf(status.SourceId);
-                    var sample = new PartyAuraStatusSample(status.StatusId, status.RemainingTime, status.Param, fromSelf);
+                    var sample = new PartyAuraStatusSample(status.StatusId, remaining, status.Param, fromSelf);
                     PartyAuraAggregator.AddMemberStatus(memberAuras, sample, ownOnly);
                 }
 
@@ -291,11 +317,25 @@ public sealed unsafe partial class Plugin
 
             memberAuras.Clear();
             memberGroups.Clear();
+            this.PrunePartyAuraTimerStates();
         }
         finally
         {
             this.performanceProfiler.EndSection(PerformanceProfileSection.AuraScan, profileStart);
         }
+    }
+
+    private void PrunePartyAuraTimerStates()
+    {
+        this.partyAuraTimerPruneBuffer.Clear();
+        foreach (var timerKey in this.partyAuraTimerStates.Keys)
+        {
+            if (!this.partyAuraTimerLiveKeys.Contains(timerKey))
+                this.partyAuraTimerPruneBuffer.Add(timerKey);
+        }
+
+        foreach (var timerKey in this.partyAuraTimerPruneBuffer)
+            this.partyAuraTimerStates.Remove(timerKey);
     }
 
     private bool IsStatusFromSelf(uint sourceId)

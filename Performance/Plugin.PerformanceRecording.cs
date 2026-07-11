@@ -232,7 +232,8 @@ public sealed unsafe partial class Plugin
             ("profileLastErrorLocal", this.performanceProfileLastErrorAtUtc == DateTime.MinValue
                 ? string.Empty
                 : this.performanceProfileLastErrorAtUtc.ToLocalTime()),
-            ("logObserver", this.config.ShowPartyCooldownLogObserver)));
+            ("logObserver", this.config.ShowPartyCooldownLogObserver),
+            ("partyCooldownLayoutEditMode", this.config.PartyCooldownLayoutEditMode)));
 
         this.AppendPerformanceProfileDiagnosticRow(builder, timestampUtc, "player", "Player", FormatDiagnosticPairs(
             ("loggedIn", ClientState.IsLoggedIn),
@@ -303,6 +304,8 @@ public sealed unsafe partial class Plugin
             ("partyAllCacheCount", this.partyAuraFrameAllCache.Count),
             ("partyOwnCacheValid", this.partyAuraFrameOwnCacheValid),
             ("partyOwnCacheCount", this.partyAuraFrameOwnCache.Count),
+            ("partyTimerStates", this.partyAuraTimerStates.Count),
+            ("partyExpiredStatusSuppressed", this.partyAuraExpiredStatusSuppressedCount),
             ("visibleAuraScopes", this.visibleAurasByScope.Count),
             ("visibleAuraIds", this.visibleAurasByScope.Values.Sum(statusIds => statusIds.Count)),
             ("firstSeenScopes", this.auraFirstSeenByScope.Count),
@@ -528,6 +531,17 @@ public sealed unsafe partial class Plugin
             ("iconSize", window.IconSize),
             ("gap", window.Gap),
             ("fontScale", window.FontScale),
+            ("fourPlayerLayoutConfigured", window.FourPlayerLayout is not null),
+            ("fourPlayerAlignment", window.FourPlayerLayout?.Alignment.ToString() ?? string.Empty),
+            ("fourPlayerPosition", window.FourPlayerLayout is null
+                ? string.Empty
+                : $"{FormatDiagnosticNumber(window.FourPlayerLayout.Position.X)}:{FormatDiagnosticNumber(window.FourPlayerLayout.Position.Y)}"),
+            ("fourPlayerSize", window.FourPlayerLayout is null
+                ? string.Empty
+                : $"{FormatDiagnosticNumber(window.FourPlayerLayout.Width)}x{FormatDiagnosticNumber(window.FourPlayerLayout.Height)}"),
+            ("fourPlayerIconSize", window.FourPlayerLayout?.IconSize ?? 0f),
+            ("fourPlayerGap", window.FourPlayerLayout?.Gap ?? 0f),
+            ("fourPlayerFontScale", window.FourPlayerLayout?.FontScale ?? 0f),
             ("allianceLayoutConfigured", window.AllianceLayout is not null),
             ("allianceAlignment", window.AllianceLayout?.Alignment.ToString() ?? string.Empty),
             ("alliancePosition", window.AllianceLayout is null

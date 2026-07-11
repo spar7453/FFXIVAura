@@ -10,6 +10,7 @@ internal static class IconWindowLayoutBindingTests
     [
         ("IconWindowLayoutBinding keeps regular and alliance layouts independent", KeepsLayoutsIndependent),
         ("IconWindowLayoutBinding initializes alliance layout from regular values", InitializesAllianceFromRegularValues),
+        ("IconWindowLayoutBinding initializes four-player layout from regular values", InitializesFourPlayerFromRegularValues),
     ];
 
     private static void KeepsLayoutsIndependent()
@@ -36,7 +37,7 @@ internal static class IconWindowLayoutBindingTests
         };
 
         var regular = IconWindowLayoutBinding.Regular(window);
-        var alliance = IconWindowLayoutBinding.PartyCooldown(window, useAllianceLayout: true, out var created);
+        var alliance = IconWindowLayoutBinding.PartyCooldown(window, PartyCooldownLayoutEditMode.Alliance, out var created);
         True(!created, "existing alliance layout should be reused");
 
         alliance.Position = new Vector2(150, 250);
@@ -64,7 +65,7 @@ internal static class IconWindowLayoutBindingTests
             Alignment = IconAlignment.Right,
         };
 
-        var alliance = IconWindowLayoutBinding.PartyCooldown(window, useAllianceLayout: true, out var created);
+        var alliance = IconWindowLayoutBinding.PartyCooldown(window, PartyCooldownLayoutEditMode.Alliance, out var created);
 
         True(created, "missing alliance layout should be initialized");
         True(alliance.IsOverride, "alliance binding should target the override layout");
@@ -75,5 +76,34 @@ internal static class IconWindowLayoutBindingTests
         Near(window.Gap, alliance.Gap);
         Near(window.FontScale, alliance.FontScale);
         Equal(window.Alignment, alliance.Alignment);
+    }
+
+    private static void InitializesFourPlayerFromRegularValues()
+    {
+        var window = new IconWindowConfig
+        {
+            Position = new Vector2(45, 55),
+            Width = 340,
+            Height = 260,
+            IconSize = 46,
+            Gap = 7,
+            FontScale = 1.2f,
+            Alignment = IconAlignment.Center,
+        };
+
+        var fourPlayer = IconWindowLayoutBinding.PartyCooldown(
+            window,
+            PartyCooldownLayoutEditMode.FourPlayer,
+            out var created);
+
+        True(created, "missing four-player layout should be initialized");
+        True(fourPlayer.IsOverride, "four-player binding should target the override layout");
+        Vector(window.Position, fourPlayer.Position);
+        Near(window.Width, fourPlayer.Width);
+        Near(window.Height, fourPlayer.Height);
+        Near(window.IconSize, fourPlayer.IconSize);
+        Near(window.Gap, fourPlayer.Gap);
+        Near(window.FontScale, fourPlayer.FontScale);
+        Equal(window.Alignment, fourPlayer.Alignment);
     }
 }

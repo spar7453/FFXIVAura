@@ -13,7 +13,7 @@ internal static class ConfigTests
         ("ConfigMapNormalizer normalizes string list maps", ConfigMapNormalizerNormalizesStringListMaps),
         ("ConfigMapNormalizer normalizes vector maps", ConfigMapNormalizerNormalizesVectorMaps),
         ("PluginConfigNormalizer migrates legacy root config", PluginConfigNormalizerMigratesLegacyRootConfig),
-        ("PluginConfigNormalizer creates a separate alliance layout for party boards", PluginConfigNormalizerCreatesAllianceLayoutForPartyBoards),
+        ("PluginConfigNormalizer creates separate party-size layouts for party boards", PluginConfigNormalizerCreatesPartySizeLayoutsForPartyBoards),
         ("PluginConfigNormalizer repairs window ids and values", PluginConfigNormalizerRepairsWindowIdsAndValues),
         ("PluginConfigNormalizer repairs performance profile settings", PluginConfigNormalizerRepairsPerformanceProfileSettings),
     ];
@@ -212,7 +212,7 @@ internal static class ConfigTests
         True(!duplicate.AuraPositionsByRole.ContainsKey("win2:PartyBuffs"), "old duplicate aura position key should be removed");
     }
 
-    private static void PluginConfigNormalizerCreatesAllianceLayoutForPartyBoards()
+    private static void PluginConfigNormalizerCreatesPartySizeLayoutsForPartyBoards()
     {
         var config = new PluginConfigData
         {
@@ -244,9 +244,17 @@ internal static class ConfigTests
 
         var changed = PluginConfigNormalizer.Normalize(config, TestData.ConfigOptions());
 
-        True(changed, "legacy party board should receive an alliance layout");
+        True(changed, "legacy party board should receive four-player and alliance layouts");
         var regular = config.IconWindows[0];
+        var fourPlayer = regular.FourPlayerLayout!;
         var alliance = regular.AllianceLayout!;
+        Vector(regular.Position, fourPlayer.Position);
+        Near(regular.Width, fourPlayer.Width);
+        Near(regular.Height, fourPlayer.Height);
+        Near(regular.IconSize, fourPlayer.IconSize);
+        Near(regular.Gap, fourPlayer.Gap);
+        Near(regular.FontScale, fourPlayer.FontScale);
+        Equal(regular.Alignment, fourPlayer.Alignment);
         Vector(regular.Position, alliance.Position);
         Near(regular.Width, alliance.Width);
         Near(regular.Height, alliance.Height);
@@ -254,8 +262,16 @@ internal static class ConfigTests
         Near(regular.Gap, alliance.Gap);
         Near(regular.FontScale, alliance.FontScale);
         Equal(regular.Alignment, alliance.Alignment);
+        True(config.IconWindows[1].FourPlayerLayout is null, "non-party windows should not add unused four-player settings");
         True(config.IconWindows[1].AllianceLayout is null, "non-party windows should not add unused alliance settings");
 
+        fourPlayer.Position = new Vector2(float.NaN, 1);
+        fourPlayer.Width = float.PositiveInfinity;
+        fourPlayer.Height = -1;
+        fourPlayer.IconSize = 999;
+        fourPlayer.Gap = -1;
+        fourPlayer.FontScale = float.NaN;
+        fourPlayer.Alignment = (IconAlignment)999;
         alliance.Position = new Vector2(float.NaN, 1);
         alliance.Width = float.PositiveInfinity;
         alliance.Height = -1;
@@ -263,9 +279,17 @@ internal static class ConfigTests
         alliance.Gap = -1;
         alliance.FontScale = float.NaN;
         alliance.Alignment = (IconAlignment)999;
+        config.PartyCooldownLayoutEditMode = (PartyCooldownLayoutEditMode)999;
         changed = PluginConfigNormalizer.Normalize(config, TestData.ConfigOptions());
 
-        True(changed, "invalid alliance layout values should be repaired");
+        True(changed, "invalid party-size layout values should be repaired");
+        Vector(regular.Position, fourPlayer.Position);
+        Near(regular.Width, fourPlayer.Width);
+        Near(regular.Height, fourPlayer.Height);
+        Near(72, fourPlayer.IconSize);
+        Near(regular.Gap, fourPlayer.Gap);
+        Near(regular.FontScale, fourPlayer.FontScale);
+        Equal(regular.Alignment, fourPlayer.Alignment);
         Vector(regular.Position, alliance.Position);
         Near(regular.Width, alliance.Width);
         Near(regular.Height, alliance.Height);
@@ -273,6 +297,7 @@ internal static class ConfigTests
         Near(regular.Gap, alliance.Gap);
         Near(regular.FontScale, alliance.FontScale);
         Equal(regular.Alignment, alliance.Alignment);
+        Equal(PartyCooldownLayoutEditMode.EightPlayer, config.PartyCooldownLayoutEditMode);
     }
 
     private static void PluginConfigNormalizerRepairsPerformanceProfileSettings()

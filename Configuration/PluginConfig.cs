@@ -15,6 +15,7 @@ public class PluginConfigData
     public int PerformanceProfileRecordIntervalSeconds { get; set; } = 1;
     public int PerformanceProfileMaxFileMegabytes { get; set; } = 64;
     public bool ShowPartyCooldownLogObserver { get; set; }
+    public PartyCooldownLayoutEditMode PartyCooldownLayoutEditMode { get; set; } = PartyCooldownLayoutEditMode.EightPlayer;
     public float IconSize { get; set; } = 42f;
     public float Gap { get; set; } = 5f;
     public float FontScale { get; set; } = 1f;
@@ -51,6 +52,7 @@ public sealed class IconWindowConfig
     public IconDisplayCondition AuraDisplayCondition { get; set; } = IconDisplayCondition.Always;
     public IconDisplayCondition PartyCooldownDisplayCondition { get; set; } = IconDisplayCondition.Always;
     public IconAlignment Alignment { get; set; } = IconAlignment.Center;
+    public IconWindowLayoutConfig? FourPlayerLayout { get; set; }
     public IconWindowLayoutConfig? AllianceLayout { get; set; }
     public bool HighlightReady { get; set; }
     public bool HighlightAdjusted { get; set; } = true;
@@ -106,4 +108,11 @@ public enum IconAlignment
     Left,
     Center,
     Right,
+}
+
+public enum PartyCooldownLayoutEditMode
+{
+    EightPlayer = 0,
+    Alliance = 1,
+    FourPlayer = 2,
 }

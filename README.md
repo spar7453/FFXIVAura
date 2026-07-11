@@ -13,6 +13,7 @@ The goal is simple: show only the skills, buffs, debuffs, charges, cooldowns, an
 - Multiple overlay windows.
 - Per-window options for size, gap, font scale, position, role, and display condition.
 - Overlay edit controls for window role, display condition, window name, alignment, resize, and safe skill removal.
+- Clicking an unlocked overlay selects that window in settings immediately.
 - Overlay roles:
   - Skill cooldowns
   - Player buffs
@@ -47,7 +48,7 @@ The goal is simple: show only the skills, buffs, debuffs, charges, cooldowns, an
 - Aura search by status name, status ID, action name, or action ID. Status IDs with the same name, status category, and icon are grouped into one tracked aura by default. Enabling ID view adds the selected status as an exact-ID tracker instead, and tracked entries can be converted between group and exact-ID modes without deleting them first.
 - Party aura options for own-only filtering and party member count display. Effects applied by the local player's owned summon are treated as the player's own effects.
 - Party cooldown boards show each party member in the in-game party-list order with job icon, short name, ready skills, active borders, and estimated cooldown timers after active effects end. Alliance boards use vertically stacked A/B/C sections with up to eight members in each party.
-- Party cooldown windows keep independent regular-party and 24-player alliance layouts for position, size, icon size, spacing, font scale, and alignment, and switch automatically with the current roster.
+- Party cooldown windows keep independent 4-player, 8-player, and 24-player alliance layouts for position, size, icon size, spacing, font scale, and alignment, and switch automatically with the current roster.
 - Wrapped cooldown rows keep a tight gap within one member and a wider gap before the next member; the job icon and name stay aligned with that member's first icon line.
 - Party defensive, healing cooldown, and damage synergy boards are separated so healer cooldowns do not crowd the defensive board.
 - Party cooldown presets show all configured job skills by default, and each window can exclude unneeded preset entries from settings.
@@ -101,7 +102,8 @@ Open the settings window with `/fa`.
 - Buff/debuff windows set to the Active display condition continuously compact the currently active auras so expired or newly appeared statuses do not leave empty slots.
 - Party defensive, party healing cooldown, and party damage synergy windows use built-in job data instead of manual tracking lists. Skills above the current effective level are hidden for synced content.
 - Party cooldown boards read the current party roster and use the game's cross-realm alliance UI data for the authoritative A/B/C group and member order. Party/flat alliance slots remain a compatibility fallback while that data is loading, and the last confirmed HUD group is retained briefly while the party-title node reloads.
-- Party cooldown layout settings are split into `8-player regular party` and `24-player alliance` tabs. Selecting a tab previews that layout while settings are open, allowing its overlay position to be edited without joining a party; closing settings restores automatic roster-based selection. Alliance boards stack A, B, and C vertically with up to eight member rows per group, use the available display height before compacting, and keep cooldown icons at least 24 pixels wide. Brief alliance-roster reload gaps retain the alliance layout so the window does not jump to its regular-party position.
+- Party cooldown layout editing uses one shared `4-player dungeon` / `8-player regular party` / `24-player alliance` mode selector. After choosing a mode, switching between defensive, healing, and synergy windows keeps editing that same layout. The selected mode is previewed while settings are open, allowing positions to be edited without joining a party; closing settings restores automatic roster-based selection. Brief roster gaps retain the last 4-player or 8-player layout, while alliance boards retain their mode for three seconds during HUD reloads. Alliance boards stack A, B, and C vertically with up to eight member rows per group, use the available display height before compacting, and keep cooldown icons at least 24 pixels wide.
+- Party buff timers interpolate coarse party-list updates and suppress expired timed statuses that remain briefly in stale party-list slots.
 - Multi-charge party cooldowns are estimated per charge. A skill remains usable while at least one charge is available, and its current charge count is shown on the icon.
 - Combat-log and active-status observations for the same charge use are merged even when they arrive out of order.
 - A short, identity-scoped last-good status snapshot prevents transient Dalamud status-list read failures from making aura and party-cooldown icons flicker.

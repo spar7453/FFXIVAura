@@ -88,6 +88,8 @@ public sealed unsafe partial class Plugin
             return;
         }
 
+        this.SelectIconWindowFromOverlayClick(iconWindow);
+
         var windowPosition = ImGui.GetWindowPos();
         if (!this.config.LockOverlay && Vector2.DistanceSquared(iconWindow.Position, windowPosition) > 0.25f)
         {
@@ -150,6 +152,23 @@ public sealed unsafe partial class Plugin
             this.DrawOverlayNameControl(iconWindow, areaOrigin, areaSize, controlLayout);
             this.DrawOverlayAlignmentControls(iconWindow, job, level, areaOrigin, areaSize, controlLayout);
         }
+    }
+
+    private void SelectIconWindowFromOverlayClick(IconWindowConfig iconWindow)
+    {
+        if (!OverlayWindowSelection.ShouldSelect(
+                this.config.LockOverlay,
+                ImGui.IsWindowHovered(),
+                ImGui.IsMouseClicked(ImGuiMouseButton.Left),
+                this.config.ActiveWindowId,
+                iconWindow.Id))
+        {
+            return;
+        }
+
+        this.config.ActiveWindowId = iconWindow.Id;
+        this.SetBugDiagnosticEvent($"windowSelected:{iconWindow.Id}");
+        this.QueueConfigSave();
     }
 
     private void DrawOverlayEditStage(ImDrawListPtr draw, Vector2 min, Vector2 max)

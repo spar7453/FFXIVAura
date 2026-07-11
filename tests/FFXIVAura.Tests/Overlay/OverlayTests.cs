@@ -18,12 +18,32 @@ internal static class OverlayTests
         ("OverlayTooltipResolver carries party cooldown definitions", OverlayTooltipResolverCarriesPartyCooldownDefinitions),
         ("OverlayControlGeometry splits narrow controls", OverlayControlGeometrySplitsNarrowControls),
         ("OverlayControlGeometry clamps floating windows", OverlayControlGeometryClampsFloatingWindows),
+        ("OverlayWindowSelection selects only unlocked clicked windows", OverlayWindowSelectionSelectsOnlyUnlockedClickedWindows),
     ];
 
     private static void OverlayLayoutCentersSingleRow()
     {
         var position = OverlayLayout.GetAutoPosition(IconAlignment.Center, 0, 3, new Vector2(200, 100), 40, 5);
         Vector(new Vector2(35, 30), position);
+    }
+
+    private static void OverlayWindowSelectionSelectsOnlyUnlockedClickedWindows()
+    {
+        True(
+            OverlayWindowSelection.ShouldSelect(false, true, true, "win1", "win2"),
+            "an unlocked hovered click should select a different window");
+        True(
+            !OverlayWindowSelection.ShouldSelect(true, true, true, "win1", "win2"),
+            "locked overlays should ignore selection clicks");
+        True(
+            !OverlayWindowSelection.ShouldSelect(false, false, true, "win1", "win2"),
+            "covered or non-hovered windows should not be selected");
+        True(
+            !OverlayWindowSelection.ShouldSelect(false, true, false, "win1", "win2"),
+            "hover without a click should not change selection");
+        True(
+            !OverlayWindowSelection.ShouldSelect(false, true, true, "win1", "WIN1"),
+            "clicking the active window should not queue another selection");
     }
 
     private static void OverlayLayoutRightAlignsSingleRow()

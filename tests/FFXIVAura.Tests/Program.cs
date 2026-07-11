@@ -43,6 +43,7 @@ tests.AddRange(IconWindowLayoutBindingTests.Cases);
 tests.AddRange(ConfigSaveTests.Cases);
 tests.AddRange(TooltipDiagnosticsTests.Cases);
 tests.AddRange(PartyAuraTests.Cases);
+tests.AddRange(PartyAuraTimerTrackerTests.Cases);
 tests.AddRange(PerformanceFrameStatsTests.Cases);
 tests.AddRange(PerformanceProfilerTests.Cases);
 tests.AddRange(PerformanceProfileCsvTests.Cases);

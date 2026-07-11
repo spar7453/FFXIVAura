@@ -38,6 +38,11 @@ internal static class PluginConfigNormalizer
 
         var changed = EnsureConfigCollections(config, options);
         changed |= NormalizePerformanceProfileSettings(config);
+        if (!Enum.IsDefined(typeof(PartyCooldownLayoutEditMode), config.PartyCooldownLayoutEditMode))
+        {
+            config.PartyCooldownLayoutEditMode = PartyCooldownLayoutEditMode.EightPlayer;
+            changed = true;
+        }
         var fallbackPosition = ConfigValueNormalizer.NormalizePosition(
             config.OverlayPosition,
             options.DefaultOverlayPosition,
@@ -251,7 +256,7 @@ internal static class PluginConfigNormalizer
                 changed = true;
             }
 
-            changed |= NormalizeAllianceLayout(window, options);
+            changed |= NormalizePartyCooldownLayouts(window, options);
 
             if (window.ActiveOrderRow < 0)
             {
@@ -307,19 +312,38 @@ internal static class PluginConfigNormalizer
         return changed;
     }
 
-    private static bool NormalizeAllianceLayout(IconWindowConfig window, PluginConfigNormalizationOptions options)
+    private static bool NormalizePartyCooldownLayouts(IconWindowConfig window, PluginConfigNormalizationOptions options)
     {
         var changed = false;
-        if (window.AllianceLayout is null)
+        if (IconWindowRoles.IsPartyCooldownRole(window.Role))
         {
-            if (!IconWindowRoles.IsPartyCooldownRole(window.Role))
-                return false;
+            if (window.FourPlayerLayout is null)
+            {
+                window.FourPlayerLayout = IconWindowLayoutBinding.CreateConfig(window);
+                changed = true;
+            }
 
-            window.AllianceLayout = IconWindowLayoutBinding.CreateConfig(window);
-            changed = true;
+            if (window.AllianceLayout is null)
+            {
+                window.AllianceLayout = IconWindowLayoutBinding.CreateConfig(window);
+                changed = true;
+            }
         }
 
-        var layout = window.AllianceLayout!;
+        if (window.FourPlayerLayout is not null)
+            changed |= NormalizePartyCooldownLayout(window.FourPlayerLayout, window, options);
+        if (window.AllianceLayout is not null)
+            changed |= NormalizePartyCooldownLayout(window.AllianceLayout, window, options);
+
+        return changed;
+    }
+
+    private static bool NormalizePartyCooldownLayout(
+        IconWindowLayoutConfig layout,
+        IconWindowConfig window,
+        PluginConfigNormalizationOptions options)
+    {
+        var changed = false;
         var position = ConfigValueNormalizer.NormalizePosition(layout.Position, window.Position, options.DefaultOverlayPosition);
         if (!ConfigValueNormalizer.IsFinitePosition(layout.Position)
             || Vector2.DistanceSquared(layout.Position, position) > 0.25f)

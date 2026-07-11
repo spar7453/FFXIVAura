@@ -7,19 +7,32 @@ internal static class PartyCooldownLayoutModeTrackerTests
 {
     public static IReadOnlyList<(string Name, Action Run)> Cases { get; } =
     [
+        ("PartyCooldownLayoutModeTracker selects and retains four-player layouts", SelectsAndRetainsFourPlayerLayouts),
         ("PartyCooldownLayoutModeTracker retains alliance mode through brief gaps", RetainsAllianceModeThroughBriefGaps),
         ("PartyCooldownLayoutModeTracker resets alliance mode explicitly", ResetsAllianceModeExplicitly),
         ("PartyCooldownLayoutModeTracker applies previews only while settings are open", AppliesPreviewsOnlyWhileSettingsAreOpen),
     ];
+
+    private static void SelectsAndRetainsFourPlayerLayouts()
+    {
+        var tracker = new PartyCooldownLayoutModeTracker(TimeSpan.FromSeconds(3));
+        var now = new DateTime(2026, 7, 11, 0, 0, 0, DateTimeKind.Utc);
+
+        Equal(PartyCooldownLayoutEditMode.FourPlayer, tracker.Resolve(false, 4, now));
+        Equal(PartyCooldownLayoutEditMode.FourPlayer, tracker.Resolve(false, 1, now.AddSeconds(1)));
+        Equal(PartyCooldownLayoutEditMode.EightPlayer, tracker.Resolve(false, 8, now.AddSeconds(2)));
+        Equal(PartyCooldownLayoutEditMode.EightPlayer, tracker.Resolve(false, 0, now.AddSeconds(3)));
+    }
 
     private static void RetainsAllianceModeThroughBriefGaps()
     {
         var tracker = new PartyCooldownLayoutModeTracker(TimeSpan.FromSeconds(3));
         var now = new DateTime(2026, 7, 11, 0, 0, 0, DateTimeKind.Utc);
 
-        True(tracker.Resolve(allianceObserved: true, now), "observed alliance should select the alliance layout");
-        True(tracker.Resolve(allianceObserved: false, now.AddSeconds(2.9)), "brief source gaps should retain the alliance layout");
-        True(!tracker.Resolve(allianceObserved: false, now.AddSeconds(3)), "expired source gaps should return to the regular layout");
+        tracker.Resolve(allianceObserved: false, partyMemberCount: 4, now);
+        Equal(PartyCooldownLayoutEditMode.Alliance, tracker.Resolve(allianceObserved: true, partyMemberCount: 24, now));
+        Equal(PartyCooldownLayoutEditMode.Alliance, tracker.Resolve(allianceObserved: false, partyMemberCount: 4, now.AddSeconds(2.9)));
+        Equal(PartyCooldownLayoutEditMode.FourPlayer, tracker.Resolve(allianceObserved: false, partyMemberCount: 4, now.AddSeconds(3)));
     }
 
     private static void ResetsAllianceModeExplicitly()
@@ -27,25 +40,33 @@ internal static class PartyCooldownLayoutModeTrackerTests
         var tracker = new PartyCooldownLayoutModeTracker(TimeSpan.FromSeconds(3));
         var now = new DateTime(2026, 7, 11, 0, 0, 0, DateTimeKind.Utc);
 
-        tracker.Resolve(allianceObserved: true, now);
+        tracker.Resolve(allianceObserved: true, partyMemberCount: 24, now);
         tracker.Reset();
 
-        True(!tracker.Resolve(allianceObserved: false, now.AddSeconds(1)), "reset should clear retained alliance mode");
+        Equal(
+            PartyCooldownLayoutEditMode.EightPlayer,
+            tracker.Resolve(allianceObserved: false, partyMemberCount: 1, now.AddSeconds(1)));
     }
 
     private static void AppliesPreviewsOnlyWhileSettingsAreOpen()
     {
-        True(
-            PartyCooldownLayoutModeTracker.ResolvePreview(configVisible: true, alliancePreview: true, automaticAllianceLayout: false),
-            "alliance preview should override automatic regular mode while settings are open");
-        True(
-            !PartyCooldownLayoutModeTracker.ResolvePreview(configVisible: true, alliancePreview: false, automaticAllianceLayout: true),
-            "regular preview should override automatic alliance mode while settings are open");
-        True(
-            PartyCooldownLayoutModeTracker.ResolvePreview(configVisible: false, alliancePreview: false, automaticAllianceLayout: true),
-            "closing settings should restore automatic mode");
-        True(
-            !PartyCooldownLayoutModeTracker.ResolvePreview(configVisible: true, alliancePreview: null, automaticAllianceLayout: false),
-            "missing preview should keep automatic mode");
+        Equal(
+            PartyCooldownLayoutEditMode.FourPlayer,
+            PartyCooldownLayoutModeTracker.ResolvePreview(
+                configVisible: true,
+                PartyCooldownLayoutEditMode.FourPlayer,
+                PartyCooldownLayoutEditMode.Alliance));
+        Equal(
+            PartyCooldownLayoutEditMode.EightPlayer,
+            PartyCooldownLayoutModeTracker.ResolvePreview(
+                configVisible: true,
+                PartyCooldownLayoutEditMode.EightPlayer,
+                PartyCooldownLayoutEditMode.Alliance));
+        Equal(
+            PartyCooldownLayoutEditMode.Alliance,
+            PartyCooldownLayoutModeTracker.ResolvePreview(
+                configVisible: false,
+                PartyCooldownLayoutEditMode.FourPlayer,
+                PartyCooldownLayoutEditMode.Alliance));
     }
 }

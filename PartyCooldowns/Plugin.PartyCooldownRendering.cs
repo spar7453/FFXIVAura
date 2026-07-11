@@ -12,8 +12,8 @@ public sealed unsafe partial class Plugin
             itemCount += row.Items.Count;
         this.performanceStats.CountOverlayWindow(itemCount, 0);
 
-        var useAllianceLayout = this.ShouldUsePartyCooldownAllianceLayout(iconWindow, rows);
-        var layoutBinding = IconWindowLayoutBinding.PartyCooldown(iconWindow, useAllianceLayout, out var layoutCreated);
+        var layoutMode = this.GetPartyCooldownLayoutMode(rows);
+        var layoutBinding = IconWindowLayoutBinding.PartyCooldown(iconWindow, layoutMode, out var layoutCreated);
         if (layoutCreated)
             this.QueueConfigSave();
 
@@ -44,13 +44,20 @@ public sealed unsafe partial class Plugin
             flags |= ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoInputs;
 
         ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, Vector2.Zero);
-        var layoutModeId = useAllianceLayout ? "alliance" : "party";
+        var layoutModeId = layoutMode switch
+        {
+            PartyCooldownLayoutEditMode.FourPlayer => "light-party",
+            PartyCooldownLayoutEditMode.Alliance => "alliance",
+            _ => "party",
+        };
         if (!ImGui.Begin($"FFXIVAuraOverlay-{iconWindow.Id}-{layoutModeId}", flags))
         {
             ImGui.End();
             ImGui.PopStyleVar();
             return;
         }
+
+        this.SelectIconWindowFromOverlayClick(iconWindow);
 
         var windowPosition = ImGui.GetWindowPos();
         if (!this.config.LockOverlay && Vector2.DistanceSquared(layoutBinding.Position, windowPosition) > 0.25f)
