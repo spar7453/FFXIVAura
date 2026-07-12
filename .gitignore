@@ -1,5 +1,42 @@
+# Build outputs
 bin/
 obj/
+artifacts/
+TestResults/
+coverage/
+*.coverage
+*.coveragexml
+*.trx
+*.nupkg
+*.dll
+*.pdb
+*.exe
+*.zip
+
+# IDE and OS files
 *.user
 *.suo
+*.userprefs
 .vs/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Local runtime and profiling artifacts
+logs/
+profiles/
+backups/
+*.log
+*.tmp
+*.bak
+performance-profile*.csv
+
+# Local secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.pfx
+*.p12
+*.key
