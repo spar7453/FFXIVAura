@@ -10,6 +10,7 @@ internal static class JobInfoTests
         ("JobInfo allows caster Addle role action", AllowsCasterAddleRoleAction),
         ("JobInfo matches role actions case-insensitively", MatchesRoleActionsCaseInsensitively),
         ("JobInfo trims job ids and class ids", TrimsJobIdsAndClassIds),
+        ("JobInfo maps base classes to their default jobs", MapsBaseClassesToDefaultJobs),
         ("JobInfo maps job icons from class job ids", MapsJobIconsFromClassJobIds),
         ("JobInfo orders party roles", OrdersPartyRoles),
     ];
@@ -36,10 +37,29 @@ internal static class JobInfoTests
     private static void TrimsJobIdsAndClassIds()
     {
         Equal(22u, JobInfo.Id(" drg "));
+        Equal(1u, JobInfo.Id(" gld "));
 
         var drgIds = JobInfo.ApplicableClassJobIds(" drg ");
         True(drgIds.Contains(22u), "job id should be included");
         True(drgIds.Contains(4u), "base class id should be included");
+
+        var schIds = JobInfo.ApplicableClassJobIds("sch");
+        True(schIds.Contains(28u), "scholar job id should be included");
+        True(schIds.Contains(26u), "shared arcanist class id should be included");
+    }
+
+    private static void MapsBaseClassesToDefaultJobs()
+    {
+        Equal("PLD", JobInfo.Code(1));
+        Equal("MNK", JobInfo.Code(2));
+        Equal("WAR", JobInfo.Code(3));
+        Equal("DRG", JobInfo.Code(4));
+        Equal("BRD", JobInfo.Code(5));
+        Equal("WHM", JobInfo.Code(6));
+        Equal("BLM", JobInfo.Code(7));
+        Equal("SMN", JobInfo.Code(26));
+        Equal("NIN", JobInfo.Code(29));
+        Equal("JOB", JobInfo.Code(0));
     }
 
     private static void MapsJobIconsFromClassJobIds()
@@ -49,7 +69,10 @@ internal static class JobInfoTests
         Equal(62132u, JobInfo.IconId("DRK"));
         Equal(62132u, JobInfo.IconId(32));
         Equal(62141u, JobInfo.IconId("VPR"));
-        Equal(0u, JobInfo.IconId("GLD"));
+        Equal(62101u, JobInfo.IconId("GLD"));
+        Equal(62101u, JobInfo.IconId(1));
+        Equal(62106u, JobInfo.IconId("CNJ"));
+        Equal(62126u, JobInfo.IconId("ACN"));
         Equal(0u, JobInfo.IconId("JOB"));
     }
 

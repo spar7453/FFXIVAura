@@ -2,31 +2,8 @@ namespace FFXIVAura;
 
 public sealed unsafe partial class Plugin
 {
-    private const int PartyMemberSlotCount = 8;
-
-    private readonly record struct PartyListHeader(
-        int Length,
-        bool IsAlliance,
-        int PartyId)
-    {
-        public int PartySlotCount => Math.Clamp(this.Length, 0, PartyMemberSlotCount);
-    }
-
     private PartyListHeader GetPartyListHeader()
-    {
-        try
-        {
-            return new PartyListHeader(
-                Math.Max(0, PartyList.Length),
-                PartyList.IsAlliance,
-                (int)PartyList.PartyId);
-        }
-        catch (Exception ex)
-        {
-            this.SetBugDiagnosticEvent($"partyListHeaderReadFailed:{ex.GetType().Name}");
-            return default;
-        }
-    }
+        => this.partyRosterReader.ReadPartyListHeader();
 
     private IPartyMember? TryCreatePartyMemberReference(int index)
     {

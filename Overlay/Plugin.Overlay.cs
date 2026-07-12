@@ -133,7 +133,7 @@ public sealed unsafe partial class Plugin
             var iconPos = areaOrigin + localPos;
             ImGui.SetCursorScreenPos(iconPos);
             this.DrawAuraIcon(aura, iconSize, iconWindow);
-            this.HandleAuraIconInteraction(iconWindow, aura, localPos, iconPos, areaSize, iconSize, auras.Count);
+            this.HandleAuraIconInteraction(iconWindow, aura, localPos, iconPos, areaSize, iconSize, auras);
         }
 
         this.RememberOverlayWindowDiagnostics(iconWindow, frame);
@@ -324,14 +324,21 @@ public sealed unsafe partial class Plugin
                && mouse.Y <= max.Y;
     }
 
-    private void HandleAuraIconInteraction(IconWindowConfig iconWindow, AuraState aura, Vector2 localPos, Vector2 iconPos, Vector2 areaSize, float iconSize, int drawnIconCount)
+    private void HandleAuraIconInteraction(
+        IconWindowConfig iconWindow,
+        AuraState aura,
+        Vector2 localPos,
+        Vector2 iconPos,
+        Vector2 areaSize,
+        float iconSize,
+        IReadOnlyList<AuraState> visibleAuras)
     {
         var iconMax = iconPos + new Vector2(iconSize, iconSize);
-        if (this.config.LockOverlay || UsesCompactAuraLayout(iconWindow))
+        if (this.config.LockOverlay)
         {
             if (IsMouseInRect(iconPos, iconMax))
             {
-                this.RecordTooltipHover(TooltipDiagnosticKind.Aura, iconWindow.Id, aura.StatusId.ToString(), 0, drawnIconCount, hitboxExpanded: false, iconPos, iconMax, imguiHovered: false);
+                this.RecordTooltipHover(TooltipDiagnosticKind.Aura, iconWindow.Id, aura.StatusId.ToString(), 0, visibleAuras.Count, hitboxExpanded: false, iconPos, iconMax, imguiHovered: false);
                 this.RegisterAuraTooltipCandidate(aura);
             }
 
@@ -345,7 +352,7 @@ public sealed unsafe partial class Plugin
         var hovered = ImGui.IsItemHovered() && !ImGui.IsItemActive();
         if (hovered)
         {
-            this.RecordTooltipHover(TooltipDiagnosticKind.Aura, iconWindow.Id, aura.StatusId.ToString(), 0, drawnIconCount, hitboxExpanded: false, iconPos, iconMax, imguiHovered: true);
+            this.RecordTooltipHover(TooltipDiagnosticKind.Aura, iconWindow.Id, aura.StatusId.ToString(), 0, visibleAuras.Count, hitboxExpanded: false, iconPos, iconMax, imguiHovered: true);
             this.RegisterAuraTooltipCandidate(aura);
         }
 
@@ -358,12 +365,25 @@ public sealed unsafe partial class Plugin
                 this.draggedOverlayPositionStart = localPos;
             }
 
-            var next = this.ClampOverlayIconPosition(
-                this.draggedOverlayPositionStart + ImGui.GetMousePos() - this.draggedOverlayMouseStart,
-                areaSize,
-                iconSize);
-            this.SetAuraIconPosition(iconWindow, aura.StatusId, next);
-            this.QueueConfigSave();
+            if (UsesCompactAuraLayout(iconWindow))
+            {
+                this.ReorderContinuousFlowAura(
+                    iconWindow,
+                    aura,
+                    visibleAuras,
+                    iconPos - localPos,
+                    areaSize,
+                    iconSize);
+            }
+            else
+            {
+                var next = this.ClampOverlayIconPosition(
+                    this.draggedOverlayPositionStart + ImGui.GetMousePos() - this.draggedOverlayMouseStart,
+                    areaSize,
+                    iconSize);
+                this.SetAuraIconPosition(iconWindow, aura.StatusId, next);
+                this.QueueConfigSave();
+            }
         }
 
         if (string.Equals(this.draggedOverlayId, dragId, StringComparison.OrdinalIgnoreCase))
@@ -372,6 +392,38 @@ public sealed unsafe partial class Plugin
             var max = ImGui.GetItemRectMax();
             ImGui.GetWindowDrawList().AddRect(min, max, ImGui.GetColorU32(new Vector4(0.45f, 0.72f, 1f, 0.95f)), 3f, ImDrawFlags.None, 2f);
         }
+    }
+
+    private void ReorderContinuousFlowAura(
+        IconWindowConfig iconWindow,
+        AuraState sourceAura,
+        IReadOnlyList<AuraState> visibleAuras,
+        Vector2 areaOrigin,
+        Vector2 areaSize,
+        float iconSize)
+    {
+        var targetIndex = AuraFlowReorder.FindNearestVisibleIndex(
+            iconWindow.Alignment,
+            ImGui.GetMousePos() - areaOrigin,
+            visibleAuras.Count,
+            areaSize,
+            iconSize,
+            iconWindow.Gap);
+        if (targetIndex < 0 || targetIndex >= visibleAuras.Count)
+            return;
+
+        var targetStatusId = visibleAuras[targetIndex].StatusId;
+        if (!AuraFlowReorder.MoveTrackedStatus(
+                iconWindow.TrackedStatusIds,
+                sourceAura.StatusId,
+                targetStatusId))
+        {
+            return;
+        }
+
+        this.InvalidateTrackedAuraGroups(iconWindow);
+        this.SetBugDiagnosticEvent($"auraFlowReordered:{iconWindow.Id}:{sourceAura.StatusId}:{targetStatusId}");
+        this.QueueConfigSave();
     }
 
     private void RegisterAbilityTooltipCandidate(AbilityDefinition ability)

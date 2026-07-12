@@ -246,9 +246,7 @@ public sealed unsafe partial class Plugin
             memberOwnAuras.Clear();
             memberGroups.Clear();
             memberOwnGroups.Clear();
-            this.partyAuraTimerLiveKeys.Clear();
-            this.partyAuraTimerMemberOwnerIds.Clear();
-            this.partyAuraTimerLiveOwnerIds.Clear();
+            this.partyAuraRuntimeStore.BeginScan();
             var rosterReadComplete = true;
             var partySlotCount = this.GetPartyListHeader().PartySlotCount;
             for (var i = 0; i < partySlotCount; i++)
@@ -275,50 +273,31 @@ public sealed unsafe partial class Plugin
                 }
                 else
                 {
-                    this.partyAuraTimerMemberOwnerIds.Add(memberEntityId);
+                    this.partyAuraRuntimeStore.MarkMemberOwner(memberEntityId);
                 }
 
                 if (!readSucceeded)
                     continue;
 
-                if (snapshotOrigin == StatusSnapshotOrigin.Fallback)
-                    this.partyAuraStatusFallbackBatchCount++;
-                else if (snapshotOrigin == StatusSnapshotOrigin.Live)
-                    this.partyAuraTimerLiveOwnerIds.Add(memberEntityId);
+                this.partyAuraRuntimeStore.RecordStatusBatch(memberEntityId, snapshotOrigin);
 
                 foreach (var status in this.statusSnapshotBuffer)
                 {
                     var timerKey = new PartyAuraTimerKey(memberEntityId, status.StatusId, status.SourceId);
-                    this.partyAuraTimerLiveKeys.Add(timerKey);
-                    var remaining = status.RemainingTime;
-                    if (this.partyAuraTimerStates.TryGetValue(timerKey, out var timerState))
-                    {
-                        var timerResult = PartyAuraTimerTracker.UpdateDetailed(
-                            timerState,
-                            observedAtUtc,
-                            remaining,
-                            ObservedStatusObservation.Present,
-                            snapshotOrigin == StatusSnapshotOrigin.Live);
-                        this.NotePartyAuraTimerDecision(timerKey, remaining, snapshotOrigin, timerResult);
-                        remaining = timerResult.Remaining;
-                        if (remaining <= 0f)
-                            continue;
-                    }
-                    else if (remaining > 0f)
-                    {
-                        timerState = new PartyAuraTimerState();
-                        this.partyAuraTimerStates[timerKey] = timerState;
-                        var timerResult = PartyAuraTimerTracker.UpdateDetailed(
-                            timerState,
-                            observedAtUtc,
-                            remaining,
-                            ObservedStatusObservation.Present,
-                            snapshotOrigin == StatusSnapshotOrigin.Live);
-                        remaining = timerResult.Remaining;
-                    }
+                    var timerObservation = this.partyAuraRuntimeStore.ObserveStatus(
+                        timerKey,
+                        observedAtUtc,
+                        status.RemainingTime,
+                        snapshotOrigin);
+                    if (!timerObservation.Include)
+                        continue;
 
                     var fromSelf = this.IsStatusFromSelf(status.SourceId);
-                    var sample = new PartyAuraStatusSample(status.StatusId, remaining, status.Param, fromSelf);
+                    var sample = new PartyAuraStatusSample(
+                        status.StatusId,
+                        timerObservation.Remaining,
+                        status.Param,
+                        fromSelf);
                     PartyAuraAggregator.AddMemberStatus(memberAuras, sample, ownOnly: false);
                     PartyAuraAggregator.AddMemberStatus(memberOwnAuras, sample, ownOnly: true);
                 }
@@ -349,74 +328,12 @@ public sealed unsafe partial class Plugin
             memberOwnAuras.Clear();
             memberGroups.Clear();
             memberOwnGroups.Clear();
-            this.PrunePartyAuraTimerStates(observedAtUtc, rosterReadComplete);
+            this.partyAuraRuntimeStore.CompleteScan(observedAtUtc, rosterReadComplete);
         }
         finally
         {
             this.performanceProfiler.EndSection(PerformanceProfileSection.AuraScan, profileStart);
         }
-    }
-
-    private void NotePartyAuraTimerDecision(
-        PartyAuraTimerKey key,
-        float rawRemaining,
-        StatusSnapshotOrigin origin,
-        ObservedStatusTimerResult result)
-    {
-        switch (result.Decision)
-        {
-            case ObservedStatusTimerDecision.Refreshed:
-                this.partyAuraTimerRefreshAcceptedCount++;
-                break;
-            case ObservedStatusTimerDecision.StalePositiveSuppressed:
-                this.partyAuraExpiredStatusSuppressedCount++;
-                break;
-            default:
-                return;
-        }
-
-        this.partyAuraTimerLastDecision = FormattableString.Invariant(
-            $"{result.Decision}|owner={key.OwnerEntityId}|status={key.StatusId}|source={key.SourceId}|raw={rawRemaining:0.###}|remaining={result.Remaining:0.###}|origin={origin}");
-    }
-
-    private void PrunePartyAuraTimerStates(DateTime observedAtUtc, bool rosterReadComplete)
-    {
-        this.partyAuraTimerPruneBuffer.Clear();
-        foreach (var (timerKey, timerState) in this.partyAuraTimerStates)
-        {
-            if (this.partyAuraTimerLiveKeys.Contains(timerKey))
-                continue;
-
-            if (this.partyAuraTimerMemberOwnerIds.Contains(timerKey.OwnerEntityId))
-            {
-                if (this.partyAuraTimerLiveOwnerIds.Contains(timerKey.OwnerEntityId))
-                {
-                    this.partyAuraTimerPruneBuffer.Add(timerKey);
-                    continue;
-                }
-
-                _ = PartyAuraTimerTracker.UpdateDetailed(
-                    timerState,
-                    observedAtUtc,
-                    0f,
-                    ObservedStatusObservation.Unavailable,
-                    canConfirmRefresh: false);
-                continue;
-            }
-
-            if (rosterReadComplete)
-                this.partyAuraTimerPruneBuffer.Add(timerKey);
-            else
-                _ = PartyAuraTimerTracker.UpdateDetailed(
-                    timerState,
-                    observedAtUtc,
-                    0f,
-                    ObservedStatusObservation.Unavailable,
-                    canConfirmRefresh: false);
-        }
-
-        foreach (var timerKey in this.partyAuraTimerPruneBuffer)
-            this.partyAuraTimerStates.Remove(timerKey);
     }
 
     private bool IsStatusFromSelf(uint sourceId)

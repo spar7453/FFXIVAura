@@ -9,11 +9,7 @@ public sealed unsafe partial class Plugin
         DateTime now)
     {
         var runtimeKey = this.CreatePartyCooldownRuntimeKey(member.Key, definition);
-        if (!this.partyCooldownRuntimeStates.TryGetValue(runtimeKey, out var runtime))
-        {
-            runtime = new PartyCooldownRuntimeState();
-            this.partyCooldownRuntimeStates[runtimeKey] = runtime;
-        }
+        var runtime = this.partyCooldownRuntimeStore.GetOrCreateState(runtimeKey);
 
         var maxCharges = this.GetPartyCooldownMaxCharges(definition, level);
         var observedActiveRemaining = this.GetPartyCooldownActiveRemaining(
@@ -88,57 +84,26 @@ public sealed unsafe partial class Plugin
         out ObservedStatusObservation observation,
         out bool canConfirmRefresh)
     {
-        observation = ObservedStatusObservation.Unavailable;
-        canConfirmRefresh = false;
-        PartyCooldownActiveStatus? selected = null;
-        var cacheAgeSeconds = this.partyCooldownActiveStatusIndexBuiltAtUtc == DateTime.MinValue
-            ? 0f
-            : Math.Max(0f, (float)(nowUtc - this.partyCooldownActiveStatusIndexBuiltAtUtc).TotalSeconds);
-        foreach (var statusId in this.ResolvePartyCooldownStatusIds(definition))
-        {
-            var key = PartyCooldownStatusKey(sourceEntityId, statusId);
-            if (!this.partyCooldownActiveStatusFrameCache.TryGetValue(key, out var status))
-                continue;
-
-            var adjusted = status with { Remaining = Math.Max(0f, status.Remaining - cacheAgeSeconds) };
-            if (adjusted.Remaining > 0f
-                && (selected is null || PartyCooldownStatusSampleSelector.IsPreferredAcrossStatusIds(adjusted, selected.Value)))
-            {
-                selected = adjusted;
-            }
-        }
-
-        if (selected is null)
-        {
-            observation = this.partyCooldownActiveStatusAbsenceConfirmed
-                ? ObservedStatusObservation.ConfirmedAbsent
-                : ObservedStatusObservation.Unavailable;
-            return 0f;
-        }
-
-        observation = ObservedStatusObservation.Present;
-        canConfirmRefresh = selected.Value.Origin == StatusSnapshotOrigin.Live;
-        return selected.Value.Remaining;
+        var result = this.partyCooldownActiveStatusIndex.GetObservation(
+            sourceEntityId,
+            this.ResolvePartyCooldownStatusIds(definition),
+            nowUtc);
+        observation = result.Observation;
+        canConfirmRefresh = result.CanConfirmRefresh;
+        return result.Remaining;
     }
 
     private void RebuildPartyCooldownActiveStatusIndex(IReadOnlyList<PartyCooldownMemberSnapshot> members)
     {
         var nowUtc = DateTime.UtcNow;
         var rosterHash = PartyCooldownRoster.ComputeMemberIdentityHash(members);
-        if (rosterHash == this.partyCooldownActiveStatusRosterHash
-            && this.partyCooldownActiveStatusIndexBuiltAtUtc != DateTime.MinValue
-            && nowUtc - this.partyCooldownActiveStatusIndexBuiltAtUtc < PartyCooldownStatusCacheDuration)
+        if (!this.partyCooldownActiveStatusIndex.BeginRefresh(rosterHash, nowUtc))
         {
             this.performanceStats.CountPartyStatusCacheHit();
             return;
         }
 
-        this.partyCooldownActiveStatusRosterHash = rosterHash;
-        this.partyCooldownActiveStatusIndexBuiltAtUtc = nowUtc;
         this.performanceStats.CountPartyStatusScan();
-        this.partyCooldownActiveStatusFrameCache.Clear();
-        this.partyCooldownLiveStatusOwnerIdsBuffer.Clear();
-        this.partyCooldownActiveStatusAbsenceConfirmed = false;
         var memberEntityIds = this.partyCooldownMemberEntityIdsBuffer;
         memberEntityIds.Clear();
         memberEntityIds.EnsureCapacity(members.Count);
@@ -150,7 +115,7 @@ public sealed unsafe partial class Plugin
 
         if (memberEntityIds.Count == 0)
         {
-            this.partyCooldownActiveStatusAbsenceConfirmed = true;
+            this.partyCooldownActiveStatusIndex.CompleteRefresh(memberEntityIds);
             return;
         }
 
@@ -176,9 +141,7 @@ public sealed unsafe partial class Plugin
         if (TargetManager.Target is IBattleChara target)
             this.AddPartyCooldownStatusSamplesFromCharacter(target, memberEntityIds);
 
-        this.partyCooldownActiveStatusAbsenceConfirmed = memberEntityIds.Count == 0
-                                                         || memberEntityIds.All(
-                                                             this.partyCooldownLiveStatusOwnerIdsBuffer.Contains);
+        this.partyCooldownActiveStatusIndex.CompleteRefresh(memberEntityIds);
     }
 
     private void AddPartyCooldownStatusSamplesFromCharacter(IBattleChara character, HashSet<uint> partyEntityIds)
@@ -193,7 +156,7 @@ public sealed unsafe partial class Plugin
         if (snapshotOrigin == StatusSnapshotOrigin.Fallback)
             this.partyCooldownStatusFallbackBatchCount++;
         else if (snapshotOrigin == StatusSnapshotOrigin.Live && partyEntityIds.Contains(entityId))
-            this.partyCooldownLiveStatusOwnerIdsBuffer.Add(entityId);
+            this.partyCooldownActiveStatusIndex.MarkLiveOwner(entityId);
 
         foreach (var status in this.statusSnapshotBuffer)
             this.AddPartyCooldownStatusSample(
@@ -225,19 +188,13 @@ public sealed unsafe partial class Plugin
         if (normalizedSourceId == 0)
             return;
 
-        var key = PartyCooldownStatusKey(normalizedSourceId, statusId);
-        var candidate = new PartyCooldownActiveStatus(
+        this.partyCooldownActiveStatusIndex.AddSample(
+            normalizedSourceId,
             statusId,
             remaining,
-            PartyCooldownStatusSampleSelector.GetPriority(fromPartyList, ownerEntityId == normalizedSourceId),
+            fromPartyList,
+            ownerEntityId == normalizedSourceId,
             snapshotOrigin);
-        if (this.partyCooldownActiveStatusFrameCache.TryGetValue(key, out var existing)
-            && !PartyCooldownStatusSampleSelector.IsPreferredDuplicateSample(candidate, existing))
-        {
-            return;
-        }
-
-        this.partyCooldownActiveStatusFrameCache[key] = candidate;
     }
 
     private void NotePartyCooldownTimerDecision(
@@ -312,18 +269,4 @@ public sealed unsafe partial class Plugin
         return resolved;
     }
 
-    private void PrunePartyCooldownRuntime(HashSet<PartyCooldownRuntimeKey> liveRuntimeKeys)
-    {
-        this.partyCooldownRuntimePruneBuffer.Clear();
-        foreach (var key in this.partyCooldownRuntimeStates.Keys)
-        {
-            if (liveRuntimeKeys.Contains(key))
-                continue;
-
-            this.partyCooldownRuntimePruneBuffer.Add(key);
-        }
-
-        foreach (var key in this.partyCooldownRuntimePruneBuffer)
-            this.partyCooldownRuntimeStates.Remove(key);
-    }
 }

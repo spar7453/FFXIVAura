@@ -98,7 +98,7 @@ public sealed unsafe partial class Plugin
             this.partyCooldownLogObservations.Clear();
             this.partyCooldownCandidateMissingLogCount = 0;
             this.partyCooldownCandidateMissingObservationCount = 0;
-            this.partyCooldownNextCandidateMissingObservationAtUtc = DateTime.MinValue;
+            this.partyCooldownCandidateObservationThrottle.Reset();
         }
 
         ImGui.TextDisabled($"후보 없음 {this.partyCooldownCandidateMissingLogCount} / 표본 {this.partyCooldownCandidateMissingObservationCount}");

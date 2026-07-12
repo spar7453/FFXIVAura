@@ -11,6 +11,8 @@ internal static class PartyCooldownOwnedObjectOwnerResolverTests
         ("PartyCooldownOwnedObjectOwnerResolver resolves one party owner", ResolvesOnePartyOwner),
         ("PartyCooldownOwnedObjectOwnerResolver rejects ambiguous party owners", RejectsAmbiguousPartyOwners),
         ("PartyCooldownOwnedObjectOwnerResolver ignores unrelated owners", IgnoresUnrelatedOwners),
+        ("PartyCooldownOwnedObjectOwnerResolver ignores invalid local ids", IgnoresInvalidLocalIds),
+        ("PartyCooldownOwnedObjectOwnerResolver ignores invalid owner ids", IgnoresInvalidOwnerIds),
     ];
 
     private static void ExcludesLocalCollisions()
@@ -53,5 +55,27 @@ internal static class PartyCooldownOwnedObjectOwnerResolverTests
             new HashSet<uint> { 20, 30 });
 
         Equal(PartyCooldownOwnedObjectOwnerMatchKind.None, result.Kind);
+    }
+
+    private static void IgnoresInvalidLocalIds()
+    {
+        var result = PartyCooldownOwnedObjectOwnerResolver.Resolve(
+            0xE0000000,
+            new HashSet<uint> { 0xE0000000, 20 },
+            new HashSet<uint> { 20 });
+
+        Equal(PartyCooldownOwnedObjectOwnerMatchKind.PartyMember, result.Kind);
+        Equal(20u, result.OwnerEntityId);
+    }
+
+    private static void IgnoresInvalidOwnerIds()
+    {
+        var result = PartyCooldownOwnedObjectOwnerResolver.Resolve(
+            10,
+            new HashSet<uint> { 0, 0xE0000000 },
+            new HashSet<uint> { 0, 0xE0000000 });
+
+        Equal(PartyCooldownOwnedObjectOwnerMatchKind.None, result.Kind);
+        Equal(0u, result.OwnerEntityId);
     }
 }

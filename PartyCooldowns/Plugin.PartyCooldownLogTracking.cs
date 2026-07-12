@@ -21,149 +21,35 @@ public sealed unsafe partial class Plugin
 
     private void TrackPartyCooldownFromLogMessage(ILogMessage message)
     {
-        if (!this.config.Enabled || this.partyCooldownDefinitions.Count == 0)
+        if (!this.TryCreatePartyCooldownLogTrackingContext(message, out var context))
             return;
-
-        if (!this.config.IconWindows.Any(window => IconWindowRoles.IsPartyCooldownRole(window.Role)))
-            return;
-
-        if (!this.IsCompletedPartyCooldownActionUseLog(message))
-            return;
-
-        var source = message.SourceEntity;
-        if (source is null)
-            return;
-
-        if (this.IsLocalPlayerPartyCooldownLogSource(source))
-        {
-            this.partyCooldownLocalPlayerLogSkippedCount++;
-            return;
-        }
-
-        var observedAction = this.ExtractObservedPartyCooldownAction(message);
-        var sourceName = source.Name.ExtractText();
-        if (!this.HasPartyCooldownCandidate(observedAction))
-        {
-            this.partyCooldownCandidateMissingLogCount++;
-            if (!this.ShouldObservePartyCooldownLogs())
-                return;
-
-            var sampleNowUtc = DateTime.UtcNow;
-            if (sampleNowUtc < this.partyCooldownNextCandidateMissingObservationAtUtc)
-                return;
-
-            this.partyCooldownNextCandidateMissingObservationAtUtc = sampleNowUtc.Add(PartyCooldownCandidateMissingSampleInterval);
-            this.partyCooldownCandidateMissingObservationCount++;
-            this.RecordPartyCooldownLogObservation(
-                message.LogMessageId,
-                sourceName,
-                source.HomeWorldId,
-                default,
-                observedAction,
-                "무시",
-                PartyCooldownIgnoredLogReason.CandidateMissing,
-                this.partyCooldownFrameSnapshot?.RosterDiagnostics ?? default,
-                $"추적 대상 후보를 찾지 못했습니다. {this.DescribeLogMessageParameters(message)}");
-            return;
-        }
 
         var rosterSnapshot = this.GetPartyCooldownLogRosterSnapshot();
-        if (!this.TryFindPartyCooldownMemberByLogSource(source, rosterSnapshot.DisplayMembers, out var member, out var memberMatchDetail, out var ignoredReason))
+        if (!this.TryResolvePartyCooldownLogMember(
+                context,
+                rosterSnapshot,
+                out var member,
+                out var memberMatchDetail))
         {
-            if (ignoredReason == PartyCooldownIgnoredLogReason.LocalPlayerExcluded)
-            {
-                this.partyCooldownLocalOwnedObjectLogSkippedCount++;
-                return;
-            }
-
-            this.RecordPartyCooldownLogObservation(
-                message.LogMessageId,
-                sourceName,
-                source.HomeWorldId,
-                default,
-                observedAction,
-                "무시",
-                ignoredReason,
-                rosterSnapshot.Diagnostics,
-                memberMatchDetail);
             return;
         }
 
-        var definition = this.ResolveObservedPartyCooldownDefinition(observedAction, member.Job);
-        if (definition is null)
-        {
-            var detail = this.HasPartyCooldownCandidate(observedAction)
-                ? "추적 대상 스킬이 아니거나 현재 직업에서 사용할 수 없습니다."
-                : $"추적 대상 후보를 찾지 못했습니다. {this.DescribeLogMessageParameters(message)}";
-            detail = AppendPartyCooldownMemberMatchDetail(detail, memberMatchDetail);
-            ignoredReason = this.HasPartyCooldownCandidate(observedAction)
-                ? PartyCooldownIgnoredLogReason.NotUsableForJob
-                : PartyCooldownIgnoredLogReason.CandidateMissing;
-            this.RecordPartyCooldownLogObservation(
-                message.LogMessageId,
-                sourceName,
-                source.HomeWorldId,
+        if (!this.TryResolveTrackedPartyCooldownDefinition(
+                context,
+                rosterSnapshot,
                 member,
-                observedAction,
-                "무시",
-                ignoredReason,
-                rosterSnapshot.Diagnostics,
-                detail);
-            return;
-        }
-
-        var level = this.GetCurrentEffectiveLevel();
-        var effectiveDefinition = this.ResolveEffectivePartyCooldownDefinition(definition, member.Job, level);
-        if (!this.IsPartyCooldownTrackedByAnyWindow(effectiveDefinition, member.Job, level))
+                memberMatchDetail,
+                out var effectiveDefinition))
         {
-            var detail = AppendPartyCooldownMemberMatchDetail(
-                "모든 파티 쿨다운 창에서 제외되었거나 현재 레벨에서 표시되지 않습니다.",
-                memberMatchDetail);
-            this.RecordPartyCooldownLogObservation(
-                message.LogMessageId,
-                sourceName,
-                source.HomeWorldId,
-                member,
-                new PartyCooldownObservedAction(
-                    effectiveDefinition.ActionId,
-                    effectiveDefinition.Name,
-                    observedAction.MatchSource,
-                    observedAction.ParameterIndex),
-                "무시",
-                PartyCooldownIgnoredLogReason.NotTrackedByWindow,
-                rosterSnapshot.Diagnostics,
-                detail);
             return;
         }
 
-        var nowUtc = DateTime.UtcNow;
-        this.StartPartyCooldownFromObservedUse(member, effectiveDefinition, nowUtc);
-        var trackedDetail = this.AppendPartyCooldownStatusTrackingDetail(
-            $"{effectiveDefinition.Name} 쿨다운 시작",
-            effectiveDefinition);
-        trackedDetail = AppendPartyCooldownMemberMatchDetail(trackedDetail, memberMatchDetail);
-        this.RecordPartyCooldownLogObservation(
-            message.LogMessageId,
-            sourceName,
-            source.HomeWorldId,
+        this.TrackResolvedPartyCooldownLogUse(
+            context,
+            rosterSnapshot,
             member,
-            new PartyCooldownObservedAction(
-                effectiveDefinition.ActionId,
-                effectiveDefinition.Name,
-                observedAction.MatchSource,
-                observedAction.ParameterIndex),
-            "추적",
-            PartyCooldownIgnoredLogReason.None,
-            rosterSnapshot.Diagnostics,
-            trackedDetail);
-    }
-
-    private (IReadOnlyList<PartyCooldownMemberSnapshot> DisplayMembers, PartyCooldownRosterDiagnostics Diagnostics) GetPartyCooldownLogRosterSnapshot()
-    {
-        var roster = this.GetPartyCooldownRoster(forceRefresh: true);
-        var displayMembers = roster.DisplayMembers;
-        var diagnostics = this.CreatePartyCooldownRosterDiagnostics(roster, displayMembers);
-        return (displayMembers, diagnostics);
+            memberMatchDetail,
+            effectiveDefinition);
     }
 
     private bool IsCompletedPartyCooldownActionUseLog(ILogMessage message)
@@ -258,95 +144,6 @@ public sealed unsafe partial class Plugin
         detail = string.Empty;
         ignoredReason = PartyCooldownIgnoredLogReason.None;
         return true;
-    }
-
-    private bool TryFindPartyCooldownMemberByOwnedObjectName(
-        string sourceName,
-        IReadOnlyList<PartyCooldownMemberSnapshot> displayMembers,
-        out PartyCooldownMemberSnapshot member,
-        out string detail,
-        out PartyCooldownIgnoredLogReason ignoredReason)
-    {
-        ignoredReason = PartyCooldownIgnoredLogReason.OwnerNotFound;
-        var normalizedSourceName = PartyCooldownLogMatcher.NormalizeActorName(sourceName);
-        if (normalizedSourceName.Length == 0)
-        {
-            member = default;
-            detail = "소환수/객체 이름이 비어 있습니다.";
-            return false;
-        }
-
-        var matchingOwnerEntityIds = this.partyCooldownOwnedObjectOwnerIdsBuffer;
-        var partyMemberEntityIds = this.partyCooldownOwnedObjectPartyEntityIdsBuffer;
-        matchingOwnerEntityIds.Clear();
-        partyMemberEntityIds.Clear();
-        foreach (var candidate in displayMembers)
-        {
-            if (IsValidPartyCooldownEntityId(candidate.EntityId))
-                partyMemberEntityIds.Add(candidate.EntityId);
-        }
-
-        try
-        {
-            foreach (var gameObject in ObjectTable)
-            {
-                if (gameObject is null)
-                    continue;
-
-                var ownerId = gameObject.OwnerId;
-                if (!IsValidPartyCooldownEntityId(ownerId))
-                    continue;
-
-                var objectName = PartyCooldownLogMatcher.NormalizeActorName(gameObject.Name.ToString());
-                if (!string.Equals(normalizedSourceName, objectName, StringComparison.Ordinal))
-                    continue;
-
-                matchingOwnerEntityIds.Add(ownerId);
-            }
-        }
-        catch (Exception ex)
-        {
-            matchingOwnerEntityIds.Clear();
-            partyMemberEntityIds.Clear();
-            member = default;
-            detail = $"소환수/객체 목록을 읽지 못했습니다: {ex.GetType().Name}";
-            this.SetBugDiagnosticEvent($"partyCooldownOwnedObjectReadFailed:{ex.GetType().Name}");
-            return false;
-        }
-
-        var ownerMatch = PartyCooldownOwnedObjectOwnerResolver.Resolve(
-            ObjectTable.LocalPlayer?.EntityId ?? 0,
-            matchingOwnerEntityIds,
-            partyMemberEntityIds);
-        matchingOwnerEntityIds.Clear();
-        partyMemberEntityIds.Clear();
-        if (ownerMatch.Kind == PartyCooldownOwnedObjectOwnerMatchKind.LocalPlayer)
-        {
-            member = default;
-            ignoredReason = PartyCooldownIgnoredLogReason.LocalPlayerExcluded;
-            detail = "로컬 플레이어의 소환수/객체 행동이라 제외했습니다.";
-            return false;
-        }
-
-        if (ownerMatch.Kind == PartyCooldownOwnedObjectOwnerMatchKind.PartyMember
-            && TryFindPartyCooldownMemberByEntityId(displayMembers, ownerMatch.OwnerEntityId, out member))
-        {
-            ignoredReason = PartyCooldownIgnoredLogReason.None;
-            detail = "소환수/객체 소유자 매칭";
-            return true;
-        }
-
-        if (ownerMatch.Kind == PartyCooldownOwnedObjectOwnerMatchKind.Ambiguous)
-        {
-            member = default;
-            ignoredReason = PartyCooldownIgnoredLogReason.Ambiguous;
-            detail = "같은 이름의 소환수/객체 소유 파티원이 여러 명이라 추적하지 않았습니다.";
-            return false;
-        }
-
-        member = default;
-        detail = string.Empty;
-        return false;
     }
 
     private static string AppendPartyCooldownMemberMatchDetail(string detail, string memberMatchDetail)
@@ -444,11 +241,7 @@ public sealed unsafe partial class Plugin
             return;
 
         var runtimeKey = this.CreatePartyCooldownRuntimeKey(member.Key, definition);
-        if (!this.partyCooldownRuntimeStates.TryGetValue(runtimeKey, out var runtime))
-        {
-            runtime = new PartyCooldownRuntimeState();
-            this.partyCooldownRuntimeStates[runtimeKey] = runtime;
-        }
+        var runtime = this.partyCooldownRuntimeStore.GetOrCreateState(runtimeKey);
 
         if (PartyCooldownLogMatcher.IsDuplicateUse(runtime.LastLogTrackedAtUtc, nowUtc, PartyCooldownLogDedupeWindow))
             return;

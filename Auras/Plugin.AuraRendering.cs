@@ -12,7 +12,11 @@ public sealed unsafe partial class Plugin
             var pos = ImGui.GetCursorScreenPos();
             var draw = ImGui.GetWindowDrawList();
             var grayscaleTexture = !aura.Present ? this.GetGrayscaleIconTexture(aura.IconId) : null;
-            ImGui.Image((grayscaleTexture ?? texture).Handle, new Vector2(size, size));
+            ImGui.Image(
+                (grayscaleTexture ?? texture).Handle,
+                new Vector2(size, size),
+                StatusIconRenderGeometry.UvMin,
+                StatusIconRenderGeometry.UvMax);
             var max = pos + new Vector2(size, size);
 
             if (!aura.Present)
@@ -56,6 +60,10 @@ public sealed unsafe partial class Plugin
     {
         var lookup = new GameIconLookup(iconId, false, true, null);
         var texture = TextureProvider.GetFromGameIcon(in lookup).GetWrapOrEmpty();
-        ImGui.Image(texture.Handle, new Vector2(size, size));
+        ImGui.Image(
+            texture.Handle,
+            new Vector2(size, size),
+            StatusIconRenderGeometry.UvMin,
+            StatusIconRenderGeometry.UvMax);
     }
 }

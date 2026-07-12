@@ -17,8 +17,7 @@ public sealed unsafe partial class Plugin
     }
 
     private static bool UsesCompactAuraLayout(IconWindowConfig iconWindow)
-        => IconWindowRoles.IsStandardAuraRole(iconWindow.Role)
-           && iconWindow.DisplayCondition == IconDisplayCondition.CoolingOnly;
+        => AuraLayoutPolicy.UsesContinuousFlow(iconWindow.Role);
 
     private bool AddMissingAuraIconPositions(IconWindowConfig iconWindow, IReadOnlyList<AuraState> auras, Vector2 areaSize)
     {

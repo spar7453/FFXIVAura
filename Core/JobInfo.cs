@@ -4,6 +4,10 @@ public static class JobInfo
 {
     private const uint FramedClassJobIconBase = 62100;
 
+    private readonly record struct BaseClassInfo(
+        string Code,
+        string DefaultJobCode);
+
     private static readonly Dictionary<uint, string> JobIds = new()
     {
         [19] = "PLD",
@@ -29,7 +33,20 @@ public static class JobInfo
         [42] = "PCT",
     };
 
-    private static readonly Dictionary<string, uint> BaseClassIds = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly Dictionary<uint, BaseClassInfo> BaseClasses = new()
+    {
+        [1] = new("GLD", "PLD"),
+        [2] = new("PGL", "MNK"),
+        [3] = new("MRD", "WAR"),
+        [4] = new("LNC", "DRG"),
+        [5] = new("ARC", "BRD"),
+        [6] = new("CNJ", "WHM"),
+        [7] = new("THM", "BLM"),
+        [26] = new("ACN", "SMN"),
+        [29] = new("ROG", "NIN"),
+    };
+
+    private static readonly Dictionary<string, uint> BaseClassIdsByJobCode = new(StringComparer.OrdinalIgnoreCase)
     {
         ["PLD"] = 1,  // GLD
         ["MNK"] = 2,  // PGL
@@ -74,7 +91,15 @@ public static class JobInfo
         "addle", "sleep", "swiftcast", "lucid-dreaming", "surecast",
     };
 
-    public static string Code(uint classJobId) => JobIds.GetValueOrDefault(classJobId, "JOB");
+    public static string Code(uint classJobId)
+    {
+        if (JobIds.TryGetValue(classJobId, out var jobCode))
+            return jobCode;
+
+        return BaseClasses.TryGetValue(classJobId, out var baseClass)
+            ? baseClass.DefaultJobCode
+            : "JOB";
+    }
 
     public static uint IconId(string code)
     {
@@ -85,7 +110,9 @@ public static class JobInfo
 
     public static uint IconId(uint classJobId)
     {
-        return JobIds.ContainsKey(classJobId) ? FramedClassJobIconBase + classJobId : 0;
+        return JobIds.ContainsKey(classJobId) || BaseClasses.ContainsKey(classJobId)
+            ? FramedClassJobIconBase + classJobId
+            : 0;
     }
 
     public static uint Id(string code)
@@ -94,6 +121,12 @@ public static class JobInfo
         foreach (var (id, jobCode) in JobIds)
         {
             if (string.Equals(jobCode, normalizedCode, StringComparison.OrdinalIgnoreCase))
+                return id;
+        }
+
+        foreach (var (id, baseClass) in BaseClasses)
+        {
+            if (string.Equals(baseClass.Code, normalizedCode, StringComparison.OrdinalIgnoreCase))
                 return id;
         }
 
@@ -108,7 +141,7 @@ public static class JobInfo
         if (jobId != 0)
             ids.Add(jobId);
 
-        if (BaseClassIds.TryGetValue(normalizedCode, out var classId))
+        if (BaseClassIdsByJobCode.TryGetValue(normalizedCode, out var classId))
             ids.Add(classId);
 
         return ids;

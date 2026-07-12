@@ -15,6 +15,7 @@ internal static class ConfigTests
         ("PluginConfigNormalizer migrates legacy root config", PluginConfigNormalizerMigratesLegacyRootConfig),
         ("PluginConfigNormalizer creates separate party-size layouts for party boards", PluginConfigNormalizerCreatesPartySizeLayoutsForPartyBoards),
         ("PluginConfigNormalizer repairs window ids and values", PluginConfigNormalizerRepairsWindowIdsAndValues),
+        ("PluginConfigNormalizer is idempotent after repairing null collections", PluginConfigNormalizerIsIdempotentAfterRepair),
         ("PluginConfigNormalizer repairs performance profile settings", PluginConfigNormalizerRepairsPerformanceProfileSettings),
     ];
 
@@ -298,6 +299,48 @@ internal static class ConfigTests
         Near(regular.FontScale, alliance.FontScale);
         Equal(regular.Alignment, alliance.Alignment);
         Equal(PartyCooldownLayoutEditMode.EightPlayer, config.PartyCooldownLayoutEditMode);
+    }
+
+    private static void PluginConfigNormalizerIsIdempotentAfterRepair()
+    {
+        var config = new PluginConfigData
+        {
+            TrackedByJob = null!,
+            ExcludedByJob = null!,
+            IconPositionsByJob = null!,
+            TrackedEditorTab = "invalid",
+            TrackedSkillSearch = null!,
+            ActiveWindowId = null!,
+            IconWindows =
+            [
+                null!,
+                new IconWindowConfig
+                {
+                    Id = " win2 ",
+                    Name = null!,
+                    AuraSearch = null!,
+                    TrackedStatusIds = null!,
+                    ExactTrackedStatusIds = null!,
+                    ExcludedPartyCooldownIds = null!,
+                    TrackedByJob = null!,
+                    ExcludedByJob = null!,
+                    IconPositionsByJob = null!,
+                    AuraPositionsByRole = null!,
+                },
+            ],
+        };
+
+        True(
+            PluginConfigNormalizer.Normalize(config, TestData.ConfigOptions()),
+            "the first pass should repair invalid collections");
+        True(
+            !PluginConfigNormalizer.Normalize(config, TestData.ConfigOptions()),
+            "a repaired config should not change on a second pass");
+
+        Equal(1, config.IconWindows.Count);
+        Equal("win2", config.ActiveWindowId);
+        Equal(2, config.WindowCounter);
+        Equal("\uCC3D 2", config.IconWindows[0].Name);
     }
 
     private static void PluginConfigNormalizerRepairsPerformanceProfileSettings()

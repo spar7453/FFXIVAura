@@ -19,7 +19,8 @@ internal static class PartyCooldownOwnedObjectOwnerResolver
         IReadOnlySet<uint> matchingOwnerEntityIds,
         IReadOnlySet<uint> partyMemberEntityIds)
     {
-        if (localPlayerEntityId != 0 && matchingOwnerEntityIds.Contains(localPlayerEntityId))
+        if (PartyCooldownOwnerResolver.IsValidEntityId(localPlayerEntityId)
+            && matchingOwnerEntityIds.Contains(localPlayerEntityId))
         {
             return new PartyCooldownOwnedObjectOwnerMatch(
                 PartyCooldownOwnedObjectOwnerMatchKind.LocalPlayer,
