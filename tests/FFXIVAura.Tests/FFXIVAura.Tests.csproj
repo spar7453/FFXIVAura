@@ -12,6 +12,7 @@
 
   <ItemGroup>
     <Reference Include="Dalamud" HintPath="$(DalamudLibPath)Dalamud.dll" />
+    <Reference Include="FFXIVClientStructs" HintPath="$(DalamudLibPath)FFXIVClientStructs.dll" />
     <Reference Include="Lumina" HintPath="$(DalamudLibPath)Lumina.dll" />
     <Reference Include="Lumina.Excel" HintPath="$(DalamudLibPath)Lumina.Excel.dll" />
   </ItemGroup>

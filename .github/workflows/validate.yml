@@ -109,24 +109,35 @@ jobs:
           if ([string]::IsNullOrWhiteSpace($version)) {
             throw 'FFXIVAura.json does not contain an AssemblyVersion.'
           }
+          try {
+            $sourceVersion = [version]$version
+          }
+          catch {
+            throw "FFXIVAura.json contains an invalid AssemblyVersion '$version'."
+          }
 
           $sourcePackage = '.\bin\Release\FFXIVAura\latest.zip'
           $targetPackage = ".\plugin-repo\plugins\FFXIVAura\$version.zip"
           $probeContent = Get-Content -Raw -Encoding UTF8 '.\plugin-repo\pluginmaster.json'
           $probeEntry = [regex]::Match($probeContent, '(?ms)\{\s*"Author"\s*:\s*"spark",\s*"Name"\s*:\s*"FFXIVAura".*?(?=\r?\n\s*\},)')
-          if ($probeEntry.Success) {
-            $probeVersion = [regex]::Match($probeEntry.Value, '"AssemblyVersion"\s*:\s*"([^"]+)"')
-            if ($probeVersion.Success) {
-              try {
-                if ([version]$probeVersion.Groups[1].Value -gt [version]$version) {
-                  Write-Host "Skipping stale FFXIVAura $version deployment; repository already has $($probeVersion.Groups[1].Value)."
-                  exit 0
-                }
-              }
-              catch {
-                Write-Warning "Unable to compare plugin versions: $($_.Exception.Message)"
-              }
-            }
+          if (-not $probeEntry.Success) {
+            throw 'FFXIVAura entry was not found in pluginmaster.json.'
+          }
+
+          $probeVersion = [regex]::Match($probeEntry.Value, '"AssemblyVersion"\s*:\s*"([^"]+)"')
+          if (-not $probeVersion.Success) {
+            throw 'FFXIVAura AssemblyVersion was not found in pluginmaster.json.'
+          }
+
+          try {
+            $publishedVersion = [version]$probeVersion.Groups[1].Value
+          }
+          catch {
+            throw "pluginmaster.json contains an invalid FFXIVAura AssemblyVersion '$($probeVersion.Groups[1].Value)'."
+          }
+
+          if ($publishedVersion -ge $sourceVersion) {
+            throw "FFXIVAura deployment version $sourceVersion must be newer than the published version $publishedVersion."
           }
 
           New-Item -ItemType Directory -Force -Path (Split-Path -Parent $targetPackage) | Out-Null

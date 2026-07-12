@@ -8,42 +8,11 @@ public sealed unsafe partial class Plugin
         this.config.WindowCounter = Math.Max(this.config.WindowCounter, number);
         var id = $"win{number}";
         var windowSize = new Vector2(activeWindow.Width, activeWindow.Height);
-        var window = new IconWindowConfig
-        {
-            Id = id,
-            Name = $"\uCC3D {number}",
-            Position = ClampOverlayWindowPosition(this.GetNewIconWindowPosition(activeWindow), windowSize),
-            Width = activeWindow.Width,
-            Height = activeWindow.Height,
-            IconSize = activeWindow.IconSize,
-            Gap = activeWindow.Gap,
-            FontScale = activeWindow.FontScale,
-            OrderEditorHeight = activeWindow.OrderEditorHeight,
-            Role = activeWindow.Role,
-            DisplayCondition = activeWindow.DisplayCondition,
-            SkillDisplayCondition = activeWindow.SkillDisplayCondition,
-            AuraDisplayCondition = activeWindow.AuraDisplayCondition,
-            PartyCooldownDisplayCondition = activeWindow.PartyCooldownDisplayCondition,
-            Alignment = activeWindow.Alignment,
-            FourPlayerLayout = IconWindowLayoutBinding.CloneConfig(activeWindow.FourPlayerLayout),
-            AllianceLayout = IconWindowLayoutBinding.CloneConfig(activeWindow.AllianceLayout),
-            HighlightReady = activeWindow.HighlightReady,
-            HighlightAdjusted = activeWindow.HighlightAdjusted,
-            ShowKeybindText = activeWindow.ShowKeybindText,
-            ShowMissingAuras = activeWindow.ShowMissingAuras,
-            PartyAurasOwnOnly = activeWindow.PartyAurasOwnOnly,
-            ShowPartyAuraCount = activeWindow.ShowPartyAuraCount,
-            AuraSearch = activeWindow.AuraSearch,
-            AuraSearchActiveOnly = activeWindow.AuraSearchActiveOnly,
-            AuraSearchShowIndividualIds = activeWindow.AuraSearchShowIndividualIds,
-            TrackedStatusIds = activeWindow.TrackedStatusIds.ToList(),
-            ExactTrackedStatusIds = activeWindow.ExactTrackedStatusIds.ToList(),
-            ExcludedPartyCooldownIds = activeWindow.ExcludedPartyCooldownIds.ToList(),
-            TrackedByJob = IconWindowClone.CloneStringListMap(activeWindow.TrackedByJob),
-            ExcludedByJob = IconWindowClone.CloneStringListMap(activeWindow.ExcludedByJob),
-            IconPositionsByJob = IconWindowClone.CloneVector2Map(activeWindow.IconPositionsByJob),
-            AuraPositionsByRole = IconWindowClone.CloneAuraPositionsForWindow(activeWindow.AuraPositionsByRole, activeWindow.Id, id),
-        };
+        var window = IconWindowClone.CloneForNewWindow(
+            activeWindow,
+            id,
+            $"\uCC3D {number}",
+            ClampOverlayWindowPosition(this.GetNewIconWindowPosition(activeWindow), windowSize));
 
         if (window.FourPlayerLayout is not null && activeWindow.FourPlayerLayout is not null)
         {

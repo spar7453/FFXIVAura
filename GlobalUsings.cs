@@ -20,4 +20,5 @@ global using FFXIVClientStructs.FFXIV.Client.Game;
 global using Lumina.Data.Files;
 global using GameAction = Lumina.Excel.Sheets.Action;
 global using GameActionTransient = Lumina.Excel.Sheets.ActionTransient;
+global using GameGeneralAction = Lumina.Excel.Sheets.GeneralAction;
 global using GameStatus = Lumina.Excel.Sheets.Status;

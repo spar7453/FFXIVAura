@@ -5,20 +5,6 @@ namespace FFXIVAura;
 
 public sealed unsafe partial class Plugin
 {
-    private static readonly string[] NormalHotbarAddonNames =
-    [
-        "_ActionBar09",
-        "_ActionBar",
-        "_ActionBar01",
-        "_ActionBar02",
-        "_ActionBar03",
-        "_ActionBar04",
-        "_ActionBar05",
-        "_ActionBar06",
-        "_ActionBar07",
-        "_ActionBar08",
-    ];
-
     private static readonly string[] CrossHotbarAddonNames =
     [
         "_ActionCross",
@@ -99,9 +85,21 @@ public sealed unsafe partial class Plugin
 
     private void RegisterHotbarSlotKeybind(RaptureHotbarModule.HotbarSlot* slot, string text)
     {
-        this.RegisterActionKeybind(slot->CommandId, text);
-        this.RegisterActionKeybind(slot->ApparentActionId, text);
-        this.RegisterActionKeybind(slot->OriginalApparentActionId, text);
+        this.RegisterHotbarActionKeybind(slot->CommandType, slot->CommandId, text);
+        this.RegisterHotbarActionKeybind(slot->ApparentSlotType, slot->ApparentActionId, text);
+        this.RegisterHotbarActionKeybind(slot->OriginalApparentSlotType, slot->OriginalApparentActionId, text);
+    }
+
+    private void RegisterHotbarActionKeybind(
+        RaptureHotbarModule.HotbarSlotType type,
+        uint commandId,
+        string text)
+    {
+        var actionId = HotbarKeybindPolicy.ResolveActionId(
+            type,
+            commandId,
+            this.ResolveGeneralActionActionId);
+        this.RegisterActionKeybind(actionId, text);
     }
 
     private void RegisterActionKeybind(uint actionId, string text)
@@ -129,8 +127,9 @@ public sealed unsafe partial class Plugin
         if (this.hotbarVisibilityCache.TryGetValue(hotbarId, out var visible))
             return visible;
 
-        visible = hotbarId < NormalHotbarAddonNames.Length
-            ? IsAddonVisible(NormalHotbarAddonNames[hotbarId])
+        var normalHotbarAddonName = HotbarKeybindPolicy.GetNormalHotbarAddonName(hotbarId);
+        visible = normalHotbarAddonName is not null
+            ? IsAddonVisible(normalHotbarAddonName)
             : CrossHotbarAddonNames.Any(IsAddonVisible);
         this.hotbarVisibilityCache[hotbarId] = visible;
         return visible;
@@ -151,12 +150,33 @@ public sealed unsafe partial class Plugin
 
     private static bool IsActionHotbarSlot(RaptureHotbarModule.HotbarSlot* slot)
     {
-        return slot->CommandType == RaptureHotbarModule.HotbarSlotType.Action
-               || slot->CommandType == RaptureHotbarModule.HotbarSlotType.GeneralAction
-               || slot->ApparentSlotType == RaptureHotbarModule.HotbarSlotType.Action
-               || slot->ApparentSlotType == RaptureHotbarModule.HotbarSlotType.GeneralAction
-               || slot->OriginalApparentSlotType == RaptureHotbarModule.HotbarSlotType.Action
-               || slot->OriginalApparentSlotType == RaptureHotbarModule.HotbarSlotType.GeneralAction;
+        return HotbarKeybindPolicy.IsSupportedActionType(slot->CommandType)
+               || HotbarKeybindPolicy.IsSupportedActionType(slot->ApparentSlotType)
+               || HotbarKeybindPolicy.IsSupportedActionType(slot->OriginalApparentSlotType);
+    }
+
+    private uint ResolveGeneralActionActionId(uint generalActionId)
+    {
+        if (generalActionId == 0)
+            return 0;
+
+        if (this.generalActionActionIdCache.TryGetValue(generalActionId, out var cached))
+            return cached;
+
+        var actionId = 0u;
+        try
+        {
+            var sheet = DataManager.GetExcelSheet<GameGeneralAction>();
+            if (sheet is not null)
+                actionId = sheet.GetRow(generalActionId).Action.RowId;
+        }
+        catch (Exception ex)
+        {
+            Log.Debug(ex, $"Failed to resolve general action {generalActionId}.");
+        }
+
+        this.generalActionActionIdCache[generalActionId] = actionId;
+        return actionId;
     }
 
 }

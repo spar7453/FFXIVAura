@@ -24,6 +24,12 @@ internal static class BuildMetadataTests
         Equal(version, assemblyVersion);
         Equal(version, fileVersion);
         Equal(version, manifestVersion);
-        True(Version.Parse(version).Major >= 1, "release metadata must remain on the 1.x or newer version line");
+        var parsedVersion = Version.Parse(version);
+        True(parsedVersion > new Version(1, 0, 0, 0), "release metadata must advance past the published 1.0.0.0 package");
+
+        var workflow = File.ReadAllText(TestFiles.FindRepoFile(Path.Combine(".github", "workflows", "validate.yml")));
+        True(
+            workflow.Contains("$publishedVersion -ge $sourceVersion", StringComparison.Ordinal),
+            "deployment must reject versions that are not newer than the published package");
     }
 }

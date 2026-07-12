@@ -32,46 +32,7 @@ internal static class PluginConfigClone
             TrackedSkillSearch = source.TrackedSkillSearch,
             ActiveWindowId = source.ActiveWindowId,
             WindowCounter = source.WindowCounter,
-            IconWindows = source.IconWindows.Select(CloneWindow).ToList(),
+            IconWindows = source.IconWindows.Select(IconWindowClone.CloneSnapshot).ToList(),
         };
     }
-
-    private static IconWindowConfig CloneWindow(IconWindowConfig source)
-        => new()
-        {
-            Id = source.Id,
-            Name = source.Name,
-            Position = source.Position,
-            Width = source.Width,
-            Height = source.Height,
-            IconSize = source.IconSize,
-            Gap = source.Gap,
-            FontScale = source.FontScale,
-            OrderEditorHeight = source.OrderEditorHeight,
-            ActiveOrderRow = source.ActiveOrderRow,
-            Role = source.Role,
-            DisplayCondition = source.DisplayCondition,
-            SkillDisplayCondition = source.SkillDisplayCondition,
-            AuraDisplayCondition = source.AuraDisplayCondition,
-            PartyCooldownDisplayCondition = source.PartyCooldownDisplayCondition,
-            Alignment = source.Alignment,
-            FourPlayerLayout = IconWindowLayoutBinding.CloneConfig(source.FourPlayerLayout),
-            AllianceLayout = IconWindowLayoutBinding.CloneConfig(source.AllianceLayout),
-            HighlightReady = source.HighlightReady,
-            HighlightAdjusted = source.HighlightAdjusted,
-            ShowKeybindText = source.ShowKeybindText,
-            ShowMissingAuras = source.ShowMissingAuras,
-            PartyAurasOwnOnly = source.PartyAurasOwnOnly,
-            ShowPartyAuraCount = source.ShowPartyAuraCount,
-            AuraSearch = source.AuraSearch,
-            AuraSearchActiveOnly = source.AuraSearchActiveOnly,
-            AuraSearchShowIndividualIds = source.AuraSearchShowIndividualIds,
-            TrackedStatusIds = source.TrackedStatusIds.ToList(),
-            ExactTrackedStatusIds = source.ExactTrackedStatusIds.ToList(),
-            ExcludedPartyCooldownIds = source.ExcludedPartyCooldownIds.ToList(),
-            TrackedByJob = IconWindowClone.CloneStringListMap(source.TrackedByJob),
-            ExcludedByJob = IconWindowClone.CloneStringListMap(source.ExcludedByJob),
-            IconPositionsByJob = IconWindowClone.CloneVector2Map(source.IconPositionsByJob),
-            AuraPositionsByRole = IconWindowClone.CloneVector2Map(source.AuraPositionsByRole),
-        };
 }

@@ -70,6 +70,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private readonly Dictionary<uint, (uint RowId, string Name)> actionCategoryCache = new();
     private readonly Dictionary<uint, byte> actionEquivalenceGroupCache = new();
     private readonly Dictionary<uint, GameAction> actionRowCache = new();
+    private readonly Dictionary<uint, uint> generalActionActionIdCache = new();
     private readonly Dictionary<uint, OverlayActionTooltipModel> actionTooltipModelCache = new();
     private readonly Dictionary<uint, AuraStatusDefinition> statusDefinitionCache = new();
     private readonly Dictionary<uint, string> statusTooltipTextCache = new();

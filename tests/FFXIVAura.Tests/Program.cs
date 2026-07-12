@@ -64,6 +64,7 @@ tests.AddRange(PerformanceProfileWriterTests.Cases);
 tests.AddRange(AuraStatusFrameIndexTests.Cases);
 tests.AddRange(StatusSourceOwnershipTests.Cases);
 tests.AddRange(ActionKeybindIndexTests.Cases);
+tests.AddRange(HotbarKeybindPolicyTests.Cases);
 tests.AddRange(LoginStabilizationStateTests.Cases);
 
 var failed = 0;

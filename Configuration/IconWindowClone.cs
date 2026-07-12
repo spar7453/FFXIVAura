@@ -2,6 +2,32 @@ namespace FFXIVAura;
 
 internal static class IconWindowClone
 {
+    public static IconWindowConfig CloneSnapshot(IconWindowConfig source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        return CloneCore(
+            source,
+            source.Id,
+            source.Name,
+            source.Position,
+            CloneVector2Map(source.AuraPositionsByRole));
+    }
+
+    public static IconWindowConfig CloneForNewWindow(
+        IconWindowConfig source,
+        string targetId,
+        string targetName,
+        Vector2 targetPosition)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        return CloneCore(
+            source,
+            targetId,
+            targetName,
+            targetPosition,
+            CloneAuraPositionsForWindow(source.AuraPositionsByRole, source.Id, targetId));
+    }
+
     public static Dictionary<string, List<string>> CloneStringListMap(Dictionary<string, List<string>> source)
     {
         var result = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
@@ -67,6 +93,50 @@ internal static class IconWindowClone
 
         return result;
     }
+
+    private static IconWindowConfig CloneCore(
+        IconWindowConfig source,
+        string id,
+        string name,
+        Vector2 position,
+        Dictionary<string, Dictionary<string, Vector2>> auraPositionsByRole)
+        => new()
+        {
+            Id = id,
+            Name = name,
+            Position = position,
+            Width = source.Width,
+            Height = source.Height,
+            IconSize = source.IconSize,
+            Gap = source.Gap,
+            FontScale = source.FontScale,
+            OrderEditorHeight = source.OrderEditorHeight,
+            ActiveOrderRow = source.ActiveOrderRow,
+            Role = source.Role,
+            DisplayCondition = source.DisplayCondition,
+            SkillDisplayCondition = source.SkillDisplayCondition,
+            AuraDisplayCondition = source.AuraDisplayCondition,
+            PartyCooldownDisplayCondition = source.PartyCooldownDisplayCondition,
+            Alignment = source.Alignment,
+            FourPlayerLayout = IconWindowLayoutBinding.CloneConfig(source.FourPlayerLayout),
+            AllianceLayout = IconWindowLayoutBinding.CloneConfig(source.AllianceLayout),
+            HighlightReady = source.HighlightReady,
+            HighlightAdjusted = source.HighlightAdjusted,
+            ShowKeybindText = source.ShowKeybindText,
+            ShowMissingAuras = source.ShowMissingAuras,
+            PartyAurasOwnOnly = source.PartyAurasOwnOnly,
+            ShowPartyAuraCount = source.ShowPartyAuraCount,
+            AuraSearch = source.AuraSearch,
+            AuraSearchActiveOnly = source.AuraSearchActiveOnly,
+            AuraSearchShowIndividualIds = source.AuraSearchShowIndividualIds,
+            TrackedStatusIds = source.TrackedStatusIds.ToList(),
+            ExactTrackedStatusIds = source.ExactTrackedStatusIds.ToList(),
+            ExcludedPartyCooldownIds = source.ExcludedPartyCooldownIds.ToList(),
+            TrackedByJob = CloneStringListMap(source.TrackedByJob),
+            ExcludedByJob = CloneStringListMap(source.ExcludedByJob),
+            IconPositionsByJob = CloneVector2Map(source.IconPositionsByJob),
+            AuraPositionsByRole = auraPositionsByRole,
+        };
 
     private static Dictionary<string, Vector2> ClonePositionDictionary(Dictionary<string, Vector2> positions, Func<string, bool>? keyFilter = null)
     {

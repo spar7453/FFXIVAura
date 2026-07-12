@@ -13,6 +13,7 @@ internal static class IconWindowCloneTests
         ("IconWindowClone clones scoped aura positions", ClonesScopedAuraPositions),
         ("IconWindowClone skips invalid aura position keys", SkipsInvalidAuraPositionKeys),
         ("IconWindowClone ignores invalid aura clone scopes", IgnoresInvalidAuraCloneScopes),
+        ("IconWindowClone preserves all window editor state", PreservesWindowEditorState),
     ];
 
     private static void ClonesStringMapsSafely()
@@ -107,5 +108,50 @@ internal static class IconWindowCloneTests
 
         Equal(0, IconWindowClone.CloneAuraPositionsForWindow(source, "", "new").Count);
         Equal(0, IconWindowClone.CloneAuraPositionsForWindow(source, "old", " OLD ").Count);
+    }
+
+    private static void PreservesWindowEditorState()
+    {
+        var source = new IconWindowConfig
+        {
+            Id = "old",
+            Name = "source",
+            Position = new Vector2(10, 20),
+            ActiveOrderRow = 3,
+            OrderEditorHeight = 240,
+            FourPlayerLayout = new IconWindowLayoutConfig
+            {
+                Position = new Vector2(30, 40),
+            },
+            TrackedStatusIds = [10],
+            AuraPositionsByRole = new Dictionary<string, Dictionary<string, Vector2>>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["old:PartyBuffs"] = new(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["status-10"] = new Vector2(5, 6),
+                },
+            },
+        };
+
+        var clone = IconWindowClone.CloneForNewWindow(
+            source,
+            "new",
+            "clone",
+            new Vector2(100, 200));
+
+        Equal("new", clone.Id);
+        Equal("clone", clone.Name);
+        Vector(new Vector2(100, 200), clone.Position);
+        Equal(3, clone.ActiveOrderRow);
+        Near(240, clone.OrderEditorHeight);
+        True(clone.FourPlayerLayout is not null, "party layout should be cloned");
+        True(!ReferenceEquals(source.FourPlayerLayout, clone.FourPlayerLayout), "party layout should be independent");
+        Sequence([10u], clone.TrackedStatusIds);
+        True(clone.AuraPositionsByRole.ContainsKey("new:PartyBuffs"), "aura position scope should use the new window id");
+
+        source.TrackedStatusIds.Add(20);
+        source.FourPlayerLayout!.Position = Vector2.Zero;
+        Sequence([10u], clone.TrackedStatusIds);
+        Vector(new Vector2(30, 40), clone.FourPlayerLayout!.Position);
     }
 }
