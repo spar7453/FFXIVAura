@@ -44,18 +44,37 @@ internal readonly record struct PartyCooldownRosterDiagnostics(
 internal static class PartyCooldownRoster
 {
     public static ulong ComputeMemberIdentityHash(IReadOnlyList<PartyCooldownMemberSnapshot> members)
+        => ComputeMemberIdentityHash(members, allianceGroup: null);
+
+    public static ulong ComputeAllianceGroupIdentityHash(
+        IReadOnlyList<PartyCooldownMemberSnapshot> members,
+        string allianceGroup)
+        => ComputeMemberIdentityHash(members, allianceGroup);
+
+    private static ulong ComputeMemberIdentityHash(
+        IReadOnlyList<PartyCooldownMemberSnapshot> members,
+        string? allianceGroup)
     {
         const ulong Offset = 14695981039346656037UL;
         const ulong Prime = 1099511628211UL;
         var hash = Offset;
+        var count = 0;
         foreach (var member in members)
         {
+            if (allianceGroup is not null
+                && !string.Equals(member.AllianceGroup, allianceGroup, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
             hash = (hash ^ member.EntityId) * Prime;
             foreach (var value in member.Key)
                 hash = (hash ^ value) * Prime;
+
+            count++;
         }
 
-        return (hash ^ (uint)members.Count) * Prime;
+        return (hash ^ (uint)count) * Prime;
     }
 
     public static IReadOnlyList<PartyCooldownMemberSnapshot> CreateDisplayMembers(

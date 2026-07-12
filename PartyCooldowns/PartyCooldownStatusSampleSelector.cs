@@ -20,9 +20,30 @@ internal static class PartyCooldownStatusSampleSelector
         };
 
     public static bool IsPreferredDuplicateSample(PartyCooldownActiveStatus candidate, PartyCooldownActiveStatus current)
-        => (int)candidate.Priority > (int)current.Priority
-           || (candidate.Priority == current.Priority && candidate.Remaining > current.Remaining);
+    {
+        var candidateOriginPriority = GetOriginPriority(candidate.Origin);
+        var currentOriginPriority = GetOriginPriority(current.Origin);
+        if (candidateOriginPriority != currentOriginPriority)
+            return candidateOriginPriority > currentOriginPriority;
+
+        return (int)candidate.Priority > (int)current.Priority
+               || candidate.Priority == current.Priority && candidate.Remaining > current.Remaining;
+    }
 
     public static bool IsPreferredAcrossStatusIds(PartyCooldownActiveStatus candidate, PartyCooldownActiveStatus current)
-        => candidate.Remaining > current.Remaining;
+    {
+        var candidateOriginPriority = GetOriginPriority(candidate.Origin);
+        var currentOriginPriority = GetOriginPriority(current.Origin);
+        return candidateOriginPriority != currentOriginPriority
+            ? candidateOriginPriority > currentOriginPriority
+            : candidate.Remaining > current.Remaining;
+    }
+
+    private static int GetOriginPriority(StatusSnapshotOrigin origin)
+        => origin switch
+        {
+            StatusSnapshotOrigin.Live => 2,
+            StatusSnapshotOrigin.Fallback => 1,
+            _ => 0,
+        };
 }

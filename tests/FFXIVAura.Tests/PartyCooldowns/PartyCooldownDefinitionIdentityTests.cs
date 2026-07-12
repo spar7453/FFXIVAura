@@ -11,6 +11,7 @@ internal static class PartyCooldownDefinitionIdentityTests
         ("PartyCooldownDefinitionIdentity matches legacy lower exclusions", MatchesLegacyLowerExclusions),
         ("PartyCooldownDefinitionIdentity removes equivalent exclusions", RemovesEquivalentExclusions),
         ("PartyCooldownDefinitionIdentity builds stable runtime keys", BuildsStableRuntimeKeys),
+        ("PartyCooldown runtime keys remain case insensitive", RuntimeKeysRemainCaseInsensitive),
         ("PartyCooldownDefinitionIdentity trims legacy ids", TrimsLegacyIds),
     ];
 
@@ -60,6 +61,17 @@ internal static class PartyCooldownDefinitionIdentityTests
             PartyCooldownDefinitionIdentity.RuntimeKey("member-1", canonicalIds, definitions[0]),
             PartyCooldownDefinitionIdentity.RuntimeKey("member-1", canonicalIds, definitions[1]));
         Equal("member-1:guardian", PartyCooldownDefinitionIdentity.RuntimeKey("member-1", canonicalIds, definitions[1]));
+    }
+
+    private static void RuntimeKeysRemainCaseInsensitive()
+    {
+        var first = new PartyCooldownRuntimeKey("Content-10", "Guardian");
+        var second = new PartyCooldownRuntimeKey("content-10", "guardian");
+
+        True(PartyCooldownRuntimeKeyComparer.Instance.Equals(first, second), "runtime key casing should not split cooldown state");
+        Equal(
+            PartyCooldownRuntimeKeyComparer.Instance.GetHashCode(first),
+            PartyCooldownRuntimeKeyComparer.Instance.GetHashCode(second));
     }
 
     private static void TrimsLegacyIds()

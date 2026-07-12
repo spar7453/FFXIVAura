@@ -4,6 +4,7 @@ internal sealed class StatusSnapshotFallbackCache
 {
     private const int MaxEntries = 128;
     private readonly Dictionary<StatusSnapshotCacheKey, CacheEntry> entries = new();
+    private readonly LinkedList<StatusSnapshotCacheKey> recency = new();
 
     public int Count => this.entries.Count;
 
@@ -17,11 +18,22 @@ internal sealed class StatusSnapshotFallbackCache
             return;
 
         var key = new StatusSnapshotCacheKey(scope, ownerEntityId);
+        if (snapshots.Count == 0)
+        {
+            this.RemoveEntry(key);
+            return;
+        }
+
         if (!this.entries.TryGetValue(key, out var entry))
         {
             this.EvictOldestEntryIfFull();
-            entry = new CacheEntry();
+            entry = new CacheEntry(this.recency.AddLast(key));
             this.entries[key] = entry;
+        }
+        else
+        {
+            this.recency.Remove(entry.RecencyNode);
+            this.recency.AddLast(entry.RecencyNode);
         }
 
         entry.Snapshots.Clear();
@@ -48,7 +60,7 @@ internal sealed class StatusSnapshotFallbackCache
         var age = nowUtc <= entry.CapturedAtUtc ? TimeSpan.Zero : nowUtc - entry.CapturedAtUtc;
         if (age > retention)
         {
-            this.entries.Remove(new StatusSnapshotCacheKey(scope, ownerEntityId));
+            this.RemoveEntry(new StatusSnapshotCacheKey(scope, ownerEntityId));
             return false;
         }
 
@@ -70,31 +82,34 @@ internal sealed class StatusSnapshotFallbackCache
     }
 
     public void Clear()
-        => this.entries.Clear();
+    {
+        this.entries.Clear();
+        this.recency.Clear();
+    }
 
     private void EvictOldestEntryIfFull()
     {
         if (this.entries.Count < MaxEntries)
             return;
 
-        var oldestKey = default(StatusSnapshotCacheKey);
-        var oldestAtUtc = DateTime.MaxValue;
-        foreach (var (key, entry) in this.entries)
-        {
-            if (entry.CapturedAtUtc >= oldestAtUtc)
-                continue;
+        if (this.recency.First is { } oldest)
+            this.RemoveEntry(oldest.Value);
+    }
 
-            oldestKey = key;
-            oldestAtUtc = entry.CapturedAtUtc;
-        }
+    private void RemoveEntry(StatusSnapshotCacheKey key)
+    {
+        if (!this.entries.Remove(key, out var entry))
+            return;
 
-        this.entries.Remove(oldestKey);
+        this.recency.Remove(entry.RecencyNode);
     }
 
     private readonly record struct StatusSnapshotCacheKey(string Scope, uint OwnerEntityId);
 
-    private sealed class CacheEntry
+    private sealed class CacheEntry(LinkedListNode<StatusSnapshotCacheKey> recencyNode)
     {
+        public LinkedListNode<StatusSnapshotCacheKey> RecencyNode { get; } = recencyNode;
+
         public List<StatusSnapshot> Snapshots { get; } = [];
 
         public DateTime CapturedAtUtc { get; set; }

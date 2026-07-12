@@ -14,6 +14,7 @@ public sealed unsafe partial class Plugin
         RemoveScopedRuntimeKeys(this.auraSearchStateRevisionByScope, windowId);
         this.auraSearchResultCacheByWindow.Remove(windowId);
         this.trackedAuraGroupCache.Remove(windowId);
+        this.partyCooldownRowBuffersByWindow.Remove(windowId);
         if (string.Equals(this.auraSearchWindowId, windowId, StringComparison.OrdinalIgnoreCase))
             this.CloseAuraSearchWindow();
     }
@@ -41,6 +42,12 @@ public sealed unsafe partial class Plugin
         {
             if (!windowIds.Contains(key, StringComparer.OrdinalIgnoreCase))
                 this.trackedAuraGroupCache.Remove(key);
+        }
+
+        foreach (var key in this.partyCooldownRowBuffersByWindow.Keys.ToList())
+        {
+            if (!windowIds.Contains(key, StringComparer.OrdinalIgnoreCase))
+                this.partyCooldownRowBuffersByWindow.Remove(key);
         }
 
         if (!string.IsNullOrWhiteSpace(this.auraSearchWindowId)

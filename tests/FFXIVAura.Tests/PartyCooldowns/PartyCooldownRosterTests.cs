@@ -11,6 +11,7 @@ internal static class PartyCooldownRosterTests
         ("PartyCooldownRoster excludes loading local player by content id", ExcludesLoadingLocalPlayerByContentId),
         ("PartyCooldownRoster records alliance-ready diagnostics", RecordsAllianceReadyDiagnostics),
         ("PartyCooldownRoster hashes stable member identities", HashesStableMemberIdentities),
+        ("PartyCooldownRoster hashes alliance member order independently", HashesAllianceMemberOrderIndependently),
     ];
 
     private static void HashesStableMemberIdentities()
@@ -23,6 +24,29 @@ internal static class PartyCooldownRosterTests
         True(
             PartyCooldownRoster.ComputeMemberIdentityHash(first) != PartyCooldownRoster.ComputeMemberIdentityHash(changed),
             "member changes should invalidate the status cache");
+        True(
+            PartyCooldownRoster.ComputeMemberIdentityHash(first) != PartyCooldownRoster.ComputeMemberIdentityHash(first.Reverse().ToArray()),
+            "member order changes should invalidate the status cache");
+    }
+
+    private static void HashesAllianceMemberOrderIndependently()
+    {
+        var first = new[]
+        {
+            Member(1, "PLD", "A"),
+            Member(2, "WHM", "A"),
+            Member(3, "WAR", "B"),
+            Member(4, "SCH", "B"),
+        };
+        var changed = new[] { first[0], first[1], first[3], first[2] };
+
+        Equal(
+            PartyCooldownRoster.ComputeAllianceGroupIdentityHash(first, "A"),
+            PartyCooldownRoster.ComputeAllianceGroupIdentityHash(changed, "A"));
+        True(
+            PartyCooldownRoster.ComputeAllianceGroupIdentityHash(first, "B")
+            != PartyCooldownRoster.ComputeAllianceGroupIdentityHash(changed, "B"),
+            "only the reordered alliance group hash should change");
     }
 
     private static void ExcludesLocalPlayerFromDisplayMembers()

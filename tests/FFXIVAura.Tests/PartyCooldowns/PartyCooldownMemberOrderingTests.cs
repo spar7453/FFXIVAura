@@ -9,6 +9,7 @@ internal static class PartyCooldownMemberOrderingTests
     [
         ("PartyCooldownMemberOrdering preserves in-game party order", PreservesInGamePartyOrder),
         ("PartyCooldownMemberOrdering preserves local and alliance HUD order", PreservesLocalAndAllianceHudOrder),
+        ("PartyCooldownMemberOrdering can reorder a reusable list", ReordersReusableList),
         ("PartyCooldownMemberOrdering removes only local player during display filtering", RemovesOnlyLocalPlayerDuringDisplayFiltering),
     ];
 
@@ -42,6 +43,20 @@ internal static class PartyCooldownMemberOrderingTests
             [102, 101, 202, 201, 301, 302]);
 
         Sequence([102u, 101u, 202u, 201u, 301u, 302u], sorted.Select(member => member.EntityId).ToList());
+    }
+
+    private static void ReordersReusableList()
+    {
+        var members = new List<PartyCooldownMemberSnapshot>
+        {
+            Member(30, "SAM"),
+            Member(10, "DNC"),
+            Member(20, "WHM"),
+        };
+
+        PartyCooldownMemberOrdering.ApplyInGameOrder(members, [10, 20, 30]);
+
+        Sequence([10u, 20u, 30u], members.Select(member => member.EntityId).ToList());
     }
 
     private static void RemovesOnlyLocalPlayerDuringDisplayFiltering()

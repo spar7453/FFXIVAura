@@ -176,7 +176,7 @@ public sealed unsafe partial class Plugin
             if (chara is null)
                 return;
 
-            if (!this.TryReadBattleCharaStatusSnapshots(chara, "characterAura", out _))
+            if (!this.TryReadBattleCharaStatusSnapshots(chara, "characterAura", out _, out _))
                 return;
 
             foreach (var status in this.statusSnapshotBuffer)
@@ -208,30 +208,14 @@ public sealed unsafe partial class Plugin
 
     private Dictionary<uint, PartyAuraAggregate> GetPartyAuraFrameIndex(bool ownOnly)
     {
-        if (ownOnly)
+        if (!this.partyAuraFrameAllCacheValid || !this.partyAuraFrameOwnCacheValid)
         {
-            if (!this.partyAuraFrameOwnCacheValid)
-            {
-                this.RebuildPartyAuraFrameIndex(
-                    this.partyAuraFrameOwnCache,
-                    this.partyAuraGroupFrameOwnCache,
-                    ownOnly: true);
-                this.partyAuraFrameOwnCacheValid = true;
-            }
-
-            return this.partyAuraFrameOwnCache;
-        }
-
-        if (!this.partyAuraFrameAllCacheValid)
-        {
-            this.RebuildPartyAuraFrameIndex(
-                this.partyAuraFrameAllCache,
-                this.partyAuraGroupFrameAllCache,
-                ownOnly: false);
+            this.RebuildPartyAuraFrameIndexes();
             this.partyAuraFrameAllCacheValid = true;
+            this.partyAuraFrameOwnCacheValid = true;
         }
 
-        return this.partyAuraFrameAllCache;
+        return ownOnly ? this.partyAuraFrameOwnCache : this.partyAuraFrameAllCache;
     }
 
     private Dictionary<AuraStatusGroupKey, PartyAuraGroupAggregate> GetPartyAuraGroupFrameIndex(bool ownOnly)
@@ -242,65 +226,101 @@ public sealed unsafe partial class Plugin
             : this.partyAuraGroupFrameAllCache;
     }
 
-    private void RebuildPartyAuraFrameIndex(
-        Dictionary<uint, PartyAuraAggregate> aggregateAuras,
-        Dictionary<AuraStatusGroupKey, PartyAuraGroupAggregate> aggregateGroups,
-        bool ownOnly)
+    private void RebuildPartyAuraFrameIndexes()
     {
         var profileStart = this.performanceProfiler.BeginSection(PerformanceProfileSection.AuraScan);
         try
         {
-            aggregateAuras.Clear();
-            aggregateGroups.Clear();
+            this.partyAuraFrameAllCache.Clear();
+            this.partyAuraFrameOwnCache.Clear();
+            this.partyAuraGroupFrameAllCache.Clear();
+            this.partyAuraGroupFrameOwnCache.Clear();
             _ = this.EnsureStatusIdentityIndex();
 
             var memberAuras = this.partyMemberAuraFrameBuffer;
+            var memberOwnAuras = this.partyMemberAuraOwnFrameBuffer;
             var memberGroups = this.partyMemberAuraGroupFrameBuffer;
+            var memberOwnGroups = this.partyMemberAuraGroupOwnFrameBuffer;
             var observedAtUtc = DateTime.UtcNow;
             memberAuras.Clear();
+            memberOwnAuras.Clear();
             memberGroups.Clear();
+            memberOwnGroups.Clear();
             this.partyAuraTimerLiveKeys.Clear();
+            this.partyAuraTimerMemberOwnerIds.Clear();
+            this.partyAuraTimerLiveOwnerIds.Clear();
+            var rosterReadComplete = true;
             var partySlotCount = this.GetPartyListHeader().PartySlotCount;
             for (var i = 0; i < partySlotCount; i++)
             {
                 var member = this.TryCreatePartyMemberReference(i);
                 if (member is null)
+                {
+                    rosterReadComplete = false;
                     continue;
+                }
 
                 memberAuras.Clear();
+                memberOwnAuras.Clear();
                 memberGroups.Clear();
-                if (!this.TryReadPartyMemberStatusSnapshots(member, "partyAura", out var memberEntityId))
+                memberOwnGroups.Clear();
+                var readSucceeded = this.TryReadPartyMemberStatusSnapshots(
+                        member,
+                        "partyAura",
+                        out var memberEntityId,
+                        out var snapshotOrigin);
+                if (memberEntityId == 0)
+                {
+                    rosterReadComplete = false;
+                }
+                else
+                {
+                    this.partyAuraTimerMemberOwnerIds.Add(memberEntityId);
+                }
+
+                if (!readSucceeded)
                     continue;
+
+                if (snapshotOrigin == StatusSnapshotOrigin.Fallback)
+                    this.partyAuraStatusFallbackBatchCount++;
+                else if (snapshotOrigin == StatusSnapshotOrigin.Live)
+                    this.partyAuraTimerLiveOwnerIds.Add(memberEntityId);
 
                 foreach (var status in this.statusSnapshotBuffer)
                 {
-                    var timerKey = ((ulong)memberEntityId << 32) | status.StatusId;
+                    var timerKey = new PartyAuraTimerKey(memberEntityId, status.StatusId, status.SourceId);
                     this.partyAuraTimerLiveKeys.Add(timerKey);
                     var remaining = status.RemainingTime;
-                    if (remaining > 0f)
+                    if (this.partyAuraTimerStates.TryGetValue(timerKey, out var timerState))
                     {
-                        if (!this.partyAuraTimerStates.TryGetValue(timerKey, out var timerState))
-                        {
-                            timerState = new PartyAuraTimerState();
-                            this.partyAuraTimerStates[timerKey] = timerState;
-                        }
-
-                        remaining = PartyAuraTimerTracker.Update(timerState, observedAtUtc, remaining);
+                        var timerResult = PartyAuraTimerTracker.UpdateDetailed(
+                            timerState,
+                            observedAtUtc,
+                            remaining,
+                            ObservedStatusObservation.Present,
+                            snapshotOrigin == StatusSnapshotOrigin.Live);
+                        this.NotePartyAuraTimerDecision(timerKey, remaining, snapshotOrigin, timerResult);
+                        remaining = timerResult.Remaining;
                         if (remaining <= 0f)
-                        {
-                            this.partyAuraExpiredStatusSuppressedCount++;
                             continue;
-                        }
                     }
-                    else if (this.partyAuraTimerStates.ContainsKey(timerKey))
+                    else if (remaining > 0f)
                     {
-                        this.partyAuraExpiredStatusSuppressedCount++;
-                        continue;
+                        timerState = new PartyAuraTimerState();
+                        this.partyAuraTimerStates[timerKey] = timerState;
+                        var timerResult = PartyAuraTimerTracker.UpdateDetailed(
+                            timerState,
+                            observedAtUtc,
+                            remaining,
+                            ObservedStatusObservation.Present,
+                            snapshotOrigin == StatusSnapshotOrigin.Live);
+                        remaining = timerResult.Remaining;
                     }
 
                     var fromSelf = this.IsStatusFromSelf(status.SourceId);
                     var sample = new PartyAuraStatusSample(status.StatusId, remaining, status.Param, fromSelf);
-                    PartyAuraAggregator.AddMemberStatus(memberAuras, sample, ownOnly);
+                    PartyAuraAggregator.AddMemberStatus(memberAuras, sample, ownOnly: false);
+                    PartyAuraAggregator.AddMemberStatus(memberOwnAuras, sample, ownOnly: true);
                 }
 
                 foreach (var (statusId, memberAura) in memberAuras)
@@ -311,13 +331,25 @@ public sealed unsafe partial class Plugin
                         memberAura.FromSelf);
                 }
 
-                PartyAuraAggregator.MergeMemberAuras(memberAuras, aggregateAuras);
-                PartyAuraAggregator.MergeMemberAuraGroups(memberGroups, aggregateGroups);
+                foreach (var (statusId, memberAura) in memberOwnAuras)
+                {
+                    PartyAuraAggregator.AddMemberAuraGroup(
+                        memberOwnGroups,
+                        this.GetStatusDefinition(statusId).GroupKey,
+                        memberAura.FromSelf);
+                }
+
+                PartyAuraAggregator.MergeMemberAuras(memberAuras, this.partyAuraFrameAllCache);
+                PartyAuraAggregator.MergeMemberAuras(memberOwnAuras, this.partyAuraFrameOwnCache);
+                PartyAuraAggregator.MergeMemberAuraGroups(memberGroups, this.partyAuraGroupFrameAllCache);
+                PartyAuraAggregator.MergeMemberAuraGroups(memberOwnGroups, this.partyAuraGroupFrameOwnCache);
             }
 
             memberAuras.Clear();
+            memberOwnAuras.Clear();
             memberGroups.Clear();
-            this.PrunePartyAuraTimerStates();
+            memberOwnGroups.Clear();
+            this.PrunePartyAuraTimerStates(observedAtUtc, rosterReadComplete);
         }
         finally
         {
@@ -325,13 +357,62 @@ public sealed unsafe partial class Plugin
         }
     }
 
-    private void PrunePartyAuraTimerStates()
+    private void NotePartyAuraTimerDecision(
+        PartyAuraTimerKey key,
+        float rawRemaining,
+        StatusSnapshotOrigin origin,
+        ObservedStatusTimerResult result)
+    {
+        switch (result.Decision)
+        {
+            case ObservedStatusTimerDecision.Refreshed:
+                this.partyAuraTimerRefreshAcceptedCount++;
+                break;
+            case ObservedStatusTimerDecision.StalePositiveSuppressed:
+                this.partyAuraExpiredStatusSuppressedCount++;
+                break;
+            default:
+                return;
+        }
+
+        this.partyAuraTimerLastDecision = FormattableString.Invariant(
+            $"{result.Decision}|owner={key.OwnerEntityId}|status={key.StatusId}|source={key.SourceId}|raw={rawRemaining:0.###}|remaining={result.Remaining:0.###}|origin={origin}");
+    }
+
+    private void PrunePartyAuraTimerStates(DateTime observedAtUtc, bool rosterReadComplete)
     {
         this.partyAuraTimerPruneBuffer.Clear();
-        foreach (var timerKey in this.partyAuraTimerStates.Keys)
+        foreach (var (timerKey, timerState) in this.partyAuraTimerStates)
         {
-            if (!this.partyAuraTimerLiveKeys.Contains(timerKey))
+            if (this.partyAuraTimerLiveKeys.Contains(timerKey))
+                continue;
+
+            if (this.partyAuraTimerMemberOwnerIds.Contains(timerKey.OwnerEntityId))
+            {
+                if (this.partyAuraTimerLiveOwnerIds.Contains(timerKey.OwnerEntityId))
+                {
+                    this.partyAuraTimerPruneBuffer.Add(timerKey);
+                    continue;
+                }
+
+                _ = PartyAuraTimerTracker.UpdateDetailed(
+                    timerState,
+                    observedAtUtc,
+                    0f,
+                    ObservedStatusObservation.Unavailable,
+                    canConfirmRefresh: false);
+                continue;
+            }
+
+            if (rosterReadComplete)
                 this.partyAuraTimerPruneBuffer.Add(timerKey);
+            else
+                _ = PartyAuraTimerTracker.UpdateDetailed(
+                    timerState,
+                    observedAtUtc,
+                    0f,
+                    ObservedStatusObservation.Unavailable,
+                    canConfirmRefresh: false);
         }
 
         foreach (var timerKey in this.partyAuraTimerPruneBuffer)

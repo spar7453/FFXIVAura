@@ -1,62 +1,55 @@
 namespace FFXIVAura;
 
+internal readonly record struct PartyAuraTimerKey(
+    uint OwnerEntityId,
+    uint StatusId,
+    uint SourceId);
+
 internal sealed class PartyAuraTimerState
 {
-    public DateTime EstimatedEndsAtUtc { get; set; } = DateTime.MinValue;
-
-    public DateTime UpdatedAtUtc { get; set; } = DateTime.MinValue;
-
-    public float LastObservedRemaining { get; set; }
+    public ObservedStatusTimerState Lifetime { get; } = new();
 }
 
 internal static class PartyAuraTimerTracker
 {
-    private const float ReapplicationIncreaseSeconds = 0.5f;
-    private const float EarlierCorrectionToleranceSeconds = 0.35f;
-    private const float EarlierCorrectionRate = 0.5f;
-    private const float MinimumEarlierCorrectionSeconds = 0.05f;
-    private const float MaximumEarlierCorrectionSeconds = 0.25f;
+    private static readonly ObservedStatusTimerPolicy Policy = new(
+        AcceptObservedIncreaseAsRefresh: true,
+        RequireNearFullDurationForObservedRefresh: false);
 
-    public static float Update(PartyAuraTimerState state, DateTime observedAtUtc, float observedRemaining)
-    {
-        if (observedRemaining <= 0f)
-            return 0f;
+    public static float Update(
+        PartyAuraTimerState state,
+        DateTime observedAtUtc,
+        float observedRemaining,
+        bool canConfirmRefresh = true)
+        => UpdateDetailed(state, observedAtUtc, observedRemaining, canConfirmRefresh).Remaining;
 
-        var clockMovedBack = state.UpdatedAtUtc != DateTime.MinValue
-                             && observedAtUtc < state.UpdatedAtUtc;
-        var candidateEndsAtUtc = observedAtUtc.AddSeconds(observedRemaining);
-        if (state.EstimatedEndsAtUtc == DateTime.MinValue || clockMovedBack)
-        {
-            state.EstimatedEndsAtUtc = candidateEndsAtUtc;
-        }
-        else
-        {
-            var reapplied = observedRemaining > state.LastObservedRemaining + ReapplicationIncreaseSeconds
-                            && candidateEndsAtUtc > state.EstimatedEndsAtUtc.AddSeconds(ReapplicationIncreaseSeconds);
-            if (reapplied)
-            {
-                state.EstimatedEndsAtUtc = candidateEndsAtUtc;
-            }
-            else
-            {
-                var correctionSeconds = (candidateEndsAtUtc - state.EstimatedEndsAtUtc).TotalSeconds;
-                if (correctionSeconds < -EarlierCorrectionToleranceSeconds)
-                {
-                    var elapsedSinceUpdate = state.UpdatedAtUtc == DateTime.MinValue
-                        ? 0f
-                        : Math.Max(0f, (float)(observedAtUtc - state.UpdatedAtUtc).TotalSeconds);
-                    var maximumCorrection = Math.Clamp(
-                        elapsedSinceUpdate * EarlierCorrectionRate,
-                        MinimumEarlierCorrectionSeconds,
-                        MaximumEarlierCorrectionSeconds);
-                    state.EstimatedEndsAtUtc = state.EstimatedEndsAtUtc.AddSeconds(
-                        Math.Max(correctionSeconds, -maximumCorrection));
-                }
-            }
-        }
+    public static ObservedStatusTimerResult UpdateDetailed(
+        PartyAuraTimerState state,
+        DateTime observedAtUtc,
+        float observedRemaining,
+        bool canConfirmRefresh = true)
+        => UpdateDetailed(
+            state,
+            observedAtUtc,
+            observedRemaining,
+            observedRemaining > 0f
+                ? ObservedStatusObservation.Present
+                : ObservedStatusObservation.ConfirmedAbsent,
+            canConfirmRefresh);
 
-        state.LastObservedRemaining = observedRemaining;
-        state.UpdatedAtUtc = observedAtUtc;
-        return Math.Max(0f, (float)(state.EstimatedEndsAtUtc - observedAtUtc).TotalSeconds);
-    }
+    public static ObservedStatusTimerResult UpdateDetailed(
+        PartyAuraTimerState state,
+        DateTime observedAtUtc,
+        float observedRemaining,
+        ObservedStatusObservation observation,
+        bool canConfirmRefresh)
+        => ObservedStatusTimer.Update(
+            state.Lifetime,
+            observedAtUtc,
+            observedRemaining,
+            activeDuration: 0f,
+            explicitRefresh: false,
+            canConfirmRefresh,
+            observation,
+            Policy);
 }

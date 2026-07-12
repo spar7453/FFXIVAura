@@ -2,49 +2,70 @@ namespace FFXIVAura;
 
 public sealed unsafe partial class Plugin
 {
-    private bool TryReadStatusSnapshots(IEnumerable<IStatus>? statuses, string scope, uint ownerEntityId)
+    private bool TryReadStatusSnapshots(
+        IEnumerable<IStatus>? statuses,
+        string scope,
+        uint ownerEntityId,
+        out StatusSnapshotOrigin origin)
     {
+        origin = StatusSnapshotOrigin.None;
         if (StatusSnapshotReader.ReadTo(statuses, this.statusSnapshotBuffer, out var error))
         {
             this.statusSnapshotFallbackCache.Remember(scope, ownerEntityId, this.statusSnapshotBuffer, DateTime.UtcNow);
+            origin = StatusSnapshotOrigin.Live;
             return true;
         }
 
-        return this.TryUseStatusSnapshotFallback(scope, ownerEntityId, error);
+        return this.TryUseStatusSnapshotFallback(scope, ownerEntityId, error, out origin);
     }
 
-    private bool TryReadBattleCharaStatusSnapshots(IBattleChara character, string scope, out uint ownerEntityId)
+    private bool TryReadBattleCharaStatusSnapshots(
+        IBattleChara character,
+        string scope,
+        out uint ownerEntityId,
+        out StatusSnapshotOrigin origin)
     {
         ownerEntityId = 0;
+        origin = StatusSnapshotOrigin.None;
         try
         {
             ownerEntityId = character.EntityId;
             return ownerEntityId != 0
-                   && this.TryReadStatusSnapshots(character.StatusList, scope, ownerEntityId);
+                   && this.TryReadStatusSnapshots(character.StatusList, scope, ownerEntityId, out origin);
         }
         catch (Exception ex)
         {
-            return this.TryUseStatusSnapshotFallback(scope, ownerEntityId, ex);
+            return this.TryUseStatusSnapshotFallback(scope, ownerEntityId, ex, out origin);
         }
     }
 
-    private bool TryReadPartyMemberStatusSnapshots(IPartyMember member, string scope, out uint ownerEntityId)
+    private bool TryReadPartyMemberStatusSnapshots(
+        IPartyMember member,
+        string scope,
+        out uint ownerEntityId,
+        out StatusSnapshotOrigin origin)
     {
         ownerEntityId = 0;
+        origin = StatusSnapshotOrigin.None;
         try
         {
             ownerEntityId = member.EntityId;
             return ownerEntityId != 0
-                   && this.TryReadStatusSnapshots(member.Statuses, scope, ownerEntityId);
+                   && this.TryReadStatusSnapshots(member.Statuses, scope, ownerEntityId, out origin);
         }
         catch (Exception ex)
         {
-            return this.TryUseStatusSnapshotFallback(scope, ownerEntityId, ex);
+            return this.TryUseStatusSnapshotFallback(scope, ownerEntityId, ex, out origin);
         }
     }
 
-    private bool TryUseStatusSnapshotFallback(string scope, uint ownerEntityId, Exception? error)
+    private bool TryUseStatusSnapshotFallback(
+        string scope,
+        uint ownerEntityId,
+        Exception? error,
+        out StatusSnapshotOrigin origin)
     {
+        origin = StatusSnapshotOrigin.None;
         if (this.statusSnapshotFallbackCache.TryCopyRecentTo(
                 scope,
                 ownerEntityId,
@@ -53,6 +74,7 @@ public sealed unsafe partial class Plugin
                 this.statusSnapshotBuffer))
         {
             this.SetBugDiagnosticEvent($"statusReadFallback:{scope}:{ownerEntityId}:{error?.GetType().Name ?? "unknown"}");
+            origin = StatusSnapshotOrigin.Fallback;
             return true;
         }
 

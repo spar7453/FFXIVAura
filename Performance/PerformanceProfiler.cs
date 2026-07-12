@@ -22,6 +22,8 @@ internal sealed class PerformanceProfiler
         "스킬 후보 구성",
         "오라 인덱스 구성",
         "오라 검색",
+        "파티 명단",
+        "파티 행 구성",
     ];
 
     private readonly SectionStats[] sections;

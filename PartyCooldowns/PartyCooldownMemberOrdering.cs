@@ -6,10 +6,19 @@ internal static class PartyCooldownMemberOrdering
         IReadOnlyList<PartyCooldownMemberSnapshot> members,
         IReadOnlyList<uint>? displayedEntityIds = null)
     {
-        if (displayedEntityIds is null || displayedEntityIds.Count == 0)
-            return members;
-
         var ordered = members.ToList();
+        ApplyInGameOrder(ordered, displayedEntityIds);
+        return ordered;
+    }
+
+    public static void ApplyInGameOrder(
+        List<PartyCooldownMemberSnapshot> members,
+        IReadOnlyList<uint>? displayedEntityIds = null)
+    {
+        ArgumentNullException.ThrowIfNull(members);
+        if (displayedEntityIds is null || displayedEntityIds.Count == 0)
+            return;
+
         var destinationIndex = 0;
         foreach (var entityId in displayedEntityIds)
         {
@@ -17,9 +26,9 @@ internal static class PartyCooldownMemberOrdering
                 continue;
 
             var sourceIndex = -1;
-            for (var index = destinationIndex; index < ordered.Count; index++)
+            for (var index = destinationIndex; index < members.Count; index++)
             {
-                if (ordered[index].EntityId != entityId)
+                if (members[index].EntityId != entityId)
                     continue;
 
                 sourceIndex = index;
@@ -29,12 +38,10 @@ internal static class PartyCooldownMemberOrdering
             if (sourceIndex < 0)
                 continue;
 
-            var member = ordered[sourceIndex];
-            ordered.RemoveAt(sourceIndex);
-            ordered.Insert(destinationIndex, member);
+            var member = members[sourceIndex];
+            members.RemoveAt(sourceIndex);
+            members.Insert(destinationIndex, member);
             destinationIndex++;
         }
-
-        return ordered;
     }
 }

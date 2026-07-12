@@ -93,6 +93,14 @@ Use this checklist before pushing a build that changes overlay positioning, auto
 - Confirm frame allocation, average allocation, and Gen0 collection values are shown and written to the CSV frame row.
 - With party cooldown boards visible, confirm `statusScansThisFrame` occurs periodically while intervening frames report `statusCacheHitsThisFrame`.
 - Confirm `activePartyListSource`, `activePartyListRecipient`, `activeObjectSource`, and `activeObjectRecipient` identify which status source supplied active board timers.
+- Confirm `activeLiveStatuses` and `activeFallbackStatuses` distinguish direct status reads from temporary fallback snapshots.
+- Confirm `partyTimerRefreshAccepted`, `partyExpiredStatusSuppressed`, `activeTimerRefreshAccepted`, and `activeTimerStaleSuppressed` change only when the corresponding timer decision occurs.
+- In alliance content, confirm `rosterOrderHash` and the A/B/C order hashes remain stable while the in-game list order is unchanged and change after an actual reorder.
+- Confirm `파티 명단` and `파티 행 구성` timings isolate roster/status scanning from per-window row construction.
+- After a zone change, confirm old cooldown estimates and old alliance A/B/C ordering do not carry into the new area.
+- With a local Scholar summon and another Scholar in the party, confirm local summon actions increase `logLocalOwnedObjectSkippedTotal` and do not start the remote Scholar's cooldown.
+- Confirm `rosterCacheHits` grows during a stable party and that `rosterCacheMisses` increases after roster changes or the 100ms cache interval.
+- Run `tools/analyze-performance-profile.ps1` in both `Latest` and `Alliance` modes and confirm it reports the expected session range and member counts.
 - Confirm cold login/zone frames record `스킬 후보 구성` and `오라 인덱스 구성` separately, and that the work occurs while the overlay is hidden when zone-load hiding is enabled.
 - Open aura search, type the same query for several seconds, and confirm `actionAuraQueryCache` and `statusSearchQueryCache` remain bounded, `auraSearchResultCacheHits` increases faster than `auraSearchResultCacheMisses`, and `오라 검색` timing settles after the first query frame.
 - Enter and leave level-synced content, then compare the first transition frame with previous profiles. A new effective level should filter the cached job action list instead of rescanning the full Lumina Action sheet.

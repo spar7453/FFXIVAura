@@ -4,7 +4,7 @@ FFXIVAura is a Dalamud-native cooldown and aura tracking overlay for Final Fanta
 
 The goal is simple: show only the skills, buffs, debuffs, charges, cooldowns, and proc states you actually care about, in movable icon windows that can behave like a lightweight WeakAura setup.
 
-> Status: early custom plugin. It is usable for personal testing, but the data model and UI are still evolving.
+> Status: 1.0 release line for the Korean FFXIV client. Core cooldown, aura, tooltip, party-board, configuration, profiling, and recovery paths are covered by automated tests; live party and alliance behavior still depends on the status and roster data exposed by the game client.
 
 ## Features
 
@@ -133,7 +133,14 @@ The general settings include a detailed profiling option for local debugging. Wh
 
 Use this only while diagnosing performance. Keep it disabled for normal play unless you are actively checking a problem.
 
-For longer development sessions, enable `프로파일 자동 기록` in the general settings. The plugin writes `performance-profile.csv` to the Dalamud plugin config directory once per configured interval. File writes and configuration saves run through bounded background queues so disk latency does not stall overlay rendering; plugin unload drains queued saves and persists the latest pending snapshot last. Queue depth, dropped work, completion/failure counts, and write duration are included in diagnostics. Rows are stored in long format with `frame`, `section`, `window`, and `diagnostic` scopes, so the same file can be filtered by total frame time, profiler section, overlay window, runtime state, frame allocation, or Gen0 activity. Diagnostic rows include player level/combat/loading state, overlay/window settings, cache sizes, status fallback and owned-object source counts, aura cache state, party cooldown log/runtime counts, party status-scan/cache-hit counts, grayscale queue state, tooltip activity, per-window display decision counts, and the last notable debug event. When the file reaches the configured size limit, the previous file is rotated to `performance-profile.previous.csv`.
+For longer development sessions, enable `프로파일 자동 기록` in the general settings. The plugin writes `performance-profile.csv` to the Dalamud plugin config directory once per configured interval. File writes and configuration saves run through bounded background queues so disk latency does not stall overlay rendering; plugin unload drains queued saves and persists the latest pending snapshot last. Queue depth, dropped work, completion/failure counts, and write duration are included in diagnostics. Rows are stored in long format with `frame`, `section`, `window`, and `diagnostic` scopes, so the same file can be filtered by total frame time, profiler section, overlay window, runtime state, frame allocation, or Gen0 activity. Diagnostic rows include player level/combat/loading state, overlay/window settings, cache sizes, status fallback and owned-object source counts, aura cache state, party cooldown log/runtime counts, party status-scan/cache-hit counts, roster-cache hits, local-owned-object skips, grayscale queue state, tooltip activity, per-window display decision counts, and the last notable debug event. When the file reaches the configured size limit, the previous file is rotated to `performance-profile.previous.csv`.
+
+Use the bundled analyzer to inspect only the latest runtime session or all recorded 24-player alliance snapshots without repeatedly importing the entire CSV by hand:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\analyze-performance-profile.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\analyze-performance-profile.ps1 -Mode Alliance
+```
 
 When automatic recording is enabled, party cooldown log observations are kept even if the on-screen log observer is hidden. Tracked actions and actionable errors use a separate bounded history from ordinary unrecognized action samples, so normal combat traffic cannot evict the records needed for debugging. Tooltip hover/render counts, temporary skill layout count, and cross-realm alliance group diagnostics are recorded so these runtime fixes can be verified in game.
 

@@ -11,6 +11,7 @@ internal static class PartyCooldownReplacementDataTests
         ("party cooldown replacements match verified ReplaceAction rows", ReplacementsMatchVerifiedReplaceActionRows),
         ("party cooldown replacements use verified trait unlock levels", ReplacementsUseVerifiedTraitUnlockLevels),
         ("party cooldown replacements select verified actions by level", ReplacementsSelectVerifiedActionsByLevel),
+        ("party cooldown data has stable unique identities", DataHasStableUniqueIdentities),
     ];
 
     // Source: ffxiv-datamining-ko csv/ReplaceAction.csv at fac6a4b6029654c858c38bbfeecca56c5dc2403a.
@@ -123,6 +124,37 @@ internal static class PartyCooldownReplacementDataTests
             Sequence([replacement.BaseActionId], selectedBeforeUnlock);
             Sequence([replacement.ReplacementActionId], selectedAtUnlock);
         }
+    }
+
+    private static void DataHasStableUniqueIdentities()
+    {
+        var definitions = LoadPartyCooldownData();
+        var duplicateIds = definitions
+            .Where(definition => !string.IsNullOrWhiteSpace(definition.Id))
+            .GroupBy(definition => definition.Id.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Where(group => group.Count() > 1)
+            .Select(group => group.Key)
+            .OrderBy(id => id, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var duplicateActionIds = definitions
+            .Where(definition => definition.ActionId > 0)
+            .GroupBy(definition => definition.ActionId)
+            .Where(group => group.Count() > 1)
+            .Select(group => group.Key)
+            .Order()
+            .ToArray();
+
+        True(definitions.All(definition => !string.IsNullOrWhiteSpace(definition.Id)), "party cooldown ids must not be empty");
+        True(definitions.All(definition => definition.ActionId > 0), "party cooldown action ids must be positive");
+        True(definitions.All(definition => !string.IsNullOrWhiteSpace(definition.Job)), "party cooldown jobs must not be empty");
+        True(
+            definitions.All(definition => Enum.TryParse<PartyCooldownCategory>(definition.Category, true, out _)),
+            "party cooldown categories must be recognized");
+        True(duplicateIds.Length == 0, $"duplicate party cooldown ids: {string.Join(", ", duplicateIds)}");
+        True(duplicateActionIds.Length == 0, $"duplicate party cooldown action ids: {string.Join(", ", duplicateActionIds)}");
+        True(
+            definitions.All(definition => definition.StatusIds.All(statusId => statusId > 0)),
+            "party cooldown status ids must be positive");
     }
 
     private static List<AbilityDefinition> LoadAbilityData()

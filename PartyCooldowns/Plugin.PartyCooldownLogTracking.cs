@@ -34,6 +34,12 @@ public sealed unsafe partial class Plugin
         if (source is null)
             return;
 
+        if (this.IsLocalPlayerPartyCooldownLogSource(source))
+        {
+            this.partyCooldownLocalPlayerLogSkippedCount++;
+            return;
+        }
+
         var observedAction = this.ExtractObservedPartyCooldownAction(message);
         var sourceName = source.Name.ExtractText();
         if (!this.HasPartyCooldownCandidate(observedAction))
@@ -64,6 +70,12 @@ public sealed unsafe partial class Plugin
         var rosterSnapshot = this.GetPartyCooldownLogRosterSnapshot();
         if (!this.TryFindPartyCooldownMemberByLogSource(source, rosterSnapshot.DisplayMembers, out var member, out var memberMatchDetail, out var ignoredReason))
         {
+            if (ignoredReason == PartyCooldownIgnoredLogReason.LocalPlayerExcluded)
+            {
+                this.partyCooldownLocalOwnedObjectLogSkippedCount++;
+                return;
+            }
+
             this.RecordPartyCooldownLogObservation(
                 message.LogMessageId,
                 sourceName,
@@ -148,8 +160,8 @@ public sealed unsafe partial class Plugin
 
     private (IReadOnlyList<PartyCooldownMemberSnapshot> DisplayMembers, PartyCooldownRosterDiagnostics Diagnostics) GetPartyCooldownLogRosterSnapshot()
     {
-        var roster = this.GetPartyCooldownRoster();
-        var displayMembers = this.GetPartyCooldownDisplayMembers(roster.Members);
+        var roster = this.GetPartyCooldownRoster(forceRefresh: true);
+        var displayMembers = roster.DisplayMembers;
         var diagnostics = this.CreatePartyCooldownRosterDiagnostics(roster, displayMembers);
         return (displayMembers, diagnostics);
     }
@@ -161,6 +173,18 @@ public sealed unsafe partial class Plugin
 
         var templateText = message.GameData.Value.Text.ExtractText();
         return PartyCooldownLogMatcher.IsCompletedActionUseTemplate(templateText);
+    }
+
+    private bool IsLocalPlayerPartyCooldownLogSource(ILogMessageEntity source)
+    {
+        if (!source.IsPlayer || ObjectTable.LocalPlayer is not { } localPlayer)
+            return false;
+
+        return PartyCooldownLogMatcher.IsSameActor(
+            source.Name.ExtractText(),
+            source.HomeWorldId,
+            localPlayer.Name.ToString(),
+            (ushort)PlayerState.HomeWorld.RowId);
     }
 
     private bool TryFindPartyCooldownMemberByLogSource(
@@ -252,7 +276,16 @@ public sealed unsafe partial class Plugin
             return false;
         }
 
-        var matchedMembers = new Dictionary<string, PartyCooldownMemberSnapshot>(StringComparer.OrdinalIgnoreCase);
+        var matchingOwnerEntityIds = this.partyCooldownOwnedObjectOwnerIdsBuffer;
+        var partyMemberEntityIds = this.partyCooldownOwnedObjectPartyEntityIdsBuffer;
+        matchingOwnerEntityIds.Clear();
+        partyMemberEntityIds.Clear();
+        foreach (var candidate in displayMembers)
+        {
+            if (IsValidPartyCooldownEntityId(candidate.EntityId))
+                partyMemberEntityIds.Add(candidate.EntityId);
+        }
+
         try
         {
             foreach (var gameObject in ObjectTable)
@@ -268,28 +301,42 @@ public sealed unsafe partial class Plugin
                 if (!string.Equals(normalizedSourceName, objectName, StringComparison.Ordinal))
                     continue;
 
-                if (TryFindPartyCooldownMemberByEntityId(displayMembers, ownerId, out var ownerMember))
-                    matchedMembers.TryAdd(ownerMember.Key, ownerMember);
+                matchingOwnerEntityIds.Add(ownerId);
             }
         }
         catch (Exception ex)
         {
-            matchedMembers.Clear();
+            matchingOwnerEntityIds.Clear();
+            partyMemberEntityIds.Clear();
             member = default;
             detail = $"소환수/객체 목록을 읽지 못했습니다: {ex.GetType().Name}";
             this.SetBugDiagnosticEvent($"partyCooldownOwnedObjectReadFailed:{ex.GetType().Name}");
             return false;
         }
 
-        if (matchedMembers.Count == 1)
+        var ownerMatch = PartyCooldownOwnedObjectOwnerResolver.Resolve(
+            ObjectTable.LocalPlayer?.EntityId ?? 0,
+            matchingOwnerEntityIds,
+            partyMemberEntityIds);
+        matchingOwnerEntityIds.Clear();
+        partyMemberEntityIds.Clear();
+        if (ownerMatch.Kind == PartyCooldownOwnedObjectOwnerMatchKind.LocalPlayer)
         {
-            member = matchedMembers.Values.First();
+            member = default;
+            ignoredReason = PartyCooldownIgnoredLogReason.LocalPlayerExcluded;
+            detail = "로컬 플레이어의 소환수/객체 행동이라 제외했습니다.";
+            return false;
+        }
+
+        if (ownerMatch.Kind == PartyCooldownOwnedObjectOwnerMatchKind.PartyMember
+            && TryFindPartyCooldownMemberByEntityId(displayMembers, ownerMatch.OwnerEntityId, out member))
+        {
             ignoredReason = PartyCooldownIgnoredLogReason.None;
             detail = "소환수/객체 소유자 매칭";
             return true;
         }
 
-        if (matchedMembers.Count > 1)
+        if (ownerMatch.Kind == PartyCooldownOwnedObjectOwnerMatchKind.Ambiguous)
         {
             member = default;
             ignoredReason = PartyCooldownIgnoredLogReason.Ambiguous;
@@ -396,7 +443,7 @@ public sealed unsafe partial class Plugin
         if (definition.Cooldown <= 0f)
             return;
 
-        var runtimeKey = this.PartyCooldownRuntimeKey(member.Key, definition);
+        var runtimeKey = this.CreatePartyCooldownRuntimeKey(member.Key, definition);
         if (!this.partyCooldownRuntimeStates.TryGetValue(runtimeKey, out var runtime))
         {
             runtime = new PartyCooldownRuntimeState();

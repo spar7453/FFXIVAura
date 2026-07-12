@@ -24,5 +24,6 @@ internal static class BuildMetadataTests
         Equal(version, assemblyVersion);
         Equal(version, fileVersion);
         Equal(version, manifestVersion);
+        True(Version.Parse(version).Major >= 1, "release metadata must remain on the 1.x or newer version line");
     }
 }

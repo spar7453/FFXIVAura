@@ -10,6 +10,9 @@ internal static class PartyAuraTimerTrackerTests
         ("PartyAuraTimerTracker interpolates repeated coarse samples", InterpolatesRepeatedCoarseSamples),
         ("PartyAuraTimerTracker expires despite stale positive samples", ExpiresDespiteStalePositiveSamples),
         ("PartyAuraTimerTracker resets on a clear reapplication", ResetsOnClearReapplication),
+        ("PartyAuraTimerTracker does not refresh from fallback samples", DoesNotRefreshFromFallbackSamples),
+        ("PartyAuraTimerTracker preserves expiry across unavailable samples", PreservesExpiryAcrossUnavailableSamples),
+        ("PartyAuraTimerTracker ignores non-finite samples", IgnoresNonFiniteSamples),
         ("PartyAuraTimerTracker smooths earlier corrections", SmoothsEarlierCorrections),
     ];
 
@@ -39,6 +42,41 @@ internal static class PartyAuraTimerTrackerTests
         PartyAuraTimerTracker.Update(state, now, 10f);
         PartyAuraTimerTracker.Update(state, now.AddSeconds(10.1), 1f);
         Near(20f, PartyAuraTimerTracker.Update(state, now.AddSeconds(10.2), 20f));
+    }
+
+    private static void DoesNotRefreshFromFallbackSamples()
+    {
+        var state = new PartyAuraTimerState();
+        var now = new DateTime(2026, 7, 11, 0, 0, 0, DateTimeKind.Utc);
+
+        PartyAuraTimerTracker.Update(state, now, 2f);
+        Near(0f, PartyAuraTimerTracker.Update(state, now.AddSeconds(2.1), 10f, canConfirmRefresh: false));
+    }
+
+    private static void PreservesExpiryAcrossUnavailableSamples()
+    {
+        var state = new PartyAuraTimerState();
+        var now = new DateTime(2026, 7, 11, 0, 0, 0, DateTimeKind.Utc);
+
+        PartyAuraTimerTracker.Update(state, now, 1f);
+        Near(
+            0f,
+            PartyAuraTimerTracker.UpdateDetailed(
+                state,
+                now.AddSeconds(1.2),
+                0f,
+                ObservedStatusObservation.Unavailable,
+                canConfirmRefresh: false).Remaining);
+        Near(0f, PartyAuraTimerTracker.Update(state, now.AddSeconds(1.3), 1f));
+    }
+
+    private static void IgnoresNonFiniteSamples()
+    {
+        var state = new PartyAuraTimerState();
+        var now = new DateTime(2026, 7, 11, 0, 0, 0, DateTimeKind.Utc);
+
+        PartyAuraTimerTracker.Update(state, now, 10f);
+        Near(9f, PartyAuraTimerTracker.Update(state, now.AddSeconds(1), float.NaN));
     }
 
     private static void SmoothsEarlierCorrections()

@@ -128,49 +128,65 @@ public sealed unsafe partial class Plugin
 
     private IReadOnlyList<PartyCooldownMemberRow> BuildPartyCooldownRows(IconWindowConfig iconWindow, uint level)
     {
-        var category = IconWindowRoles.GetPartyCooldownCategory(iconWindow.Role);
-        var frameSnapshot = this.GetPartyCooldownFrameSnapshot();
-        var members = frameSnapshot.DisplayMembers;
-
-        var rows = new List<PartyCooldownMemberRow>(members.Count);
-        var candidateItemCount = 0;
-        var hiddenByDisplayConditionCount = 0;
-        var statuslessCandidateCount = 0;
-
-        foreach (var member in members)
+        var profileStart = this.performanceProfiler.BeginSection(PerformanceProfileSection.PartyRows);
+        try
         {
-            var definitions = this.GetEffectivePartyCooldownDefinitionsForMember(category, member.Job, level);
-            var items = new List<PartyCooldownDisplayItem>(definitions.Count);
-            foreach (var definition in definitions)
+            var category = IconWindowRoles.GetPartyCooldownCategory(iconWindow.Role);
+            var frameSnapshot = this.GetPartyCooldownFrameSnapshot();
+            var members = frameSnapshot.DisplayMembers;
+
+            if (!this.partyCooldownRowBuffersByWindow.TryGetValue(iconWindow.Id, out var rowBuffer))
             {
-                if (this.IsPartyCooldownExcluded(iconWindow, definition))
-                    continue;
-
-                candidateItemCount++;
-                if (!this.HasPartyCooldownStatusTracking(definition))
-                    statuslessCandidateCount++;
-
-                var item = this.BuildPartyCooldownDisplayItem(member, definition, level, frameSnapshot.TimestampUtc);
-
-                var visibleItem = this.FilterPartyCooldownDisplayCondition(iconWindow, item);
-                if (visibleItem is { } visibleValue)
-                    items.Add(visibleValue);
-                else
-                    hiddenByDisplayConditionCount++;
+                rowBuffer = new PartyCooldownWindowRowBuffer();
+                this.partyCooldownRowBuffersByWindow[iconWindow.Id] = rowBuffer;
             }
 
-            if (items.Count > 0 || !PartyCooldownBoardLayout.HideEmptyRows(category))
-                rows.Add(new PartyCooldownMemberRow(member, items));
-        }
+            rowBuffer.BeginFrame(members.Count);
+            var rows = rowBuffer.Rows;
+            var candidateItemCount = 0;
+            var hiddenByDisplayConditionCount = 0;
+            var statuslessCandidateCount = 0;
 
-        this.RememberPartyCooldownWindowDiagnostics(
-            iconWindow,
-            rows,
-            candidateItemCount,
-            hiddenByDisplayConditionCount,
-            statuslessCandidateCount);
-        this.PrunePartyCooldownRuntime(this.GetLivePartyCooldownRuntimeKeys(members, level));
-        return rows;
+            foreach (var member in members)
+            {
+                var definitions = this.GetEffectivePartyCooldownDefinitionsForMember(category, member.Job, level);
+                var items = rowBuffer.GetMemberItems(member.Key, definitions.Count);
+                foreach (var definition in definitions)
+                {
+                    if (this.IsPartyCooldownExcluded(iconWindow, definition))
+                        continue;
+
+                    candidateItemCount++;
+                    if (!this.HasPartyCooldownStatusTracking(definition))
+                        statuslessCandidateCount++;
+
+                    var item = this.BuildPartyCooldownDisplayItem(member, definition, level, frameSnapshot.TimestampUtc);
+
+                    var visibleItem = this.FilterPartyCooldownDisplayCondition(iconWindow, item);
+                    if (visibleItem is { } visibleValue)
+                        items.Add(visibleValue);
+                    else
+                        hiddenByDisplayConditionCount++;
+                }
+
+                if (items.Count > 0 || !PartyCooldownBoardLayout.HideEmptyRows(category))
+                    rows.Add(new PartyCooldownMemberRow(member, items));
+            }
+
+            this.RememberPartyCooldownWindowDiagnostics(
+                iconWindow,
+                rows,
+                candidateItemCount,
+                hiddenByDisplayConditionCount,
+                statuslessCandidateCount);
+            rowBuffer.EndFrame();
+            this.PrunePartyCooldownRuntime(this.GetLivePartyCooldownRuntimeKeys(members, level));
+            return rows;
+        }
+        finally
+        {
+            this.performanceProfiler.EndSection(PerformanceProfileSection.PartyRows, profileStart);
+        }
     }
 
     private PartyCooldownFrameSnapshot GetPartyCooldownFrameSnapshot()
@@ -178,19 +194,29 @@ public sealed unsafe partial class Plugin
         if (this.partyCooldownFrameSnapshot is not null)
             return this.partyCooldownFrameSnapshot;
 
-        var roster = this.GetPartyCooldownRoster();
-        var members = roster.Members;
-        var displayMembers = this.GetPartyCooldownDisplayMembers(members);
-        this.RebuildPartyCooldownActiveStatusIndex(displayMembers);
-        this.partyCooldownFrameSnapshot = new PartyCooldownFrameSnapshot(
-            members,
-            displayMembers,
-            this.CreatePartyCooldownRosterDiagnostics(roster, displayMembers),
-            DateTime.UtcNow);
-        return this.partyCooldownFrameSnapshot;
+        var profileStart = this.performanceProfiler.BeginSection(PerformanceProfileSection.PartyRoster);
+        try
+        {
+            var roster = this.GetPartyCooldownRoster();
+            var members = roster.Members;
+            var displayMembers = roster.DisplayMembers;
+            this.RebuildPartyCooldownActiveStatusIndex(displayMembers);
+            this.partyCooldownFrameSnapshot = new PartyCooldownFrameSnapshot(
+                members,
+                displayMembers,
+                this.CreatePartyCooldownRosterDiagnostics(roster, displayMembers),
+                DateTime.UtcNow);
+            return this.partyCooldownFrameSnapshot;
+        }
+        finally
+        {
+            this.performanceProfiler.EndSection(PerformanceProfileSection.PartyRoster, profileStart);
+        }
     }
 
-    private HashSet<string> GetLivePartyCooldownRuntimeKeys(IReadOnlyList<PartyCooldownMemberSnapshot> members, uint level)
+    private HashSet<PartyCooldownRuntimeKey> GetLivePartyCooldownRuntimeKeys(
+        IReadOnlyList<PartyCooldownMemberSnapshot> members,
+        uint level)
     {
         if (this.partyCooldownLiveRuntimeKeysFrameCacheValid)
             return this.partyCooldownLiveRuntimeKeysFrameCache;
@@ -205,7 +231,7 @@ public sealed unsafe partial class Plugin
             foreach (var member in members)
             {
                 foreach (var definition in this.GetPartyCooldownDefinitionsForMember(category, member.Job, level, window))
-                    this.partyCooldownLiveRuntimeKeysFrameCache.Add(this.PartyCooldownRuntimeKey(member.Key, definition));
+                    this.partyCooldownLiveRuntimeKeysFrameCache.Add(this.CreatePartyCooldownRuntimeKey(member.Key, definition));
             }
         }
 
@@ -499,11 +525,10 @@ public sealed unsafe partial class Plugin
         return $"{job}:{name}";
     }
 
-    private string PartyCooldownRuntimeKey(string memberKey, PartyCooldownDefinition definition)
-        => PartyCooldownDefinitionIdentity.RuntimeKey(
-            memberKey,
-            this.partyCooldownCanonicalDefinitionIdById,
-            definition);
+    private PartyCooldownRuntimeKey CreatePartyCooldownRuntimeKey(
+        string memberKey,
+        PartyCooldownDefinition definition)
+        => new(memberKey, this.GetPartyCooldownCanonicalDefinitionId(definition));
 
     private static ulong PartyCooldownStatusKey(uint sourceEntityId, uint statusId)
         => ((ulong)sourceEntityId << 32) | statusId;

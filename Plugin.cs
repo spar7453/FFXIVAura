@@ -92,7 +92,8 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private readonly AuraStatusIndexBuildState actionGrantedStatusSearchIndexState = new();
     private readonly Dictionary<string, CooldownState> cooldownFrameCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, IReadOnlyList<AbilityDefinition>> jobCandidatesCache = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, PartyCooldownRuntimeState> partyCooldownRuntimeStates = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<PartyCooldownRuntimeKey, PartyCooldownRuntimeState> partyCooldownRuntimeStates =
+        new(PartyCooldownRuntimeKeyComparer.Instance);
     private readonly Dictionary<ulong, PartyCooldownActiveStatus> partyCooldownActiveStatusFrameCache = new();
     private readonly Dictionary<uint, uint[]> partyCooldownStatusIdsByActionId = new();
     private readonly Dictionary<uint, PartyCooldownDefinition> partyCooldownDefinitionsByActionId = new();
@@ -106,7 +107,12 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private readonly Dictionary<uint, int> partyCooldownLogActionParamIndexByLogMessageId = new();
     private readonly PartyCooldownLogObservationBuffer partyCooldownLogObservations = new(64, 8);
     private readonly PartyCooldownLayoutModeTracker partyCooldownLayoutModeTracker = new(PartyCooldownAllianceLayoutRetention);
-    private readonly List<string> partyCooldownRuntimePruneBuffer = [];
+    private readonly List<PartyCooldownRuntimeKey> partyCooldownRuntimePruneBuffer = [];
+    private readonly Dictionary<string, PartyCooldownWindowRowBuffer> partyCooldownRowBuffersByWindow = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<uint> partyCooldownMemberEntityIdsBuffer = [];
+    private readonly HashSet<uint> partyCooldownLiveStatusOwnerIdsBuffer = [];
+    private readonly HashSet<uint> partyCooldownOwnedObjectOwnerIdsBuffer = [];
+    private readonly HashSet<uint> partyCooldownOwnedObjectPartyEntityIdsBuffer = [];
     private readonly Dictionary<uint, CharacterAuraAggregate> playerAuraFrameCache = new();
     private readonly Dictionary<uint, CharacterAuraAggregate> targetAuraFrameCache = new();
     private readonly Dictionary<uint, PartyAuraAggregate> partyAuraFrameAllCache = new();
@@ -114,10 +120,14 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private readonly Dictionary<AuraStatusGroupKey, PartyAuraGroupAggregate> partyAuraGroupFrameAllCache = new();
     private readonly Dictionary<AuraStatusGroupKey, PartyAuraGroupAggregate> partyAuraGroupFrameOwnCache = new();
     private readonly Dictionary<uint, PartyMemberAuraState> partyMemberAuraFrameBuffer = new();
+    private readonly Dictionary<uint, PartyMemberAuraState> partyMemberAuraOwnFrameBuffer = new();
     private readonly Dictionary<AuraStatusGroupKey, bool> partyMemberAuraGroupFrameBuffer = new();
-    private readonly Dictionary<ulong, PartyAuraTimerState> partyAuraTimerStates = new();
-    private readonly HashSet<ulong> partyAuraTimerLiveKeys = [];
-    private readonly List<ulong> partyAuraTimerPruneBuffer = [];
+    private readonly Dictionary<AuraStatusGroupKey, bool> partyMemberAuraGroupOwnFrameBuffer = new();
+    private readonly Dictionary<PartyAuraTimerKey, PartyAuraTimerState> partyAuraTimerStates = new();
+    private readonly HashSet<PartyAuraTimerKey> partyAuraTimerLiveKeys = [];
+    private readonly HashSet<uint> partyAuraTimerMemberOwnerIds = [];
+    private readonly HashSet<uint> partyAuraTimerLiveOwnerIds = [];
+    private readonly List<PartyAuraTimerKey> partyAuraTimerPruneBuffer = [];
     private readonly List<StatusSnapshot> statusSnapshotBuffer = [];
     private readonly StatusSnapshotFallbackCache statusSnapshotFallbackCache = new();
     private readonly Dictionary<uint, uint> gameObjectOwnerFrameCache = new();
@@ -146,7 +156,8 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private bool partyAuraFrameAllCacheValid;
     private bool partyAuraFrameOwnCacheValid;
     private PartyCooldownFrameSnapshot? partyCooldownFrameSnapshot;
-    private readonly HashSet<string> partyCooldownLiveRuntimeKeysFrameCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<PartyCooldownRuntimeKey> partyCooldownLiveRuntimeKeysFrameCache =
+        new(PartyCooldownRuntimeKeyComparer.Instance);
     private bool partyCooldownLiveRuntimeKeysFrameCacheValid;
     private bool overlayTooltipRequestedThisFrame;
     private int pendingStatusId;
@@ -164,13 +175,23 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private DateTime partyCooldownNextCandidateMissingObservationAtUtc = DateTime.MinValue;
     private DateTime partyCooldownActiveStatusIndexBuiltAtUtc = DateTime.MinValue;
     private ulong partyCooldownActiveStatusRosterHash;
+    private bool partyCooldownActiveStatusAbsenceConfirmed;
     private long partyCooldownCandidateMissingLogCount;
     private long partyCooldownCandidateMissingObservationCount;
+    private long partyCooldownLocalPlayerLogSkippedCount;
+    private long partyCooldownLocalOwnedObjectLogSkippedCount;
+    private long partyCooldownStatusFallbackBatchCount;
+    private long partyCooldownTimerRefreshAcceptedCount;
+    private long partyCooldownTimerStalePositiveSuppressedCount;
     private long auraSearchResultCacheHitCount;
     private long auraSearchResultCacheMissCount;
+    private long partyAuraStatusFallbackBatchCount;
+    private long partyAuraTimerRefreshAcceptedCount;
     private long partyAuraExpiredStatusSuppressedCount;
     private long performanceProfileFailureCount;
     private string performanceProfileLastError = string.Empty;
+    private string partyAuraTimerLastDecision = string.Empty;
+    private string partyCooldownTimerLastDecision = string.Empty;
     private string lastBugDiagnosticEvent = string.Empty;
     private PluginConfig config;
     private bool configVisible;
@@ -343,7 +364,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
 
     private void OnZoneInit(ZoneInitEventArgs args)
     {
-        this.partyAuraTimerStates.Clear();
+        this.ResetWorldRuntimeState(WorldRuntimeResetReason.ZoneChange);
         this.zoneLoadHiddenUntil = DateTime.UtcNow.AddMilliseconds(900);
     }
 
@@ -386,13 +407,12 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
                 this.DrawConfig();
 
             var loggedInAndLoaded = ClientState.IsLoggedIn && PlayerState.IsLoaded;
+            var wasLoggedInAndLoaded = this.loginStabilizationState.WasLoggedInAndLoaded;
             var loginStarted = this.loginStabilizationState.Update(loggedInAndLoaded, DateTime.UtcNow);
-            if (!loggedInAndLoaded || loginStarted)
-            {
-                this.visibleAbilityKeys.Clear();
-                this.transientSkillPositionsByGroup.Clear();
-                this.statusSnapshotFallbackCache.Clear();
-            }
+            if (loginStarted)
+                this.ResetWorldRuntimeState(WorldRuntimeResetReason.Login);
+            else if (!loggedInAndLoaded && wasLoggedInAndLoaded)
+                this.ResetWorldRuntimeState(WorldRuntimeResetReason.Logout);
 
             if (!this.config.Enabled || !loggedInAndLoaded)
             {

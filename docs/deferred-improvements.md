@@ -2,7 +2,9 @@
 
 ## Unify observed status lifetime handling
 
-Status: recorded for later implementation.
+Status: core reconciliation, explicit present/absent/unavailable observations,
+snapshot provenance, bounded decision diagnostics, and replay tests are
+implemented. Live party and alliance validation remains.
 
 Party aura timers and party cooldown active-effect timers currently reconcile
 `RemainingTime` through separate code paths. Both paths must tolerate coarse,
@@ -12,22 +14,20 @@ feature.
 
 Planned direction:
 
-- Extract a shared status-lifetime reconciler with feature-specific refresh
+- Shared status-lifetime reconciliation now uses feature-specific refresh
   policies.
-- Do not revive an expired estimate from a single stale-positive sample.
-- Accept refreshes only when supported by a new use event, a confirmed
-  absent-to-present transition, a meaningful remaining-time increase, or a
-  changed status source/generation.
-- Include the status source in party-aura timer identity where needed so that
-  different casters can be distinguished.
-- Preserve snapshot provenance (`live` or `fallback`), capture time, and
-  consecutive-repeat information. A fallback sample must never be treated as
-  refresh evidence.
-- Add bounded anomaly diagnostics for accepted refreshes, suppressed stale
-  samples, fallback reads, and status-read failures.
-- Add shared replay tests for coarse countdowns, repeated constant values,
-  stale positives after expiry, brief read failures, real reapplications, and
-  same-status effects from multiple party members.
+- Expired estimates no longer revive from a single stale-positive sample.
+- Refreshes require a new use event, an absent-to-present transition, or a
+  meaningful remaining-time increase accepted by the feature policy.
+- Party-aura timer identity includes the status source.
+- Snapshot provenance is retained and fallback samples cannot confirm a
+  refresh.
+- Failed reads no longer behave like confirmed removals; their existing
+  estimates continue to decay until a successful read confirms absence.
+- Profiling records accepted refreshes, suppressed stale samples, fallback
+  reads, last decisions, and alliance roster-order hashes.
+- Replay tests cover coarse countdowns, repeated constants, stale positives,
+  fallback samples, removals, and real reapplications.
 
 Live validation must include a continuously refreshed ground effect such as
 Sacred Soil. It must stay visible while genuinely refreshed, count down

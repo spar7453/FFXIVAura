@@ -31,6 +31,7 @@ internal enum PartyCooldownIgnoredLogReason
     NotUsableForJob,
     NotTrackedByWindow,
     Ambiguous,
+    LocalPlayerExcluded,
 }
 
 internal sealed class PartyCooldownDefinition
@@ -59,10 +60,26 @@ internal sealed class PartyCooldownRuntimeState
     public DateTime LastLogTrackedAtUtc { get; set; } = DateTime.MinValue;
     public bool ActiveObservedLastFrame { get; set; }
     public DateTime ActiveStatusLastSeenAtUtc { get; set; } = DateTime.MinValue;
-    public DateTime ActiveTimerEstimatedEndsAtUtc { get; set; } = DateTime.MinValue;
-    public DateTime ActiveTimerUpdatedAtUtc { get; set; } = DateTime.MinValue;
+    public ObservedStatusTimerState ActiveTimer { get; } = new();
     public DateTime ActiveTimerLastUseAtUtc { get; set; } = DateTime.MinValue;
-    public float ActiveTimerLastObservedRemaining { get; set; }
+}
+
+internal readonly record struct PartyCooldownRuntimeKey(
+    string MemberKey,
+    string DefinitionId);
+
+internal sealed class PartyCooldownRuntimeKeyComparer : IEqualityComparer<PartyCooldownRuntimeKey>
+{
+    public static PartyCooldownRuntimeKeyComparer Instance { get; } = new();
+
+    public bool Equals(PartyCooldownRuntimeKey x, PartyCooldownRuntimeKey y)
+        => string.Equals(x.MemberKey, y.MemberKey, StringComparison.OrdinalIgnoreCase)
+           && string.Equals(x.DefinitionId, y.DefinitionId, StringComparison.OrdinalIgnoreCase);
+
+    public int GetHashCode(PartyCooldownRuntimeKey value)
+        => HashCode.Combine(
+            StringComparer.OrdinalIgnoreCase.GetHashCode(value.MemberKey ?? string.Empty),
+            StringComparer.OrdinalIgnoreCase.GetHashCode(value.DefinitionId ?? string.Empty));
 }
 
 internal readonly record struct PartyCooldownMemberSnapshot(
@@ -100,7 +117,8 @@ internal sealed record PartyCooldownLogObservation(
 internal readonly record struct PartyCooldownActiveStatus(
     uint StatusId,
     float Remaining,
-    PartyCooldownStatusSamplePriority Priority);
+    PartyCooldownStatusSamplePriority Priority,
+    StatusSnapshotOrigin Origin = StatusSnapshotOrigin.Live);
 
 internal readonly record struct PartyCooldownDisplayItem(
     PartyCooldownDefinition Definition,

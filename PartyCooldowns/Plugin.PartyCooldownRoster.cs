@@ -12,6 +12,7 @@ public sealed unsafe partial class Plugin
 
     private readonly record struct PartyCooldownRosterReadResult(
         IReadOnlyList<PartyCooldownMemberSnapshot> Members,
+        IReadOnlyList<PartyCooldownMemberSnapshot> DisplayMembers,
         PartyCooldownRosterSource Source,
         PartyCooldownRosterReadMode ReadMode,
         int PartyListLength,
@@ -42,15 +43,28 @@ public sealed unsafe partial class Plugin
 
     private static readonly TimeSpan PartyCooldownHudAllianceOrderRetention = TimeSpan.FromSeconds(3);
     private static readonly TimeSpan PartyCooldownHudAllianceGroupRetentionDuration = TimeSpan.FromSeconds(3);
+    private static readonly TimeSpan PartyCooldownRosterCacheDuration = TimeSpan.FromMilliseconds(100);
     private readonly PartyCooldownAllianceGroupRetention partyCooldownHudAllianceGroupRetention = new();
     private uint[] partyCooldownLastCompleteHudAllianceOrder = [];
     private DateTime partyCooldownHudAllianceOrderExpiresAtUtc = DateTime.MinValue;
+    private PartyCooldownRosterReadResult? partyCooldownRosterCache;
+    private DateTime partyCooldownRosterCacheBuiltAtUtc = DateTime.MinValue;
+    private long partyCooldownRosterCacheHitCount;
+    private long partyCooldownRosterCacheMissCount;
 
-    private IReadOnlyList<PartyCooldownMemberSnapshot> GetPartyCooldownMembers()
-        => this.GetPartyCooldownRoster().Members;
-
-    private PartyCooldownRosterReadResult GetPartyCooldownRoster()
+    private PartyCooldownRosterReadResult GetPartyCooldownRoster(bool forceRefresh = false)
     {
+        var nowUtc = DateTime.UtcNow;
+        if (!forceRefresh
+            && this.partyCooldownRosterCache is { } cached
+            && nowUtc >= this.partyCooldownRosterCacheBuiltAtUtc
+            && nowUtc - this.partyCooldownRosterCacheBuiltAtUtc < PartyCooldownRosterCacheDuration)
+        {
+            this.partyCooldownRosterCacheHitCount++;
+            return cached;
+        }
+
+        this.partyCooldownRosterCacheMissCount++;
         var partyListHeader = this.GetPartyListHeader();
         var partyListLength = partyListHeader.Length;
         var hasAllianceSource = partyListHeader.IsAlliance;
@@ -123,8 +137,9 @@ public sealed unsafe partial class Plugin
         }
 
         var hudRosterOrder = this.GetHudRosterEntityOrder();
-        var orderedMembers = PartyCooldownMemberOrdering.PreserveInGameOrder(members, hudRosterOrder.EntityIds);
-        var allianceMemberCount = CountPartyCooldownAllianceMembers(orderedMembers);
+        PartyCooldownMemberOrdering.ApplyInGameOrder(members, hudRosterOrder.EntityIds);
+        var displayMembers = this.GetPartyCooldownDisplayMembers(members);
+        var allianceMemberCount = CountPartyCooldownAllianceMembers(members);
         var hasUsableAllianceSource = hasAllianceSource
                                       && (groupedAllianceMemberCount > 0 || flatAllianceMemberCount > 0 || partySlotMemberCount > 0);
         var source = hasUsableAllianceSource
@@ -155,8 +170,9 @@ public sealed unsafe partial class Plugin
             }
         }
 
-        return new PartyCooldownRosterReadResult(
-            orderedMembers,
+        var result = new PartyCooldownRosterReadResult(
+            members,
+            displayMembers,
             source,
             readMode,
             partyListLength,
@@ -171,6 +187,9 @@ public sealed unsafe partial class Plugin
             crossRealmHeader.UsedRetainedHudGroup,
             crossRealmHeader.GroupCount,
             hudRosterOrder.AllianceMemberCount);
+        this.partyCooldownRosterCache = result;
+        this.partyCooldownRosterCacheBuiltAtUtc = nowUtc;
+        return result;
     }
 
     private static int CountPartyCooldownAllianceMembers(IReadOnlyList<PartyCooldownMemberSnapshot> members)
@@ -689,8 +708,17 @@ public sealed unsafe partial class Plugin
         HashSet<uint> partyEntityIds,
         string scope)
     {
-        if (!this.TryReadPartyMemberStatusSnapshots(member, scope, out var entityId))
+        if (!this.TryReadPartyMemberStatusSnapshots(
+                member,
+                scope,
+                out var entityId,
+                out var snapshotOrigin))
             return entityId != 0;
+
+        if (snapshotOrigin == StatusSnapshotOrigin.Fallback)
+            this.partyCooldownStatusFallbackBatchCount++;
+        else if (snapshotOrigin == StatusSnapshotOrigin.Live && entityId != 0)
+            this.partyCooldownLiveStatusOwnerIdsBuffer.Add(entityId);
 
         foreach (var status in this.statusSnapshotBuffer)
             this.AddPartyCooldownStatusSample(
@@ -699,7 +727,8 @@ public sealed unsafe partial class Plugin
                 status.StatusId,
                 status.RemainingTime,
                 partyEntityIds,
-                fromPartyList: true);
+                fromPartyList: true,
+                snapshotOrigin);
 
         return true;
     }

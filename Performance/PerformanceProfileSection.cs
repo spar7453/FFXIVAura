@@ -16,6 +16,8 @@ internal enum PerformanceProfileSection
     AbilityCandidateBuild,
     AuraIndexBuild,
     AuraSearch,
+    PartyRoster,
+    PartyRows,
     Count,
 }
 
