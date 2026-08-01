@@ -20,35 +20,32 @@ public sealed partial class Plugin
             0f,
             () =>
         {
-            ImGui.PushID($"overlay-role-controls-{iconWindow.Id}");
-            ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, framePadding);
-            PushOverlayComboStyle();
+            using var idScope = ImRaii.PushId($"overlay-role-controls-{iconWindow.Id}");
+            using var framePaddingStyle = ImRaii.PushStyle(ImGuiStyleVar.FramePadding, framePadding);
+            using var comboStyle = new OverlayComboStyleScope();
             ImGui.SetCursorPos(new Vector2(padding, padding));
             ImGui.SetNextItemWidth(comboWidth);
-            if (ImGui.BeginCombo("##role", currentLabel))
+            using (var combo = ImRaii.Combo("##role", currentLabel))
             {
-                foreach (var (role, label) in options)
+                if (combo)
                 {
-                    var selected = iconWindow.Role == role;
-                    if (ImGui.Selectable(label, selected))
+                    foreach (var (role, label) in options)
                     {
-                        if (iconWindow.Role != role)
+                        var selected = iconWindow.Role == role;
+                        if (ImGui.Selectable(label, selected))
                         {
-                            this.ApplyOverlayRole(iconWindow, job, level, role);
-                            this.QueueConfigSave();
+                            if (iconWindow.Role != role)
+                            {
+                                this.ApplyOverlayRole(iconWindow, job, level, role);
+                                this.QueueConfigSave();
+                            }
                         }
+
+                        if (selected)
+                            ImGui.SetItemDefaultFocus();
                     }
-
-                    if (selected)
-                        ImGui.SetItemDefaultFocus();
                 }
-
-                ImGui.EndCombo();
             }
-
-            PopOverlayComboStyle();
-            ImGui.PopStyleVar();
-            ImGui.PopID();
         });
     }
 
@@ -71,43 +68,40 @@ public sealed partial class Plugin
             0f,
             () =>
         {
-            ImGui.PushID($"overlay-condition-control-{iconWindow.Id}");
-            ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, framePadding);
-            PushOverlayComboStyle();
+            using var idScope = ImRaii.PushId($"overlay-condition-control-{iconWindow.Id}");
+            using var framePaddingStyle = ImRaii.PushStyle(ImGuiStyleVar.FramePadding, framePadding);
+            using var comboStyle = new OverlayComboStyleScope();
             ImGui.SetCursorPos(new Vector2(padding, padding));
             ImGui.SetNextItemWidth(comboWidth);
-            if (ImGui.BeginCombo("##condition", currentLabel))
+            using (var combo = ImRaii.Combo("##condition", currentLabel))
             {
-                foreach (var (condition, label) in options)
+                if (combo)
                 {
-                    var selected = iconWindow.DisplayCondition == condition;
-                    if (ImGui.Selectable(label, selected) && !selected)
+                    foreach (var (condition, label) in options)
                     {
-                        iconWindow.DisplayCondition = condition;
-                        this.StoreRoleDisplayCondition(iconWindow);
-                        if (IconWindowRoles.IsStandardAuraRole(iconWindow.Role))
+                        var selected = iconWindow.DisplayCondition == condition;
+                        if (ImGui.Selectable(label, selected) && !selected)
                         {
-                            var auras = this.GetOverlayAuras(iconWindow, OverlayItemVisibility.Layout).ToList();
-                            var areaSize = new Vector2(iconWindow.Width, iconWindow.Height);
-                            if (!UsesCompactAuraLayout(iconWindow))
-                                this.NormalizeAuraIconPositionsAfterResize(iconWindow, auras, areaSize);
+                            iconWindow.DisplayCondition = condition;
+                            this.StoreRoleDisplayCondition(iconWindow);
+                            if (IconWindowRoles.IsStandardAuraRole(iconWindow.Role))
+                            {
+                                var auras = this.GetOverlayAuras(iconWindow, OverlayItemVisibility.Layout).ToList();
+                                var areaSize = new Vector2(iconWindow.Width, iconWindow.Height);
+                                if (!UsesCompactAuraLayout(iconWindow))
+                                    this.NormalizeAuraIconPositionsAfterResize(iconWindow, auras, areaSize);
 
-                            this.EnsureAuraIconPositions(iconWindow, auras, areaSize);
+                                this.EnsureAuraIconPositions(iconWindow, auras, areaSize);
+                            }
+
+                            this.QueueConfigSave();
                         }
 
-                        this.QueueConfigSave();
+                        if (selected)
+                            ImGui.SetItemDefaultFocus();
                     }
-
-                    if (selected)
-                        ImGui.SetItemDefaultFocus();
                 }
-
-                ImGui.EndCombo();
             }
-
-            PopOverlayComboStyle();
-            ImGui.PopStyleVar();
-            ImGui.PopID();
         });
     }
 
@@ -127,11 +121,11 @@ public sealed partial class Plugin
             0f,
             () =>
         {
-            ImGui.PushID($"overlay-name-control-{iconWindow.Id}");
-            ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, framePadding);
-            ImGui.PushStyleColor(ImGuiCol.FrameBg, new Vector4(0.04f, 0.06f, 0.08f, 0.82f));
-            ImGui.PushStyleColor(ImGuiCol.FrameBgHovered, new Vector4(0.06f, 0.1f, 0.12f, 0.9f));
-            ImGui.PushStyleColor(ImGuiCol.FrameBgActive, new Vector4(0.08f, 0.16f, 0.18f, 0.95f));
+            using var idScope = ImRaii.PushId($"overlay-name-control-{iconWindow.Id}");
+            using var framePaddingStyle = ImRaii.PushStyle(ImGuiStyleVar.FramePadding, framePadding);
+            using var frameBg = ImRaii.PushColor(ImGuiCol.FrameBg, new Vector4(0.04f, 0.06f, 0.08f, 0.82f));
+            using var frameBgHovered = ImRaii.PushColor(ImGuiCol.FrameBgHovered, new Vector4(0.06f, 0.1f, 0.12f, 0.9f));
+            using var frameBgActive = ImRaii.PushColor(ImGuiCol.FrameBgActive, new Vector4(0.08f, 0.16f, 0.18f, 0.95f));
             ImGui.SetCursorPos(new Vector2(padding, padding));
             ImGui.SetNextItemWidth(inputWidth);
             var name = iconWindow.Name;
@@ -150,10 +144,6 @@ public sealed partial class Plugin
                     this.QueueConfigSave();
                 }
             }
-
-            ImGui.PopStyleColor(3);
-            ImGui.PopStyleVar();
-            ImGui.PopID();
         });
     }
 
@@ -200,19 +190,23 @@ public sealed partial class Plugin
     private static float GetOverlayNameControlWidth(Vector2 areaSize, float padding)
         => GetOverlayNameInputWidth(areaSize) + padding * 2f;
 
-    private static void PushOverlayComboStyle()
+    // RAII scope for the shared overlay combo color set, so all seven colors pop
+    // even when the control body throws mid-draw.
+    private readonly struct OverlayComboStyleScope : IDisposable
     {
-        ImGui.PushStyleColor(ImGuiCol.FrameBg, new Vector4(0.03f, 0.05f, 0.06f, 0.9f));
-        ImGui.PushStyleColor(ImGuiCol.FrameBgHovered, new Vector4(0.06f, 0.12f, 0.14f, 0.96f));
-        ImGui.PushStyleColor(ImGuiCol.FrameBgActive, new Vector4(0.08f, 0.18f, 0.2f, 1f));
-        ImGui.PushStyleColor(ImGuiCol.PopupBg, new Vector4(0.02f, 0.03f, 0.04f, 0.98f));
-        ImGui.PushStyleColor(ImGuiCol.Header, new Vector4(0.1f, 0.32f, 0.38f, 0.86f));
-        ImGui.PushStyleColor(ImGuiCol.HeaderHovered, new Vector4(0.12f, 0.44f, 0.52f, 0.96f));
-        ImGui.PushStyleColor(ImGuiCol.HeaderActive, new Vector4(0.15f, 0.52f, 0.6f, 1f));
-    }
+        public OverlayComboStyleScope()
+        {
+            ImGui.PushStyleColor(ImGuiCol.FrameBg, new Vector4(0.03f, 0.05f, 0.06f, 0.9f));
+            ImGui.PushStyleColor(ImGuiCol.FrameBgHovered, new Vector4(0.06f, 0.12f, 0.14f, 0.96f));
+            ImGui.PushStyleColor(ImGuiCol.FrameBgActive, new Vector4(0.08f, 0.18f, 0.2f, 1f));
+            ImGui.PushStyleColor(ImGuiCol.PopupBg, new Vector4(0.02f, 0.03f, 0.04f, 0.98f));
+            ImGui.PushStyleColor(ImGuiCol.Header, new Vector4(0.1f, 0.32f, 0.38f, 0.86f));
+            ImGui.PushStyleColor(ImGuiCol.HeaderHovered, new Vector4(0.12f, 0.44f, 0.52f, 0.96f));
+            ImGui.PushStyleColor(ImGuiCol.HeaderActive, new Vector4(0.15f, 0.52f, 0.6f, 1f));
+        }
 
-    private static void PopOverlayComboStyle()
-        => ImGui.PopStyleColor(7);
+        public void Dispose() => ImGui.PopStyleColor(7);
+    }
 
     private static float GetOverlayAlignmentControlWidth(Vector2 framePadding, float padding)
     {
@@ -260,12 +254,12 @@ public sealed partial class Plugin
             0f,
             () =>
         {
-            ImGui.PushID($"overlay-controls-{iconWindow.Id}");
-            ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, framePadding);
-            ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, itemSpacing);
-            ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.05f, 0.08f, 0.1f, 0.82f));
-            ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new Vector4(0.08f, 0.32f, 0.38f, 0.95f));
-            ImGui.PushStyleColor(ImGuiCol.ButtonActive, new Vector4(0.12f, 0.48f, 0.56f, 1f));
+            using var idScope = ImRaii.PushId($"overlay-controls-{iconWindow.Id}");
+            using var framePaddingStyle = ImRaii.PushStyle(ImGuiStyleVar.FramePadding, framePadding);
+            using var itemSpacingStyle = ImRaii.PushStyle(ImGuiStyleVar.ItemSpacing, itemSpacing);
+            using var buttonColor = ImRaii.PushColor(ImGuiCol.Button, new Vector4(0.05f, 0.08f, 0.1f, 0.82f));
+            using var buttonHoveredColor = ImRaii.PushColor(ImGuiCol.ButtonHovered, new Vector4(0.08f, 0.32f, 0.38f, 0.95f));
+            using var buttonActiveColor = ImRaii.PushColor(ImGuiCol.ButtonActive, new Vector4(0.12f, 0.48f, 0.56f, 1f));
 
             ImGui.SetCursorPos(new Vector2(padding, padding));
 
@@ -280,10 +274,6 @@ public sealed partial class Plugin
             ImGui.SameLine();
             if (this.DrawOverlayControlButton(alignment == IconAlignment.Right, rightLabel))
                 this.ApplyOverlayAlignment(iconWindow, job, level, IconAlignment.Right, layoutBinding);
-
-            ImGui.PopStyleColor(3);
-            ImGui.PopStyleVar(2);
-            ImGui.PopID();
         });
     }
 
@@ -328,14 +318,8 @@ public sealed partial class Plugin
 
     private bool DrawOverlayControlButton(bool selected, string label)
     {
-        if (selected)
-            ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.14f, 0.5f, 0.58f, 0.96f));
-
-        var clicked = ImGui.Button(label);
-        if (selected)
-            ImGui.PopStyleColor();
-
-        return clicked;
+        using var selectedColor = ImRaii.PushColor(ImGuiCol.Button, new Vector4(0.14f, 0.5f, 0.58f, 0.96f), selected);
+        return ImGui.Button(label);
     }
 
     private void ApplyOverlayAlignment(

@@ -39,38 +39,29 @@ public sealed partial class Plugin
         ImGui.SetNextWindowSizeConstraints(
             new Vector2(tooltipWidth, 0f),
             new Vector2(tooltipWidth, float.MaxValue));
-        ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(12f, 10f));
-        ImGui.PushStyleVar(ImGuiStyleVar.WindowRounding, 3f);
-        ImGui.PushStyleVar(ImGuiStyleVar.WindowBorderSize, 1f);
-        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(8f, 5f));
-        ImGui.PushStyleColor(ImGuiCol.PopupBg, new Vector4(0.055f, 0.055f, 0.06f, 0.98f));
-        ImGui.PushStyleColor(ImGuiCol.Border, new Vector4(0.5f, 0.5f, 0.52f, 0.9f));
-        ImGui.BeginTooltip();
-        try
+        using var windowPadding = ImRaii.PushStyle(ImGuiStyleVar.WindowPadding, new Vector2(12f, 10f));
+        using var windowRounding = ImRaii.PushStyle(ImGuiStyleVar.WindowRounding, 3f);
+        using var windowBorderSize = ImRaii.PushStyle(ImGuiStyleVar.WindowBorderSize, 1f);
+        using var itemSpacing = ImRaii.PushStyle(ImGuiStyleVar.ItemSpacing, new Vector2(8f, 5f));
+        using var popupBg = ImRaii.PushColor(ImGuiCol.PopupBg, new Vector4(0.055f, 0.055f, 0.06f, 0.98f));
+        using var borderColor = ImRaii.PushColor(ImGuiCol.Border, new Vector4(0.5f, 0.5f, 0.52f, 0.9f));
+        using var tooltip = ImRaii.Tooltip();
+
+        this.DrawOverlayActionTooltipHeader(model);
+        ImGui.Separator();
+        DrawOverlayActionTooltipStats(model);
+
+        if (!string.IsNullOrWhiteSpace(model.Description))
         {
-            this.DrawOverlayActionTooltipHeader(model);
             ImGui.Separator();
-            DrawOverlayActionTooltipStats(model);
-
-            if (!string.IsNullOrWhiteSpace(model.Description))
-            {
-                ImGui.Separator();
-                ImGui.PushTextWrapPos(ImGui.GetCursorPosX() + contentWidth);
-                ImGui.TextUnformatted(model.Description);
-                ImGui.PopTextWrapPos();
-            }
-
-            if (model.UnlockLevel > 0)
-            {
-                ImGui.Separator();
-                ImGui.TextColored(new Vector4(0.58f, 0.9f, 0.3f, 1f), $"습득 레벨 {model.UnlockLevel}");
-            }
+            using var wrapPos = ImRaii.TextWrapPos(ImGui.GetCursorPosX() + contentWidth);
+            ImGui.TextUnformatted(model.Description);
         }
-        finally
+
+        if (model.UnlockLevel > 0)
         {
-            ImGui.EndTooltip();
-            ImGui.PopStyleColor(2);
-            ImGui.PopStyleVar(4);
+            ImGui.Separator();
+            ImGui.TextColored(new Vector4(0.58f, 0.9f, 0.3f, 1f), $"습득 레벨 {model.UnlockLevel}");
         }
     }
 
@@ -84,17 +75,17 @@ public sealed partial class Plugin
             ImGui.SameLine();
         }
 
-        ImGui.BeginGroup();
+        using var headerGroup = ImRaii.Group();
         ImGui.TextColored(new Vector4(0.97f, 0.97f, 0.97f, 1f), model.Name);
         if (!string.IsNullOrWhiteSpace(model.Category))
             ImGui.TextColored(new Vector4(0.68f, 0.68f, 0.7f, 1f), model.Category);
         ImGui.TextDisabled($"ID {model.ActionId}");
-        ImGui.EndGroup();
     }
 
     private static void DrawOverlayActionTooltipStats(OverlayActionTooltipModel model)
     {
-        if (!ImGui.BeginTable("##overlay-action-tooltip-stats", 4, ImGuiTableFlags.SizingStretchProp))
+        using var statsTable = ImRaii.Table("##overlay-action-tooltip-stats", 4, ImGuiTableFlags.SizingStretchProp);
+        if (!statsTable)
             return;
 
         ImGui.TableSetupColumn("##label1", ImGuiTableColumnFlags.WidthFixed, 72f);
@@ -122,8 +113,6 @@ public sealed partial class Plugin
             DrawTooltipStatCell(string.Empty, true);
             DrawTooltipStatCell(string.Empty, false);
         }
-
-        ImGui.EndTable();
     }
 
     private static void DrawTooltipStatCell(string text, bool disabled)

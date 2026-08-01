@@ -37,10 +37,8 @@ public sealed partial class Plugin
                 ImGui.GetIO().DisplaySize,
                 tooltipSize),
             ImGuiCond.Always);
-        ImGui.BeginTooltip();
-        ImGui.PushTextWrapPos(wrapWidth);
+        using var tooltip = ImRaii.Tooltip();
+        using var wrapPos = ImRaii.TextWrapPos(wrapWidth);
         ImGui.TextUnformatted(text);
-        ImGui.PopTextWrapPos();
-        ImGui.EndTooltip();
     }
 }

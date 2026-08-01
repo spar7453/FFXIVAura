@@ -87,61 +87,61 @@ public sealed partial class Plugin
             }
         }
 
-        ImGui.BeginChild("FFXIVAuraTrackedSkillList", new Vector2(GetConfigContentWidth(), 390f), true);
-        foreach (var ability in editor.Candidates)
+        using (ImRaii.Child("FFXIVAuraTrackedSkillList", new Vector2(GetConfigContentWidth(), 390f), true))
         {
-            var selected = editor.ManualTracking
-                ? this.abilityTrackingService.IsTracked(iconWindow, job, ability.Id)
-                : !this.abilityCatalog.IsExcluded(editor.ExcludedFilter, ability);
-            var changed = false;
-
-            ImGui.PushID($"track-{ability.Id}");
-            changed |= ImGui.Checkbox("##enabled", ref selected);
-            ImGui.SameLine(0f, 6f);
-            this.DrawSkillListIcon(ability, 24f);
-            ImGui.SameLine(0f, 8f);
-
-            var displayName = string.IsNullOrWhiteSpace(ability.Name) ? ability.Id : ability.Name;
-            ImGui.TextUnformatted($"{displayName}  Lv{ability.Level}");
-            if (ImGui.IsItemHovered())
-                ImGui.SetTooltip($"{ability.Job} / {displayName}\n{ability.Id}\nAction {ability.ActionId}");
-            ImGui.PopID();
-
-            if (!changed)
-                continue;
-
-            if (selected)
+            foreach (var ability in editor.Candidates)
             {
-                if (editor.ManualTracking)
+                var selected = editor.ManualTracking
+                    ? this.abilityTrackingService.IsTracked(iconWindow, job, ability.Id)
+                    : !this.abilityCatalog.IsExcluded(editor.ExcludedFilter, ability);
+                var changed = false;
+
+                using var idScope = ImRaii.PushId($"track-{ability.Id}");
+                changed |= ImGui.Checkbox("##enabled", ref selected);
+                ImGui.SameLine(0f, 6f);
+                this.DrawSkillListIcon(ability, 24f);
+                ImGui.SameLine(0f, 8f);
+
+                var displayName = string.IsNullOrWhiteSpace(ability.Name) ? ability.Id : ability.Name;
+                ImGui.TextUnformatted($"{displayName}  Lv{ability.Level}");
+                if (ImGui.IsItemHovered())
+                    ImGui.SetTooltip($"{ability.Job} / {displayName}\n{ability.Id}\nAction {ability.ActionId}");
+
+                if (!changed)
+                    continue;
+
+                if (selected)
                 {
-                    this.TrackAbility(iconWindow, job, level, ability.Id);
+                    if (editor.ManualTracking)
+                    {
+                        this.TrackAbility(iconWindow, job, level, ability.Id);
+                    }
+                    else
+                    {
+                        this.abilityTrackingService.Include(iconWindow, job, ability.Id);
+                    }
                 }
                 else
                 {
-                    this.abilityTrackingService.Include(iconWindow, job, ability.Id);
+                    if (editor.ManualTracking)
+                        this.abilityTrackingService.Untrack(iconWindow, job, ability.Id);
+                    else
+                        this.abilityTrackingService.Exclude(iconWindow, job, ability.Id);
                 }
-            }
-            else
-            {
-                if (editor.ManualTracking)
-                    this.abilityTrackingService.Untrack(iconWindow, job, ability.Id);
-                else
-                    this.abilityTrackingService.Exclude(iconWindow, job, ability.Id);
-            }
 
-            this.QueueConfigSave();
+                this.QueueConfigSave();
+            }
         }
-
-        ImGui.EndChild();
     }
 
     private void DrawOrderEditorResizeHandle(IconWindowConfig iconWindow)
     {
-        ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0f, 0f, 0f, 0f));
-        ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new Vector4(1f, 1f, 1f, 0.05f));
-        ImGui.PushStyleColor(ImGuiCol.ButtonActive, new Vector4(1f, 1f, 1f, 0.08f));
-        ImGui.Button("##FFXIVAuraOrderResize", new Vector2(GetConfigContentWidth(), 12f));
-        ImGui.PopStyleColor(3);
+        using (ImRaii.PushColor(ImGuiCol.Button, new Vector4(0f, 0f, 0f, 0f)))
+        using (ImRaii.PushColor(ImGuiCol.ButtonHovered, new Vector4(1f, 1f, 1f, 0.05f)))
+        using (ImRaii.PushColor(ImGuiCol.ButtonActive, new Vector4(1f, 1f, 1f, 0.08f)))
+        {
+            ImGui.Button("##FFXIVAuraOrderResize", new Vector2(GetConfigContentWidth(), 12f));
+        }
 
         var min = ImGui.GetItemRectMin();
         var max = ImGui.GetItemRectMax();
@@ -191,7 +191,7 @@ public sealed partial class Plugin
 
         ImGui.Spacing();
         ImGui.TextUnformatted("표시 순서");
-        ImGui.BeginChild("FFXIVAuraTrackedOrderList", new Vector2(GetConfigContentWidth(), Math.Clamp(iconWindow.OrderEditorHeight, MinOrderEditorHeight, MaxOrderEditorHeight)), true);
+        using var orderListChild = ImRaii.Child("FFXIVAuraTrackedOrderList", new Vector2(GetConfigContentWidth(), Math.Clamp(iconWindow.OrderEditorHeight, MinOrderEditorHeight, MaxOrderEditorHeight)), true);
         if (!ImGui.IsMouseDown(ImGuiMouseButton.Left))
             this.trackedSkillEditorSession.EndDrag();
 
@@ -223,7 +223,7 @@ public sealed partial class Plugin
                 continue;
 
             var displayName = string.IsNullOrWhiteSpace(ability.Name) ? ability.Id : ability.Name;
-            ImGui.PushID($"tabbed-order-{id}");
+            using var idScope = ImRaii.PushId($"tabbed-order-{id}");
 
             if (ImGui.SmallButton("▲") && rowItemIndex > 0)
             {
@@ -262,8 +262,6 @@ public sealed partial class Plugin
                 var max = ImGui.GetItemRectMax();
                 ImGui.GetWindowDrawList().AddRect(min, max, ImGui.GetColorU32(new Vector4(0.45f, 0.72f, 1f, 0.95f)), 2f, ImDrawFlags.None, 1.5f);
             }
-
-            ImGui.PopID();
         }
 
         if (selectedRow.Count > 0)
@@ -285,8 +283,6 @@ public sealed partial class Plugin
                 }
             }
         }
-
-        ImGui.EndChild();
     }
 
     private bool ResetTrackedAbilitiesToDefault(IconWindowConfig iconWindow, string job, uint level)

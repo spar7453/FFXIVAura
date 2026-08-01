@@ -9,6 +9,7 @@ global using Dalamud.Game.ClientState.Objects.Types;
 global using Dalamud.Game.ClientState.Statuses;
 global using Dalamud.Game.Command;
 global using Dalamud.Interface.GameFonts;
+global using Dalamud.Interface.Utility.Raii;
 global using Dalamud.Interface.ManagedFontAtlas;
 global using Dalamud.Interface.Textures;
 global using Dalamud.Interface.Textures.TextureWraps;

@@ -55,36 +55,32 @@ public sealed partial class Plugin
                 this.QueueConfigSave();
         }
 
-        ImGui.BeginChild("FFXIVAuraTrackedAuraList", new Vector2(GetConfigContentWidth(), 220f), true);
-        foreach (var group in this.auraSearchService.GetTrackedGroups(iconWindow))
+        using (ImRaii.Child("FFXIVAuraTrackedAuraList", new Vector2(GetConfigContentWidth(), 220f), true))
         {
-            ImGui.PushID($"aura-{group.StatusId}");
-            this.DrawStatusListIcon(group.IconId, 22f);
-            ImGui.SameLine(0f, 8f);
-            ImGui.TextUnformatted(AuraTrackingPresentation.GetTrackedLabel(group));
-            ImGui.SameLine();
-            if (ImGui.SmallButton(group.IsExact ? "그룹으로" : "이 ID만"))
+            foreach (var group in this.auraSearchService.GetTrackedGroups(iconWindow))
             {
-                if (this.SetAuraTrackingMode(iconWindow, group.StatusId, exact: !group.IsExact))
+                using var idScope = ImRaii.PushId($"aura-{group.StatusId}");
+                this.DrawStatusListIcon(group.IconId, 22f);
+                ImGui.SameLine(0f, 8f);
+                ImGui.TextUnformatted(AuraTrackingPresentation.GetTrackedLabel(group));
+                ImGui.SameLine();
+                if (ImGui.SmallButton(group.IsExact ? "그룹으로" : "이 ID만"))
+                {
+                    if (this.SetAuraTrackingMode(iconWindow, group.StatusId, exact: !group.IsExact))
+                        this.QueueConfigSave();
+
+                    break;
+                }
+
+                ImGui.SameLine();
+                if (ImGui.SmallButton("\uC0AD\uC81C"))
+                {
+                    this.auraTrackingService.Untrack(iconWindow, group);
                     this.QueueConfigSave();
-
-                ImGui.PopID();
-                break;
+                    break;
+                }
             }
-
-            ImGui.SameLine();
-            if (ImGui.SmallButton("\uC0AD\uC81C"))
-            {
-                this.auraTrackingService.Untrack(iconWindow, group);
-                this.QueueConfigSave();
-                ImGui.PopID();
-                break;
-            }
-
-            ImGui.PopID();
         }
-
-        ImGui.EndChild();
     }
 
     private void DrawAuraSearchWindow()
@@ -155,13 +151,14 @@ public sealed partial class Plugin
         var results = this.auraSearchService.Search(iconWindow.AuraSearch, iconWindow);
         var resultCount = Math.Min(limit, results.Count);
 
-        ImGui.BeginChild("FFXIVAuraAuraSearchResults", size, true);
+        using var resultsChild = ImRaii.Child("FFXIVAuraAuraSearchResults", size, true);
         if (resultCount == 0)
         {
             this.DrawEmptyAuraSearchResult(iconWindow);
         }
 
-        if (ImGui.BeginTable("FFXIVAuraAuraSearchResultTable", 3, ImGuiTableFlags.SizingStretchProp | ImGuiTableFlags.RowBg))
+        using var resultsTable = ImRaii.Table("FFXIVAuraAuraSearchResultTable", 3, ImGuiTableFlags.SizingStretchProp | ImGuiTableFlags.RowBg);
+        if (resultsTable)
         {
             ImGui.TableSetupColumn("##icon", ImGuiTableColumnFlags.WidthFixed, 30f);
             ImGui.TableSetupColumn("##status", ImGuiTableColumnFlags.WidthStretch);
@@ -174,7 +171,7 @@ public sealed partial class Plugin
                 var result = results[index];
                 var exact = iconWindow.AuraSearchShowIndividualIds;
                 var coverage = this.auraTrackingService.GetCoverage(iconWindow, result.StatusId, exact);
-                ImGui.PushID($"status-search-{result.StatusId}");
+                using var idScope = ImRaii.PushId($"status-search-{result.StatusId}");
                 ImGui.TableNextRow();
                 ImGui.TableSetColumnIndex(0);
                 this.DrawStatusListIcon(result.IconId, 22f);
@@ -192,9 +189,8 @@ public sealed partial class Plugin
                 var button = AuraTrackingPresentation.GetTrackingButton(exact, coverage);
                 if (!button.Enabled)
                 {
-                    ImGui.BeginDisabled();
+                    using var disabledScope = ImRaii.Disabled();
                     ImGui.SmallButton(button.Label);
-                    ImGui.EndDisabled();
                 }
                 else if (ImGui.SmallButton(button.Label))
                 {
@@ -205,13 +201,8 @@ public sealed partial class Plugin
                         this.QueueConfigSave();
                 }
 
-                ImGui.PopID();
             }
-
-            ImGui.EndTable();
         }
-
-        ImGui.EndChild();
     }
 
     private void DrawEmptyAuraSearchResult(IconWindowConfig iconWindow)

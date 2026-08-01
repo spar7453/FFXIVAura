@@ -33,30 +33,35 @@ public sealed partial class Plugin
         ImGui.Separator();
 
         var changed = false;
-        if (ImGui.BeginTabBar("FFXIVAuraConfigTabs"))
+        using (var tabBar = ImRaii.TabBar("FFXIVAuraConfigTabs"))
         {
-            if (ImGui.BeginTabItem("일반/표시"))
+            if (tabBar)
             {
-                ImGui.TextDisabled("전체 설정");
-                changed |= this.DrawGeneralSettings();
-                ImGui.Separator();
-                ImGui.TextDisabled($"현재 창 표시 설정: {IconWindowPresentation.GetDisplayName(activeWindow)}");
-                changed |= this.DrawVisualSettings(activeWindow);
-                ImGui.EndTabItem();
-            }
+                using (var generalTab = ImRaii.TabItem("일반/표시"))
+                {
+                    if (generalTab)
+                    {
+                        ImGui.TextDisabled("전체 설정");
+                        changed |= this.DrawGeneralSettings();
+                        ImGui.Separator();
+                        ImGui.TextDisabled($"현재 창 표시 설정: {IconWindowPresentation.GetDisplayName(activeWindow)}");
+                        changed |= this.DrawVisualSettings(activeWindow);
+                    }
+                }
 
-            if (ImGui.BeginTabItem("오버레이/추적"))
-            {
-                ImGui.TextDisabled($"현재 창 크기 설정: {IconWindowPresentation.GetDisplayName(activeWindow)}");
-                changed |= this.DrawPartyCooldownLayoutEditMode();
-                ImGui.Separator();
-                changed |= this.DrawOverlayWindowSettings(activeWindow, job, level);
-                ImGui.Separator();
-                this.DrawTrackingSettings(activeWindow, job, level);
-                ImGui.EndTabItem();
+                using (var overlayTab = ImRaii.TabItem("오버레이/추적"))
+                {
+                    if (overlayTab)
+                    {
+                        ImGui.TextDisabled($"현재 창 크기 설정: {IconWindowPresentation.GetDisplayName(activeWindow)}");
+                        changed |= this.DrawPartyCooldownLayoutEditMode();
+                        ImGui.Separator();
+                        changed |= this.DrawOverlayWindowSettings(activeWindow, job, level);
+                        ImGui.Separator();
+                        this.DrawTrackingSettings(activeWindow, job, level);
+                    }
+                }
             }
-
-            ImGui.EndTabBar();
         }
 
         if (changed)
@@ -144,12 +149,12 @@ public sealed partial class Plugin
         string label)
     {
         var selected = mode == candidate;
-        if (selected)
-            ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.14f, 0.5f, 0.58f, 0.96f));
+        bool clicked;
+        using (ImRaii.PushColor(ImGuiCol.Button, new Vector4(0.14f, 0.5f, 0.58f, 0.96f), selected))
+        {
+            clicked = ImGui.Button(label, new Vector2(110f, 0f));
+        }
 
-        var clicked = ImGui.Button(label, new Vector2(110f, 0f));
-        if (selected)
-            ImGui.PopStyleColor();
         if (!clicked || selected)
             return false;
 
@@ -303,23 +308,23 @@ public sealed partial class Plugin
             }
         }
 
-        ImGui.BeginChild("FFXIVAuraPartyCooldownPresetList", new Vector2(GetConfigContentWidth(), 280f), true);
-        foreach (var group in summary.PresetGroups)
+        using (ImRaii.Child("FFXIVAuraPartyCooldownPresetList", new Vector2(GetConfigContentWidth(), 280f), true))
         {
-            var label = $"{GetPartyCooldownJobLabel(group.Job)}  {group.VisibleCount}/{group.Definitions.Count}##party-cooldown-job-{group.Job}";
-            if (!ImGui.CollapsingHeader(label, ImGuiTreeNodeFlags.DefaultOpen))
-                continue;
+            foreach (var group in summary.PresetGroups)
+            {
+                var label = $"{GetPartyCooldownJobLabel(group.Job)}  {group.VisibleCount}/{group.Definitions.Count}##party-cooldown-job-{group.Job}";
+                if (!ImGui.CollapsingHeader(label, ImGuiTreeNodeFlags.DefaultOpen))
+                    continue;
 
-            foreach (var definition in group.Definitions)
-                this.DrawPartyCooldownPresetRow(activeWindow, definition, level);
+                foreach (var definition in group.Definitions)
+                    this.DrawPartyCooldownPresetRow(activeWindow, definition, level);
+            }
         }
-
-        ImGui.EndChild();
     }
 
     private void DrawPartyCooldownPresetRow(IconWindowConfig activeWindow, PartyCooldownDefinition definition, uint level)
     {
-        ImGui.PushID($"party-cooldown-preset-{definition.Id}");
+        using var idScope = ImRaii.PushId($"party-cooldown-preset-{definition.Id}");
         var included = !this.partyCooldownCatalog.IsExcluded(activeWindow, definition);
         if (ImGui.Checkbox("##include-party-cooldown", ref included))
         {
@@ -352,8 +357,6 @@ public sealed partial class Plugin
             if (ImGui.IsItemHovered())
                 ImGui.SetTooltip("\uC774 \uD56D\uBAA9\uC740 \uD655\uC778 \uAC00\uB2A5\uD55C \uBC84\uD504/\uB514\uBC84\uD504 \uC0C1\uD0DC\uAC00 \uC5C6\uC5B4 \uD604\uC7AC \uBC29\uC2DD\uC73C\uB85C\uB294 \uC0AC\uC6A9 \uC9C1\uD6C4 \uCFE8\uB2E4\uC6B4\uC744 \uCD94\uC815\uD558\uAE30 \uC5B4\uB824\uC6B8 \uC218 \uC788\uC2B5\uB2C8\uB2E4.");
         }
-
-        ImGui.PopID();
     }
 
     private bool HasPartyCooldownStatusTracking(PartyCooldownDefinition definition)
@@ -366,24 +369,25 @@ public sealed partial class Plugin
     {
         ImGui.TextUnformatted("오버레이 창");
         ImGui.SetNextItemWidth(180f);
-        if (ImGui.BeginCombo("##overlay-window", IconWindowPresentation.GetDisplayName(activeWindow)))
+        using (var combo = ImRaii.Combo("##overlay-window", IconWindowPresentation.GetDisplayName(activeWindow)))
         {
-            foreach (var window in this.config.IconWindows)
+            if (combo)
             {
-                var selected = string.Equals(window.Id, this.config.ActiveWindowId, StringComparison.OrdinalIgnoreCase);
-                var displayName = IconWindowPresentation.GetDisplayName(window);
-                if (ImGui.Selectable($"{displayName}##{window.Id}", selected) && !selected)
+                foreach (var window in this.config.IconWindows)
                 {
-                    this.config.ActiveWindowId = window.Id;
-                    activeWindow = window;
-                    this.QueueConfigSave();
+                    var selected = string.Equals(window.Id, this.config.ActiveWindowId, StringComparison.OrdinalIgnoreCase);
+                    var displayName = IconWindowPresentation.GetDisplayName(window);
+                    if (ImGui.Selectable($"{displayName}##{window.Id}", selected) && !selected)
+                    {
+                        this.config.ActiveWindowId = window.Id;
+                        activeWindow = window;
+                        this.QueueConfigSave();
+                    }
+
+                    if (selected)
+                        ImGui.SetItemDefaultFocus();
                 }
-
-                if (selected)
-                    ImGui.SetItemDefaultFocus();
             }
-
-            ImGui.EndCombo();
         }
 
         ImGui.SetNextItemWidth(180f);
@@ -423,24 +427,25 @@ public sealed partial class Plugin
             if (ImGui.Button("창 삭제"))
                 ImGui.OpenPopup("창 삭제 확인##delete-icon-window");
 
-            if (ImGui.BeginPopupModal("창 삭제 확인##delete-icon-window", ImGuiWindowFlags.AlwaysAutoResize))
+            using (var popup = ImRaii.PopupModal("창 삭제 확인##delete-icon-window", ImGuiWindowFlags.AlwaysAutoResize))
             {
-                ImGui.TextWrapped($"'{IconWindowPresentation.GetDisplayName(activeWindow)}' 창을 삭제할까요?");
-                ImGui.TextDisabled("추적 목록과 아이콘 위치 설정도 함께 제거됩니다.");
-                ImGui.Spacing();
-
-                if (ImGui.Button("삭제", new Vector2(84f, 0f)))
+                if (popup)
                 {
-                    activeWindow = this.DeleteIconWindow(activeWindow);
-                    this.QueueConfigSave();
-                    ImGui.CloseCurrentPopup();
+                    ImGui.TextWrapped($"'{IconWindowPresentation.GetDisplayName(activeWindow)}' 창을 삭제할까요?");
+                    ImGui.TextDisabled("추적 목록과 아이콘 위치 설정도 함께 제거됩니다.");
+                    ImGui.Spacing();
+
+                    if (ImGui.Button("삭제", new Vector2(84f, 0f)))
+                    {
+                        activeWindow = this.DeleteIconWindow(activeWindow);
+                        this.QueueConfigSave();
+                        ImGui.CloseCurrentPopup();
+                    }
+
+                    ImGui.SameLine();
+                    if (ImGui.Button("취소", new Vector2(84f, 0f)))
+                        ImGui.CloseCurrentPopup();
                 }
-
-                ImGui.SameLine();
-                if (ImGui.Button("취소", new Vector2(84f, 0f)))
-                    ImGui.CloseCurrentPopup();
-
-                ImGui.EndPopup();
             }
         }
 
