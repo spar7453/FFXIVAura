@@ -207,7 +207,7 @@ Typical update workflow:
 
 ## Verification
 
-The project targets .NET 10 and Dalamud API 15 through `Dalamud.NET.Sdk`. Set `DALAMUD_HOME` to a directory containing the Dalamud development assemblies. The local Korean launcher API 15 path is used as a fallback when it exists.
+The project targets .NET 10 and Dalamud API 15 through `Dalamud.NET.Sdk`. Reference assemblies are resolved in this order: the `DALAMUD_HOME` override, then the KR launcher's self-updating `XIVLauncherKR\addon\Hooks\dev` folder, then the last known pinned hooks version. CI downloads the official KR Dalamud distribution (the same `dal4kr` package XIVLauncherKR installs) and fails the build when its API level no longer matches `DalamudApiLevel` in `FFXIVAura.json`.
 
 ```powershell
 $env:DALAMUD_HOME = 'C:\path\to\dalamud'

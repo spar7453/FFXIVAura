@@ -2,8 +2,11 @@
   <PropertyGroup>
     <!-- Effective for the test project (plain Microsoft.NET.Sdk). The main project repeats
          this override in FFXIVAura.csproj because Dalamud.NET.Sdk's Sdk.props unconditionally
-         overwrites DalamudLibPath after this file is evaluated. Keep both in sync. -->
+         overwrites DalamudLibPath after this file is evaluated. Keep both in sync.
+         Resolution order: DALAMUD_HOME override, then the KR launcher's self-updating dev
+         hooks, then the last known pinned KR hooks version. -->
     <DalamudLibPath Condition="'$(DALAMUD_HOME)' != ''">$(DALAMUD_HOME)\</DalamudLibPath>
-    <DalamudLibPath Condition="'$(DALAMUD_HOME)' == '' and Exists('$(APPDATA)\XIVLauncherKR\addon\Hooks\15.0.2.2\Dalamud.dll')">$(APPDATA)\XIVLauncherKR\addon\Hooks\15.0.2.2\</DalamudLibPath>
+    <DalamudLibPath Condition="'$(DALAMUD_HOME)' == '' and Exists('$(APPDATA)\XIVLauncherKR\addon\Hooks\dev\Dalamud.dll')">$(APPDATA)\XIVLauncherKR\addon\Hooks\dev\</DalamudLibPath>
+    <DalamudLibPath Condition="'$(DALAMUD_HOME)' == '' and !Exists('$(APPDATA)\XIVLauncherKR\addon\Hooks\dev\Dalamud.dll') and Exists('$(APPDATA)\XIVLauncherKR\addon\Hooks\15.0.2.2\Dalamud.dll')">$(APPDATA)\XIVLauncherKR\addon\Hooks\15.0.2.2\</DalamudLibPath>
   </PropertyGroup>
 </Project>

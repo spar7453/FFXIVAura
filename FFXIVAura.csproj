@@ -3,9 +3,12 @@
     <!-- Dalamud.NET.Sdk's Sdk.props unconditionally overwrites DalamudLibPath after
          Directory.Build.props is evaluated, so this project must re-apply the override here.
          The copy in Directory.Build.props still serves the test project, which uses the
-         plain Microsoft.NET.Sdk. Keep both in sync. -->
+         plain Microsoft.NET.Sdk. Keep both in sync.
+         Resolution order: DALAMUD_HOME override, then the KR launcher's self-updating dev
+         hooks, then the last known pinned KR hooks version. -->
     <DalamudLibPath Condition="'$(DALAMUD_HOME)' != ''">$(DALAMUD_HOME)\</DalamudLibPath>
-    <DalamudLibPath Condition="'$(DALAMUD_HOME)' == '' and Exists('$(APPDATA)\XIVLauncherKR\addon\Hooks\15.0.2.2\Dalamud.dll')">$(APPDATA)\XIVLauncherKR\addon\Hooks\15.0.2.2\</DalamudLibPath>
+    <DalamudLibPath Condition="'$(DALAMUD_HOME)' == '' and Exists('$(APPDATA)\XIVLauncherKR\addon\Hooks\dev\Dalamud.dll')">$(APPDATA)\XIVLauncherKR\addon\Hooks\dev\</DalamudLibPath>
+    <DalamudLibPath Condition="'$(DALAMUD_HOME)' == '' and !Exists('$(APPDATA)\XIVLauncherKR\addon\Hooks\dev\Dalamud.dll') and Exists('$(APPDATA)\XIVLauncherKR\addon\Hooks\15.0.2.2\Dalamud.dll')">$(APPDATA)\XIVLauncherKR\addon\Hooks\15.0.2.2\</DalamudLibPath>
     <AssemblySearchPaths>$(AssemblySearchPaths);$(DalamudLibPath)</AssemblySearchPaths>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
