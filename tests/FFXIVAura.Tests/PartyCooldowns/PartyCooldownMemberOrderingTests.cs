@@ -76,5 +76,5 @@ internal static class PartyCooldownMemberOrderingTests
     }
 
     private static PartyCooldownMemberSnapshot Member(uint entityId, string job, string allianceGroup = "")
-        => new($"key-{entityId}", entityId, 0, 0, $"member-{entityId}", $"m{entityId}", job, 0, allianceGroup);
+        => new($"key-{entityId}", entityId, 0, 0, $"member-{entityId}", $"m{entityId}", job, 90, 0, allianceGroup);
 }

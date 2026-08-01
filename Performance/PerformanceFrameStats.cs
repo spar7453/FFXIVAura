@@ -30,17 +30,17 @@ internal sealed class PerformanceFrameStats
 
         if (!wasEnabled)
         {
+            this.FrameMilliseconds = 0;
             this.AverageFrameMilliseconds = 0;
             this.MaxFrameMilliseconds = 0;
             this.MaxFrameOccurredAtUtc = DateTime.MinValue;
+            this.FrameAllocatedBytes = 0;
             this.AverageFrameAllocatedBytes = 0;
             this.MaxFrameAllocatedBytes = 0;
+            this.Gen0CollectionCount = 0;
             this.FrameSampleCount = 0;
         }
 
-        this.FrameMilliseconds = 0;
-        this.FrameAllocatedBytes = 0;
-        this.Gen0CollectionCount = 0;
         this.WindowCount = 0;
         this.SkillIconCount = 0;
         this.AuraIconCount = 0;
@@ -66,6 +66,29 @@ internal sealed class PerformanceFrameStats
         this.AverageFrameAllocatedBytes = this.FrameSampleCount == 1
             ? this.FrameAllocatedBytes
             : this.AverageFrameAllocatedBytes + (this.FrameAllocatedBytes - this.AverageFrameAllocatedBytes) / this.FrameSampleCount;
+        this.MaxFrameAllocatedBytes = Math.Max(this.MaxFrameAllocatedBytes, this.FrameAllocatedBytes);
+        if (this.FrameMilliseconds >= this.MaxFrameMilliseconds)
+        {
+            this.MaxFrameMilliseconds = this.FrameMilliseconds;
+            this.MaxFrameOccurredAtUtc = DateTime.UtcNow;
+        }
+    }
+
+    public void IncludePostFrameWork(
+        TimeSpan elapsed,
+        long allocatedBytes = 0,
+        int gen0Collections = 0)
+    {
+        if (!this.Enabled || this.FrameSampleCount <= 0)
+            return;
+
+        var additionalMilliseconds = Math.Max(0, elapsed.TotalMilliseconds);
+        var additionalAllocatedBytes = Math.Max(0, allocatedBytes);
+        this.FrameMilliseconds += additionalMilliseconds;
+        this.FrameAllocatedBytes += additionalAllocatedBytes;
+        this.Gen0CollectionCount += Math.Max(0, gen0Collections);
+        this.AverageFrameMilliseconds += additionalMilliseconds / this.FrameSampleCount;
+        this.AverageFrameAllocatedBytes += (double)additionalAllocatedBytes / this.FrameSampleCount;
         this.MaxFrameAllocatedBytes = Math.Max(this.MaxFrameAllocatedBytes, this.FrameAllocatedBytes);
         if (this.FrameMilliseconds >= this.MaxFrameMilliseconds)
         {

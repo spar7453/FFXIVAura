@@ -12,9 +12,9 @@ public readonly record struct CooldownState(
     bool ConditionUnavailable)
 {
     public bool IsChargeSkill => MaxCharges > 1;
-    public bool IsCooling => Remaining > 0.05f;
+    public bool IsCooling => Remaining > TimerDisplayThresholds.MinimumActiveSeconds;
     public bool IsUnavailable => ConditionUnavailable || (IsChargeSkill ? CurrentCharges == 0 : IsCooling);
     public bool IsReady => !ConditionUnavailable && (IsChargeSkill ? CurrentCharges > 0 : !IsCooling);
     public bool ShouldShowInCoolingOnly => ConditionUnavailable || IsCooling || (IsChargeSkill && CurrentCharges == 0);
-    public float Progress => Total <= 0.05f ? 0f : Math.Clamp(Remaining / Total, 0f, 1f);
+    public float Progress => Total <= TimerDisplayThresholds.MinimumActiveSeconds ? 0f : Math.Clamp(Remaining / Total, 0f, 1f);
 }

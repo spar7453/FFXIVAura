@@ -35,7 +35,17 @@ internal static class SkillPositionLayout
     {
         foreach (var key in savedKeys)
         {
-            if (visibleIds.Any(visibleId => idsMatch(key, visibleId)))
+            var visible = false;
+            for (var index = 0; index < visibleIds.Count; index++)
+            {
+                if (!idsMatch(key, visibleIds[index]))
+                    continue;
+
+                visible = true;
+                break;
+            }
+
+            if (visible)
                 continue;
 
             if (isTracked(key))
@@ -127,12 +137,25 @@ internal static class SkillPositionLayout
         Vector2 position,
         Func<string, string, bool> idsMatch)
     {
-        foreach (var key in positions.Keys.ToList())
+        string? firstEquivalentKey = null;
+        List<string>? additionalEquivalentKeys = null;
+        foreach (var key in positions.Keys)
         {
             if (string.Equals(key, id, StringComparison.OrdinalIgnoreCase) || !idsMatch(key, id))
                 continue;
 
-            positions.Remove(key);
+            if (firstEquivalentKey is null)
+                firstEquivalentKey = key;
+            else
+                (additionalEquivalentKeys ??= []).Add(key);
+        }
+
+        if (firstEquivalentKey is not null)
+            positions.Remove(firstEquivalentKey);
+        if (additionalEquivalentKeys is not null)
+        {
+            foreach (var key in additionalEquivalentKeys)
+                positions.Remove(key);
         }
 
         positions[id] = position;
@@ -197,7 +220,11 @@ internal static class SkillPositionLayout
             }
         }
 
-        NormalizePositions(positions, visibleItems.Select(item => item.Id).ToList(), options, idsMatch);
+        var visibleIds = new List<string>(visibleItems.Count);
+        foreach (var item in visibleItems)
+            visibleIds.Add(item.Id);
+
+        NormalizePositions(positions, visibleIds, options, idsMatch);
     }
 
     public static Dictionary<string, Vector2> CreateAlignedVisibleCopy(
@@ -320,13 +347,28 @@ internal static class SkillPositionLayout
     }
 
     private static float AverageY(IReadOnlyList<SkillPositionLayoutItem> row)
-        => row.Count == 0 ? 0f : row.Sum(item => item.Position.Y) / row.Count;
+    {
+        if (row.Count == 0)
+            return 0f;
+
+        var total = 0f;
+        for (var index = 0; index < row.Count; index++)
+            total += row[index].Position.Y;
+
+        return total / row.Count;
+    }
 
     private static bool IsOrderedKey(string key, IReadOnlyList<string> orderedKeys, Func<string, string, bool> idsMatch)
     {
         if (orderedKeys.Contains(key, StringComparer.OrdinalIgnoreCase))
             return true;
 
-        return orderedKeys.Any(orderedKey => idsMatch(key, orderedKey));
+        for (var index = 0; index < orderedKeys.Count; index++)
+        {
+            if (idsMatch(key, orderedKeys[index]))
+                return true;
+        }
+
+        return false;
     }
 }

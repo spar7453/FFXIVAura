@@ -1,17 +1,16 @@
 namespace FFXIVAura;
 
-public sealed unsafe partial class Plugin
+public sealed partial class Plugin
 {
     private void DrawAuraIcon(AuraState aura, float size, IconWindowConfig iconWindow)
     {
         var profileStart = this.performanceProfiler.BeginSection(PerformanceProfileSection.AuraIcon);
         try
         {
-            var lookup = new GameIconLookup(aura.IconId, false, true, null);
-            var texture = TextureProvider.GetFromGameIcon(in lookup).GetWrapOrEmpty();
+            var texture = this.iconTextureService.GetIcon(aura.IconId);
             var pos = ImGui.GetCursorScreenPos();
             var draw = ImGui.GetWindowDrawList();
-            var grayscaleTexture = !aura.Present ? this.GetGrayscaleIconTexture(aura.IconId) : null;
+            var grayscaleTexture = !aura.Present ? this.iconTextureService.GetGrayscaleIcon(aura.IconId) : null;
             ImGui.Image(
                 (grayscaleTexture ?? texture).Handle,
                 new Vector2(size, size),
@@ -27,7 +26,7 @@ public sealed unsafe partial class Plugin
                 return;
             }
 
-            if (aura.Remaining > 0.05f)
+            if (aura.Remaining > TimerDisplayThresholds.MinimumActiveSeconds)
                 this.DrawTimerText(draw, pos, max, aura.Remaining);
 
             if (aura.Param > 1)
@@ -47,7 +46,7 @@ public sealed unsafe partial class Plugin
 
     private void DrawAuraCountText(ImDrawListPtr draw, Vector2 min, Vector2 max, int count)
     {
-        var text = count.ToString();
+        var text = IconRenderText.FormatCount(count);
         using (this.auraCountFont.Push())
         {
             var size = ImGui.CalcTextSize(text);
@@ -58,8 +57,7 @@ public sealed unsafe partial class Plugin
 
     private void DrawStatusListIcon(uint iconId, float size)
     {
-        var lookup = new GameIconLookup(iconId, false, true, null);
-        var texture = TextureProvider.GetFromGameIcon(in lookup).GetWrapOrEmpty();
+        var texture = this.iconTextureService.GetIcon(iconId);
         ImGui.Image(
             texture.Handle,
             new Vector2(size, size),

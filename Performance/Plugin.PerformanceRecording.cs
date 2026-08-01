@@ -1,101 +1,142 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 
 namespace FFXIVAura;
 
-public sealed unsafe partial class Plugin
+public sealed partial class Plugin
 {
-    private void RecordPerformanceProfileIfNeeded()
+    private void PreparePerformanceProfileFrame()
     {
-        if (this.performanceProfileWriter.TakeLastError() is { } writerError)
-            this.NotePerformanceProfileRecordingFailure("writer", writerError);
-
-        if (!this.config.RecordPerformanceProfile)
-        {
-            this.performanceProfileNextRecordAtUtc = DateTime.MinValue;
-            this.tooltipDiagnostics.ResetIntervalCounters();
-            return;
-        }
-
-        var nowUtc = DateTime.UtcNow;
-        var intervalSeconds = Math.Clamp(
+        _ = this.performanceProfileRecordingCoordinator.Prepare(
+            this.config.RecordPerformanceProfile,
             this.config.PerformanceProfileRecordIntervalSeconds,
-            MinPerformanceProfileRecordIntervalSeconds,
-            MaxPerformanceProfileRecordIntervalSeconds);
-        if (this.performanceProfileNextRecordAtUtc != DateTime.MinValue
-            && nowUtc < this.performanceProfileNextRecordAtUtc)
-        {
-            return;
-        }
+            DateTime.UtcNow);
+        if (!this.config.RecordPerformanceProfile)
+            this.tooltipDiagnostics.ResetIntervalCounters();
+    }
 
-        this.performanceProfileNextRecordAtUtc = nowUtc.AddSeconds(intervalSeconds);
-
+    private void RecordPerformanceProfileIfNeeded(bool includeDiagnostics)
+    {
+        var timestampUtc = DateTime.UtcNow;
+        var recordingStart = Stopwatch.GetTimestamp();
+        var allocatedBytesStart = GC.GetAllocatedBytesForCurrentThread();
+        var gen0CollectionCountStart = GC.CollectionCount(0);
+        string body;
         try
         {
-            this.AppendPerformanceProfileRows(nowUtc);
+            body = this.BuildPerformanceProfileBody(timestampUtc, includeDiagnostics);
         }
         catch (Exception ex)
         {
-            this.NotePerformanceProfileRecordingFailure("batch", ex);
+            this.CompletePerformanceProfileMeasurement(
+                timestampUtc,
+                recordingStart,
+                allocatedBytesStart,
+                gen0CollectionCountStart);
+            this.performanceProfileRecordingCoordinator.NoteFailure("batch", ex, DateTime.UtcNow);
+            return;
+        }
+
+        this.CompletePerformanceProfileMeasurement(
+            timestampUtc,
+            recordingStart,
+            allocatedBytesStart,
+            gen0CollectionCountStart);
+
+        try
+        {
+            this.EnqueuePerformanceProfileRows(timestampUtc, includeDiagnostics, body);
+        }
+        catch (Exception ex)
+        {
+            this.performanceProfileRecordingCoordinator.NoteFailure("enqueue", ex, DateTime.UtcNow);
         }
     }
 
     private void ClearPerformanceProfileFiles()
-    {
-        if (!this.performanceProfileWriter.TryEnqueueClear(this.GetPerformanceProfileFilePath()))
-            this.SetBugDiagnosticEvent("performanceProfileClearQueueFull");
-
-        this.performanceProfileNextRecordAtUtc = DateTime.MinValue;
-    }
+        => this.performanceProfileRecordingCoordinator.Clear();
 
     private string GetPerformanceProfileFilePath()
-        => Path.Combine(GetPerformanceProfileDirectory(), PerformanceProfileCsv.FileName);
+        => this.performanceProfileRecordingCoordinator.FilePath;
 
-    private static string GetPerformanceProfileDirectory()
-        => PluginInterface.ConfigDirectory.FullName;
-
-    private void AppendPerformanceProfileRows(DateTime timestampUtc)
+    private string BuildPerformanceProfileBody(DateTime timestampUtc, bool includeDiagnostics)
     {
-        var tooltipDiagnosticSnapshot = this.tooltipDiagnostics.CreateSnapshot();
+        var tooltipDiagnosticSnapshot = includeDiagnostics
+            ? this.tooltipDiagnostics.CreateSnapshot()
+            : default;
         var builder = new StringBuilder(4096);
-        this.AppendPerformanceProfileFrameRow(builder, timestampUtc);
         foreach (var snapshot in this.performanceProfiler.GetSnapshots())
+        {
+            if (snapshot.Section == PerformanceProfileSection.ProfileRecording)
+                continue;
+
             this.AppendPerformanceProfileSectionRow(builder, timestampUtc, snapshot);
+        }
 
         foreach (var snapshot in this.performanceProfiler.GetWindowSnapshots())
             this.AppendPerformanceProfileWindowRow(builder, timestampUtc, snapshot);
 
-        try
+        if (includeDiagnostics)
         {
-            this.AppendPerformanceProfileDiagnosticRows(builder, timestampUtc, tooltipDiagnosticSnapshot);
-        }
-        catch (Exception ex)
-        {
-            this.NotePerformanceProfileRecordingFailure("diagnostic", ex);
-            this.AppendPerformanceProfileDiagnosticRow(
-                builder,
-                timestampUtc,
-                "profileDiagnosticError",
-                "Profile Diagnostic Error",
-                FormatDiagnosticPairs(("error", ex.GetType().Name)));
+            try
+            {
+                this.AppendPerformanceProfileDiagnosticRows(builder, timestampUtc, tooltipDiagnosticSnapshot);
+            }
+            catch (Exception ex)
+            {
+                this.performanceProfileRecordingCoordinator.NoteFailure("diagnostic", ex, DateTime.UtcNow);
+                this.AppendPerformanceProfileDiagnosticRow(
+                    builder,
+                    timestampUtc,
+                    "profileDiagnosticError",
+                    "Profile Diagnostic Error",
+                    FormatDiagnosticPairs(("error", ex.GetType().Name)));
+            }
         }
 
-        var maxBytes = (long)Math.Clamp(
-            this.config.PerformanceProfileMaxFileMegabytes,
-            MinPerformanceProfileMaxFileMegabytes,
-            MaxPerformanceProfileMaxFileMegabytes) * 1024L * 1024L;
-        if (this.performanceProfileWriter.TryEnqueueAppend(
-                this.GetPerformanceProfileFilePath(),
-                PerformanceProfileCsv.Header,
-                builder.ToString(),
-                maxBytes))
+        return builder.ToString();
+    }
+
+    private void CompletePerformanceProfileMeasurement(
+        DateTime timestampUtc,
+        long recordingStart,
+        long allocatedBytesStart,
+        int gen0CollectionCountStart)
+    {
+        var elapsed = Stopwatch.GetElapsedTime(recordingStart);
+        this.performanceStats.IncludePostFrameWork(
+            elapsed,
+            GC.GetAllocatedBytesForCurrentThread() - allocatedBytesStart,
+            GC.CollectionCount(0) - gen0CollectionCountStart);
+        this.performanceProfiler.RecordCompletedOperation(
+            PerformanceProfileSection.ProfileRecording,
+            elapsed,
+            timestampUtc);
+    }
+
+    private void EnqueuePerformanceProfileRows(
+        DateTime timestampUtc,
+        bool includeDiagnostics,
+        string body)
+    {
+        var prefixBuilder = new StringBuilder(1024);
+        this.AppendPerformanceProfileFrameRow(prefixBuilder, timestampUtc);
+        this.AppendPerformanceProfileSectionRow(
+            prefixBuilder,
+            timestampUtc,
+            this.performanceProfiler.GetSnapshot(PerformanceProfileSection.ProfileRecording));
+
+        var maxBytes = (long)PerformanceProfileConfigPolicy.ClampMaxFileMegabytes(
+            this.config.PerformanceProfileMaxFileMegabytes) * 1024L * 1024L;
+        if (this.performanceProfileRecordingCoordinator.TryAppend(
+                prefixBuilder.ToString(),
+                body,
+                maxBytes,
+                timestampUtc))
         {
-            this.tooltipDiagnostics.ResetIntervalCounters();
-        }
-        else
-        {
-            this.SetBugDiagnosticEvent("performanceProfileWriteQueueFull");
-            this.NotePerformanceProfileRecordingFailure("queueFull");
+            if (includeDiagnostics)
+                this.tooltipDiagnostics.ResetIntervalCounters();
         }
     }
 
@@ -119,7 +160,7 @@ public sealed unsafe partial class Plugin
             this.performanceStats.SkillIconCount,
             this.performanceStats.AuraIconCount,
             this.performanceStats.CooldownCalculationCount,
-            this.actionKeybindIndex.Count,
+            this.actionKeybindService.Count,
             this.performanceStats.TooltipRenderCount,
             this.performanceStats.GrayscaleIconProcessCount,
             this.performanceStats.FrameAllocatedBytes,
@@ -151,7 +192,7 @@ public sealed unsafe partial class Plugin
             this.performanceStats.SkillIconCount,
             this.performanceStats.AuraIconCount,
             this.performanceStats.CooldownCalculationCount,
-            this.actionKeybindIndex.Count,
+            this.actionKeybindService.Count,
             this.performanceStats.TooltipRenderCount,
             this.performanceStats.GrayscaleIconProcessCount));
     }
@@ -179,7 +220,7 @@ public sealed unsafe partial class Plugin
             this.performanceStats.SkillIconCount,
             this.performanceStats.AuraIconCount,
             this.performanceStats.CooldownCalculationCount,
-            this.actionKeybindIndex.Count,
+            this.actionKeybindService.Count,
             this.performanceStats.TooltipRenderCount,
             this.performanceStats.GrayscaleIconProcessCount));
     }
@@ -189,16 +230,16 @@ public sealed unsafe partial class Plugin
         DateTime timestampUtc,
         TooltipDiagnosticSnapshot tooltipDiagnostics)
     {
-        var playerLoaded = PlayerState.IsLoaded;
-        var job = playerLoaded ? JobInfo.Code(PlayerState.ClassJob.RowId) : string.Empty;
+        var playerContext = this.playerFrameContext;
+        var job = playerContext.IsPlayerLoaded ? playerContext.Job : string.Empty;
         var partyCooldownRuntimeDiagnostics = this.partyCooldownRuntimeStore.CreateDiagnostics();
-        var partyAuraRuntimeDiagnostics = this.partyAuraRuntimeStore.CreateDiagnostics();
+        var auraFrameDiagnostics = this.auraFrameService.CreateDiagnostics();
 
         this.AppendPluginDiagnosticRow(builder, timestampUtc);
-        this.AppendPlayerDiagnosticRow(builder, timestampUtc, playerLoaded, job);
+        this.AppendPlayerDiagnosticRow(builder, timestampUtc, playerContext);
         this.AppendOverlayDiagnosticRow(builder, timestampUtc);
         this.AppendCacheDiagnosticRow(builder, timestampUtc, partyCooldownRuntimeDiagnostics);
-        this.AppendAuraDiagnosticRow(builder, timestampUtc, partyAuraRuntimeDiagnostics);
+        this.AppendAuraDiagnosticRow(builder, timestampUtc, auraFrameDiagnostics);
 
         this.AppendPartyCooldownDiagnosticRows(builder, timestampUtc, partyCooldownRuntimeDiagnostics);
 
@@ -224,7 +265,7 @@ public sealed unsafe partial class Plugin
             : 0;
         this.overlayWindowDebugSnapshots.TryGetValue(window.Id, out var debug);
 
-        this.AppendPerformanceProfileDiagnosticRow(builder, timestampUtc, $"window:{window.Id}", GetIconWindowDisplayName(window), FormatDiagnosticPairs(
+        this.AppendPerformanceProfileDiagnosticRow(builder, timestampUtc, $"window:{window.Id}", IconWindowPresentation.GetDisplayName(window), FormatDiagnosticPairs(
             ("active", string.Equals(window.Id, this.config.ActiveWindowId, StringComparison.OrdinalIgnoreCase)),
             ("role", window.Role),
             ("displayCondition", window.DisplayCondition),
@@ -265,6 +306,9 @@ public sealed unsafe partial class Plugin
             ("auraSearchShowIndividualIds", window.AuraSearchShowIndividualIds),
             ("trackedCurrentJob", trackedCurrentJob),
             ("excludedCurrentJob", excludedCurrentJob),
+            ("manualTrackingCurrentJob", !string.IsNullOrWhiteSpace(job)
+                                         && AbilityTrackingService.IsManualTracking(window, job)),
+            ("manualTrackingJobs", window.ManualTrackingJobs.Count),
             ("trackedJobs", window.TrackedByJob.Count),
             ("excludedJobs", window.ExcludedByJob.Count),
             ("trackedStatusIds", window.TrackedStatusIds.Count),
@@ -301,9 +345,6 @@ public sealed unsafe partial class Plugin
             ("partyAllianceMemberColumns", debug.PartyAllianceMemberColumnCount)));
     }
 
-    private static double GetConfigSavePendingSeconds(DateTime timestampUtc, DateTime queuedAtUtc)
-        => queuedAtUtc == DateTime.MinValue ? 0 : Math.Max(0, (timestampUtc - queuedAtUtc).TotalSeconds);
-
     private void AppendPerformanceProfileDiagnosticRow(
         StringBuilder builder,
         DateTime timestampUtc,
@@ -311,25 +352,16 @@ public sealed unsafe partial class Plugin
         string label,
         string detail)
     {
-        PerformanceProfileCsv.AppendRow(builder, new PerformanceProfileCsvRow(
+        PerformanceProfileCsv.AppendRow(builder, PerformanceProfileCsv.CreateDiagnosticRow(
             timestampUtc,
-            "diagnostic",
             id,
             label,
             detail,
-            this.performanceStats.FrameMilliseconds,
-            0,
-            this.performanceStats.AverageFrameMilliseconds,
-            this.performanceStats.MaxFrameMilliseconds,
-            this.performanceStats.MaxFrameOccurredAtUtc,
-            0,
-            0,
-            this.performanceStats.FrameSampleCount,
             this.performanceStats.WindowCount,
             this.performanceStats.SkillIconCount,
             this.performanceStats.AuraIconCount,
             this.performanceStats.CooldownCalculationCount,
-            this.actionKeybindIndex.Count,
+            this.actionKeybindService.Count,
             this.performanceStats.TooltipRenderCount,
             this.performanceStats.GrayscaleIconProcessCount));
     }
@@ -374,18 +406,4 @@ public sealed unsafe partial class Plugin
                 .Replace('\n', ' ')
                 .Trim();
 
-    private void NotePerformanceProfileRecordingFailure(string stage, Exception? ex = null)
-    {
-        var nowUtc = DateTime.UtcNow;
-        this.performanceProfileFailureCount++;
-        this.performanceProfileLastErrorAtUtc = nowUtc;
-        this.performanceProfileLastError = ex is null ? stage : $"{stage}:{ex.GetType().Name}";
-        this.SetBugDiagnosticEvent($"performanceProfileFailed:{this.performanceProfileLastError}");
-
-        if (ex is null || nowUtc < this.performanceProfileNextErrorLogAtUtc)
-            return;
-
-        this.performanceProfileNextErrorLogAtUtc = nowUtc.AddSeconds(30);
-        Log.Error(ex, $"Failed to record FFXIVAura performance profile ({stage}).");
-    }
 }

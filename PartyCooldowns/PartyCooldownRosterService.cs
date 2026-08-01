@@ -30,7 +30,10 @@ internal sealed class PartyCooldownRosterService
     public long CacheMissCount { get; private set; }
 
     public PartyCooldownRosterReadResult GetRoster(bool forceRefresh = false)
-        => this.GetRoster(forceRefresh, DateTime.UtcNow);
+    {
+        FrameThreadGuard.AssertUiThread();
+        return this.GetRoster(forceRefresh, DateTime.UtcNow);
+    }
 
     internal PartyCooldownRosterReadResult GetRoster(bool forceRefresh, DateTime nowUtc)
     {

@@ -1,6 +1,6 @@
 namespace FFXIVAura;
 
-public sealed unsafe partial class Plugin
+public sealed partial class Plugin
 {
     private bool EnsureIconWindows()
     {
@@ -30,8 +30,8 @@ public sealed unsafe partial class Plugin
             DefaultOrderEditorHeight: DefaultOrderEditorHeight,
             MinOrderEditorHeight: MinOrderEditorHeight,
             MaxOrderEditorHeight: MaxOrderEditorHeight,
-            DefaultTrackedEditorTab: TrackedEditorTabs[0].Id,
-            TrackedEditorTabs: TrackedEditorTabs.Select(tab => tab.Id).ToArray());
+            DefaultTrackedEditorTab: TrackedSkillEditorTabs.Items[0].Id,
+            TrackedEditorTabs: TrackedSkillEditorTabs.Items.Select(tab => tab.Id).ToArray());
 
     private IconWindowConfig GetActiveIconWindow()
     {

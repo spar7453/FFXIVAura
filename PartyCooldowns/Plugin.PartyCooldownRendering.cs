@@ -1,6 +1,6 @@
 namespace FFXIVAura;
 
-public sealed unsafe partial class Plugin
+public sealed partial class Plugin
 {
     private void DrawPartyCooldownWindowContent(IconWindowConfig iconWindow, string job, uint level)
     {
@@ -17,7 +17,14 @@ public sealed unsafe partial class Plugin
         if (layoutCreated)
             this.QueueConfigSave();
 
-        var displayLayout = GetPartyCooldownBoardDisplayLayout(layoutBinding, rows);
+        var layoutEnvironment = new PartyCooldownBoardLayoutEnvironment(
+            ImGui.GetIO().DisplaySize.Y,
+            ImGui.GetTextLineHeight(),
+            ImGui.CalcTextSize("C").X);
+        var displayLayout = PartyCooldownBoardLayoutCalculator.Calculate(
+            layoutBinding,
+            rows,
+            layoutEnvironment);
         this.RememberPartyCooldownWindowLayoutDiagnostics(iconWindow, displayLayout.Metrics);
         if (itemCount == 0 && this.config.LockOverlay)
             return;
@@ -44,19 +51,52 @@ public sealed unsafe partial class Plugin
             flags |= ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoInputs;
 
         ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, Vector2.Zero);
-        var layoutModeId = layoutMode switch
+
+        // ImGui.Begin/PushStyleVar must always be paired with End/PopStyleVar, even when the
+        // body throws; otherwise the global ImGui stacks stay unbalanced for the rest of the frame.
+        var windowExpanded = false;
+        var areaOrigin = Vector2.Zero;
+        try
         {
-            PartyCooldownLayoutEditMode.FourPlayer => "light-party",
-            PartyCooldownLayoutEditMode.Alliance => "alliance",
-            _ => "party",
-        };
-        if (!ImGui.Begin($"FFXIVAuraOverlay-{iconWindow.Id}-{layoutModeId}", flags))
+            windowExpanded = ImGui.Begin(this.GetPartyCooldownWindowTitle(iconWindow, layoutMode), flags);
+            if (windowExpanded)
+            {
+                areaOrigin = this.DrawPartyCooldownWindowBody(
+                    iconWindow,
+                    job,
+                    rows,
+                    layoutBinding,
+                    displayLayout.Metrics,
+                    areaSize);
+            }
+        }
+        finally
         {
             ImGui.End();
             ImGui.PopStyleVar();
-            return;
         }
 
+        if (!windowExpanded)
+            return;
+
+        if (!this.config.LockOverlay)
+        {
+            var controlLayout = this.GetOverlayControlLayout(iconWindow.Role, areaOrigin, areaSize);
+            this.DrawOverlayRoleControls(iconWindow, job, level, areaOrigin, areaSize, controlLayout);
+            this.DrawOverlayDisplayConditionControl(iconWindow, areaOrigin, areaSize, controlLayout);
+            this.DrawOverlayNameControl(iconWindow, areaOrigin, areaSize, controlLayout);
+            this.DrawOverlayAlignmentControls(iconWindow, job, level, areaOrigin, areaSize, controlLayout, layoutBinding);
+        }
+    }
+
+    private Vector2 DrawPartyCooldownWindowBody(
+        IconWindowConfig iconWindow,
+        string job,
+        IReadOnlyList<PartyCooldownMemberRow> rows,
+        IconWindowLayoutBinding layoutBinding,
+        PartyCooldownBoardRenderMetrics metrics,
+        Vector2 areaSize)
+    {
         this.SelectIconWindowFromOverlayClick(iconWindow);
 
         var windowPosition = ImGui.GetWindowPos();
@@ -70,28 +110,18 @@ public sealed unsafe partial class Plugin
             layoutBinding.Position = windowPosition;
         }
 
-        ImGui.SetWindowFontScale(displayLayout.Metrics.FontScale);
+        ImGui.SetWindowFontScale(metrics.FontScale);
 
         var areaOrigin = ImGui.GetCursorScreenPos();
         if (!this.config.LockOverlay)
             this.DrawOverlayEditStage(ImGui.GetWindowDrawList(), areaOrigin, areaOrigin + areaSize);
 
-        this.DrawPartyCooldownRows(iconWindow, rows, areaOrigin, areaSize, displayLayout.Metrics, layoutBinding.Alignment);
+        this.DrawPartyCooldownRows(iconWindow, rows, areaOrigin, areaSize, metrics, layoutBinding.Alignment);
 
         if (!this.config.LockOverlay)
             this.HandleOverlayResize(iconWindow, job, Array.Empty<AbilityDefinition>(), Array.Empty<AuraState>(), areaOrigin, areaSize, layoutBinding);
 
-        ImGui.End();
-        ImGui.PopStyleVar();
-
-        if (!this.config.LockOverlay)
-        {
-            var controlLayout = this.GetOverlayControlLayout(iconWindow.Role, areaOrigin, areaSize);
-            this.DrawOverlayRoleControls(iconWindow, job, level, areaOrigin, areaSize, controlLayout);
-            this.DrawOverlayDisplayConditionControl(iconWindow, areaOrigin, areaSize, controlLayout);
-            this.DrawOverlayNameControl(iconWindow, areaOrigin, areaSize, controlLayout);
-            this.DrawOverlayAlignmentControls(iconWindow, job, level, areaOrigin, areaSize, controlLayout, layoutBinding);
-        }
+        return areaOrigin;
     }
 
     private void DrawPartyCooldownRows(
@@ -157,7 +187,7 @@ public sealed unsafe partial class Plugin
         PartyCooldownBoardRenderMetrics metrics,
         IconAlignment alignment)
     {
-        var headerHeight = GetPartyCooldownAllianceColumnHeaderHeight(metrics);
+        var headerHeight = PartyCooldownBoardLayoutCalculator.GetAllianceColumnHeaderHeight(metrics);
         var groupY = areaOrigin.Y + metrics.Padding;
         var groupX = areaOrigin.X + metrics.Padding;
         var groupGap = Math.Max(8f, metrics.Gap * 2f);
@@ -166,7 +196,7 @@ public sealed unsafe partial class Plugin
         for (var group = 0; group < PartyCooldownBoardLayout.AllianceColumnCount; group++)
         {
             var groupLabel = PartyCooldownAllianceGroups.GroupLabel(group);
-            if (!ContainsPartyCooldownAllianceGroup(rows, groupLabel))
+            if (!PartyCooldownBoardLayoutCalculator.ContainsAllianceGroup(rows, groupLabel))
                 continue;
 
             if (groupY >= areaOrigin.Y + areaSize.Y)
@@ -235,7 +265,7 @@ public sealed unsafe partial class Plugin
     {
         var iconSize = metrics.IconSize;
         var gap = metrics.Gap;
-        var contentHeight = GetPartyCooldownRowContentHeight(row.Items.Count, metrics);
+        var contentHeight = PartyCooldownBoardLayoutCalculator.GetRowContentHeight(row.Items.Count, metrics);
         var firstLineHeight = Math.Max(iconSize, Math.Max(metrics.JobIconSize, metrics.TextLineHeight));
         var cursor = new Vector2(rowStartX, rowY + Math.Max(0f, (firstLineHeight - metrics.JobIconSize) * 0.5f));
         if (showAllianceGroup && metrics.AllianceGroupWidth > 0f)

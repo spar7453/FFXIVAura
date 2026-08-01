@@ -68,10 +68,39 @@ internal sealed class PerformanceProfileWriter : IDisposable
     }
 
     public bool TryEnqueueAppend(string path, string header, string content, long maxBytes)
-        => this.TryEnqueue(new WriteRequest(WriteRequestKind.Append, path, header, content, Math.Max(1, maxBytes)));
+        => this.TryEnqueueAppend(path, header, string.Empty, content, maxBytes);
+
+    public bool TryEnqueueAppend(
+        string path,
+        string header,
+        string prefix,
+        string content,
+        long maxBytes)
+        => this.TryEnqueue(new WriteRequest(
+            WriteRequestKind.Append,
+            path,
+            header,
+            prefix,
+            content,
+            Math.Max(1, maxBytes)));
 
     public bool TryEnqueueClear(string path)
-        => this.TryEnqueue(new WriteRequest(WriteRequestKind.Clear, path, string.Empty, string.Empty, 0));
+        => this.TryEnqueue(new WriteRequest(
+            WriteRequestKind.Clear,
+            path,
+            string.Empty,
+            string.Empty,
+            string.Empty,
+            0));
+
+    public bool TryEnqueueEnsureSchema(string path, string header)
+        => this.TryEnqueue(new WriteRequest(
+            WriteRequestKind.EnsureSchema,
+            path,
+            header,
+            string.Empty,
+            string.Empty,
+            0));
 
     public Exception? TakeLastError()
         => Interlocked.Exchange(ref this.lastError, null);
@@ -88,14 +117,19 @@ internal sealed class PerformanceProfileWriter : IDisposable
 
     private bool TryEnqueue(WriteRequest request)
     {
-        if (this.disposed || !this.requests.Writer.TryWrite(request))
+        if (this.disposed)
         {
             Interlocked.Increment(ref this.droppedCount);
             return false;
         }
 
         Interlocked.Increment(ref this.pendingCount);
-        return true;
+        if (this.requests.Writer.TryWrite(request))
+            return true;
+
+        Interlocked.Decrement(ref this.pendingCount);
+        Interlocked.Increment(ref this.droppedCount);
+        return false;
     }
 
     private async Task ProcessRequestsAsync()
@@ -105,10 +139,20 @@ internal sealed class PerformanceProfileWriter : IDisposable
             var started = Stopwatch.GetTimestamp();
             try
             {
-                if (request.Kind == WriteRequestKind.Clear)
-                    ClearFiles(request.Path);
-                else
-                    Append(request);
+                switch (request.Kind)
+                {
+                    case WriteRequestKind.Append:
+                        Append(request);
+                        break;
+                    case WriteRequestKind.Clear:
+                        ClearFiles(request.Path);
+                        break;
+                    case WriteRequestKind.EnsureSchema:
+                        EnsureSchema(request.Path, request.Header);
+                        break;
+                    default:
+                        throw new ArgumentOutOfRangeException(nameof(request.Kind), request.Kind, null);
+                }
 
                 Interlocked.Increment(ref this.completedCount);
                 Interlocked.Exchange(ref this.lastCompletedAtUtcTicks, DateTime.UtcNow.Ticks);
@@ -138,36 +182,47 @@ internal sealed class PerformanceProfileWriter : IDisposable
         if (!string.IsNullOrWhiteSpace(directory))
             Directory.CreateDirectory(directory);
 
-        RotateIfNeeded(request.Path, request.Header, request.MaxBytes);
+        EnsureSchema(request.Path, request.Header);
+        RotateIfNeeded(request.Path, request.MaxBytes);
         var fileIsEmpty = !File.Exists(request.Path) || new FileInfo(request.Path).Length == 0;
         using var writer = new StreamWriter(request.Path, append: true, FileEncoding);
         if (fileIsEmpty)
             writer.WriteLine(request.Header);
 
+        writer.Write(request.Prefix);
         writer.Write(request.Content);
     }
 
-    private static void RotateIfNeeded(string path, string header, long maxBytes)
+    private static void RotateIfNeeded(string path, long maxBytes)
     {
         if (!File.Exists(path))
             return;
 
         var file = new FileInfo(path);
         if (file.Length >= maxBytes)
+            RotateToPrevious(path);
+    }
+
+    private static void EnsureSchema(string path, string header)
+    {
+        if (HasMismatchedHeader(path, header)
+            || HasMismatchedHeader(GetPreviousPath(path), header))
         {
-            RotateToPrevious(path);
-            return;
+            ClearFiles(path);
         }
+    }
 
+    private static bool HasMismatchedHeader(string path, string header)
+    {
+        if (!File.Exists(path))
+            return false;
+
+        var file = new FileInfo(path);
         if (file.Length == 0)
-            return;
+            return false;
 
-        string? existingHeader;
-        using (var reader = new StreamReader(path, FileEncoding, detectEncodingFromByteOrderMarks: true))
-            existingHeader = reader.ReadLine();
-
-        if (!string.Equals(existingHeader, header, StringComparison.Ordinal))
-            RotateToPrevious(path);
+        using var reader = new StreamReader(path, FileEncoding, detectEncodingFromByteOrderMarks: true);
+        return !string.Equals(reader.ReadLine(), header, StringComparison.Ordinal);
     }
 
     private static void ClearFiles(string path)
@@ -190,12 +245,14 @@ internal sealed class PerformanceProfileWriter : IDisposable
     {
         Append,
         Clear,
+        EnsureSchema,
     }
 
     private readonly record struct WriteRequest(
         WriteRequestKind Kind,
         string Path,
         string Header,
+        string Prefix,
         string Content,
         long MaxBytes);
 }

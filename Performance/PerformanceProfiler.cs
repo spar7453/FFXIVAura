@@ -24,6 +24,8 @@ internal sealed class PerformanceProfiler
         "오라 검색",
         "파티 명단",
         "파티 행 구성",
+        "프로파일 기록",
+        "성능 창",
     ];
 
     private readonly SectionStats[] sections;
@@ -52,8 +54,11 @@ internal sealed class PerformanceProfiler
             return;
 
         this.currentWindowIds.Clear();
-        foreach (var section in this.sections)
-            section.BeginFrame();
+        for (var index = 0; index < this.sections.Length; index++)
+        {
+            if (!IsCompletedOperationSection((PerformanceProfileSection)index))
+                this.sections[index].BeginFrame();
+        }
 
         foreach (var window in this.windows.Values)
             window.Stats.BeginFrame();
@@ -69,8 +74,14 @@ internal sealed class PerformanceProfiler
         if (!this.Enabled)
             return;
 
-        foreach (var section in this.sections)
-            section.FinishFrame(nowUtc);
+        for (var index = 0; index < this.sections.Length; index++)
+        {
+            var section = this.sections[index];
+            if (IsCompletedOperationSection((PerformanceProfileSection)index))
+                section.AdvanceTime(nowUtc);
+            else
+                section.FinishFrame(nowUtc);
+        }
 
         this.staleWindowIds.Clear();
         foreach (var key in this.windows.Keys)
@@ -89,7 +100,9 @@ internal sealed class PerformanceProfiler
     }
 
     public long BeginSection(PerformanceProfileSection section)
-        => this.Enabled && IsValid(section) ? Stopwatch.GetTimestamp() : 0;
+        => this.Enabled && IsValid(section) && !IsCompletedOperationSection(section)
+            ? Stopwatch.GetTimestamp()
+            : 0;
 
     public void EndSection(PerformanceProfileSection section, long startTimestamp)
     {
@@ -101,10 +114,21 @@ internal sealed class PerformanceProfiler
 
     public void Record(PerformanceProfileSection section, TimeSpan elapsed)
     {
-        if (!this.Enabled || !IsValid(section))
+        if (!this.Enabled || !IsValid(section) || IsCompletedOperationSection(section))
             return;
 
         this.sections[(int)section].Record(elapsed);
+    }
+
+    public void RecordCompletedOperation(
+        PerformanceProfileSection section,
+        TimeSpan elapsed,
+        DateTime? occurredAtUtc = null)
+    {
+        if (!this.Enabled || !IsValid(section) || !IsCompletedOperationSection(section))
+            return;
+
+        this.sections[(int)section].RecordCompleted(elapsed, occurredAtUtc ?? DateTime.UtcNow);
     }
 
     public long BeginWindow(string id, string label)
@@ -186,6 +210,9 @@ internal sealed class PerformanceProfiler
     private static bool IsValid(PerformanceProfileSection section)
         => section >= 0 && section < PerformanceProfileSection.Count;
 
+    private static bool IsCompletedOperationSection(PerformanceProfileSection section)
+        => section == PerformanceProfileSection.ProfileRecording;
+
     private long BeginWindowSample(string id, string label)
     {
         this.GetOrCreateWindow(id, label);
@@ -246,26 +273,43 @@ internal sealed class PerformanceProfiler
             this.LastCallCount = this.currentCallCount;
             if (this.currentCallCount <= 0)
             {
-                this.PruneRecentSamples(nowUtc);
-                this.UpdateRecentAverage();
+                this.AdvanceTime(nowUtc);
                 return;
             }
 
+            this.CommitSample(this.currentMilliseconds, this.currentCallCount, nowUtc);
+        }
+
+        public void RecordCompleted(TimeSpan elapsed, DateTime nowUtc)
+        {
+            var milliseconds = Math.Max(0, elapsed.TotalMilliseconds);
+            this.LastMilliseconds = milliseconds;
+            this.LastCallCount = 1;
+            this.CommitSample(milliseconds, 1, nowUtc);
+        }
+
+        public void AdvanceTime(DateTime nowUtc)
+        {
+            this.PruneRecentSamples(nowUtc);
+            this.UpdateRecentAverage();
+        }
+
+        private void CommitSample(double milliseconds, int callCount, DateTime nowUtc)
+        {
             this.SampleFrameCount++;
-            this.TotalCallCount += this.currentCallCount;
+            this.TotalCallCount += callCount;
             this.AverageMilliseconds = this.SampleFrameCount == 1
-                ? this.currentMilliseconds
-                : this.AverageMilliseconds + (this.currentMilliseconds - this.AverageMilliseconds) / this.SampleFrameCount;
-            if (this.currentMilliseconds >= this.MaxMilliseconds)
+                ? milliseconds
+                : this.AverageMilliseconds + (milliseconds - this.AverageMilliseconds) / this.SampleFrameCount;
+            if (milliseconds >= this.MaxMilliseconds)
             {
-                this.MaxMilliseconds = this.currentMilliseconds;
+                this.MaxMilliseconds = milliseconds;
                 this.MaxOccurredAtUtc = nowUtc;
             }
 
-            this.recentSamples.Enqueue(new RecentSample(nowUtc, this.currentMilliseconds));
-            this.recentMillisecondsTotal += this.currentMilliseconds;
-            this.PruneRecentSamples(nowUtc);
-            this.UpdateRecentAverage();
+            this.recentSamples.Enqueue(new RecentSample(nowUtc, milliseconds));
+            this.recentMillisecondsTotal += milliseconds;
+            this.AdvanceTime(nowUtc);
         }
 
         private void UpdateRecentAverage()

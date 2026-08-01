@@ -1,6 +1,6 @@
 namespace FFXIVAura;
 
-public sealed unsafe partial class Plugin
+public sealed partial class Plugin
 {
     private IconWindowConfig AddIconWindowClone(IconWindowConfig activeWindow)
     {
@@ -117,9 +117,6 @@ public sealed unsafe partial class Plugin
         this.NormalizeAuraIconPositionsAfterResize(activeWindow, auras, areaSize);
         this.EnsureAuraIconPositions(activeWindow, auras, areaSize);
     }
-
-    private static string GetIconWindowDisplayName(IconWindowConfig window)
-        => string.IsNullOrWhiteSpace(window.Name) ? window.Id : window.Name;
 
     private int GetNextIconWindowNumber()
     {

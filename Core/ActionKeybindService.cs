@@ -1,9 +1,17 @@
 using FFXIVClientStructs.FFXIV.Client.UI.Misc;
 using FFXIVClientStructs.FFXIV.Component.GUI;
+using GameGeneralAction = Lumina.Excel.Sheets.GeneralAction;
 
 namespace FFXIVAura;
 
-public sealed unsafe partial class Plugin
+internal readonly record struct ActionKeybindDiagnostics(
+    int KeybindCount,
+    int HotbarVisibilityCount,
+    int GeneralActionCount,
+    bool IsDirty,
+    DateTime RefreshAfterUtc);
+
+internal sealed unsafe class ActionKeybindService
 {
     private static readonly string[] CrossHotbarAddonNames =
     [
@@ -13,38 +21,79 @@ public sealed unsafe partial class Plugin
         "_ActionCrossEditor",
     ];
 
-    private string GetActionKeybindText(uint baseActionId, uint displayActionId)
+    private readonly IGameGui gameGui;
+    private readonly IDataManager dataManager;
+    private readonly IGameActionRuntime gameActionRuntime;
+    private readonly PerformanceProfiler performanceProfiler;
+    private readonly IPluginLog log;
+    private readonly ActionKeybindIndex index = new();
+    private readonly Dictionary<uint, bool> hotbarVisibility = new();
+    private readonly Dictionary<uint, uint> generalActionIds = new();
+    private bool dirty = true;
+    private DateTime refreshAfterUtc = DateTime.MinValue;
+
+    public ActionKeybindService(
+        IGameGui gameGui,
+        IDataManager dataManager,
+        IGameActionRuntime gameActionRuntime,
+        PerformanceProfiler performanceProfiler,
+        IPluginLog log)
+    {
+        this.gameGui = gameGui;
+        this.dataManager = dataManager;
+        this.gameActionRuntime = gameActionRuntime;
+        this.performanceProfiler = performanceProfiler;
+        this.log = log;
+    }
+
+    public int Count => this.index.Count;
+
+    public string GetText(uint baseActionId, uint displayActionId)
     {
         try
         {
-            this.EnsureActionKeybindIndex();
-            return this.actionKeybindIndex.Find(baseActionId, displayActionId, 0, 0);
+            this.EnsureIndex();
+            return this.index.Find(baseActionId, displayActionId, 0, 0);
         }
         catch (Exception ex)
         {
-            Log.Debug(ex, $"Failed to read hotbar keybind for action {baseActionId}/{displayActionId}.");
+            this.log.Debug(ex, $"Failed to read hotbar keybind for action {baseActionId}/{displayActionId}.");
             return string.Empty;
         }
     }
 
-    private void EnsureActionKeybindIndex()
+    public void Invalidate()
     {
-        var now = DateTime.UtcNow;
-        if (!this.keybindCacheDirty && now < this.keybindCacheRefreshAfter)
-            return;
-
-        this.keybindCacheDirty = false;
-        this.keybindCacheRefreshAfter = now.AddSeconds(2);
-        this.RebuildActionKeybindIndex();
+        this.dirty = true;
+        this.refreshAfterUtc = DateTime.MinValue;
     }
 
-    private void RebuildActionKeybindIndex()
+    public ActionKeybindDiagnostics CreateDiagnostics()
+        => new(
+            this.index.Count,
+            this.hotbarVisibility.Count,
+            this.generalActionIds.Count,
+            this.dirty,
+            this.refreshAfterUtc);
+
+    private void EnsureIndex()
+    {
+        var nowUtc = DateTime.UtcNow;
+        if (!this.dirty && nowUtc < this.refreshAfterUtc)
+            return;
+
+        this.dirty = false;
+        this.refreshAfterUtc = nowUtc.AddSeconds(2);
+        this.RebuildIndex();
+    }
+
+    private void RebuildIndex()
     {
         var profileStart = this.performanceProfiler.BeginSection(PerformanceProfileSection.KeybindRebuild);
         try
         {
-            this.actionKeybindIndex.Clear();
-            this.hotbarVisibilityCache.Clear();
+            this.index.Clear();
+            this.hotbarVisibility.Clear();
 
             var hotbarModule = RaptureHotbarModule.Instance();
             if (hotbarModule is null)
@@ -107,7 +156,7 @@ public sealed unsafe partial class Plugin
         if (actionId == 0)
             return;
 
-        this.actionKeybindIndex.Register(actionId, GetAdjustedActionId(actionId), text);
+        this.index.Register(actionId, this.gameActionRuntime.GetAdjustedActionId(actionId), text);
     }
 
     private static string GetHotbarSlotKeybindText(RaptureHotbarModule.HotbarSlot* slot)
@@ -124,22 +173,22 @@ public sealed unsafe partial class Plugin
 
     private bool IsHotbarVisible(uint hotbarId)
     {
-        if (this.hotbarVisibilityCache.TryGetValue(hotbarId, out var visible))
+        if (this.hotbarVisibility.TryGetValue(hotbarId, out var visible))
             return visible;
 
         var normalHotbarAddonName = HotbarKeybindPolicy.GetNormalHotbarAddonName(hotbarId);
         visible = normalHotbarAddonName is not null
-            ? IsAddonVisible(normalHotbarAddonName)
-            : CrossHotbarAddonNames.Any(IsAddonVisible);
-        this.hotbarVisibilityCache[hotbarId] = visible;
+            ? this.IsAddonVisible(normalHotbarAddonName)
+            : CrossHotbarAddonNames.Any(this.IsAddonVisible);
+        this.hotbarVisibility[hotbarId] = visible;
         return visible;
     }
 
-    private static bool IsAddonVisible(string addonName)
+    private bool IsAddonVisible(string addonName)
     {
         try
         {
-            var addon = (AtkUnitBase*)GameGui.GetAddonByName(addonName).Address;
+            var addon = (AtkUnitBase*)this.gameGui.GetAddonByName(addonName).Address;
             return addon is not null && addon->IsVisible && addon->Scale > 0;
         }
         catch
@@ -149,34 +198,31 @@ public sealed unsafe partial class Plugin
     }
 
     private static bool IsActionHotbarSlot(RaptureHotbarModule.HotbarSlot* slot)
-    {
-        return HotbarKeybindPolicy.IsSupportedActionType(slot->CommandType)
-               || HotbarKeybindPolicy.IsSupportedActionType(slot->ApparentSlotType)
-               || HotbarKeybindPolicy.IsSupportedActionType(slot->OriginalApparentSlotType);
-    }
+        => HotbarKeybindPolicy.IsSupportedActionType(slot->CommandType)
+           || HotbarKeybindPolicy.IsSupportedActionType(slot->ApparentSlotType)
+           || HotbarKeybindPolicy.IsSupportedActionType(slot->OriginalApparentSlotType);
 
     private uint ResolveGeneralActionActionId(uint generalActionId)
     {
         if (generalActionId == 0)
             return 0;
 
-        if (this.generalActionActionIdCache.TryGetValue(generalActionId, out var cached))
+        if (this.generalActionIds.TryGetValue(generalActionId, out var cached))
             return cached;
 
         var actionId = 0u;
         try
         {
-            var sheet = DataManager.GetExcelSheet<GameGeneralAction>();
+            var sheet = this.dataManager.GetExcelSheet<GameGeneralAction>();
             if (sheet is not null)
                 actionId = sheet.GetRow(generalActionId).Action.RowId;
         }
         catch (Exception ex)
         {
-            Log.Debug(ex, $"Failed to resolve general action {generalActionId}.");
+            this.log.Debug(ex, $"Failed to resolve general action {generalActionId}.");
         }
 
-        this.generalActionActionIdCache[generalActionId] = actionId;
+        this.generalActionIds[generalActionId] = actionId;
         return actionId;
     }
-
 }

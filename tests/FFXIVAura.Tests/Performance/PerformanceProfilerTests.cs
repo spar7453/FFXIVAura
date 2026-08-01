@@ -13,6 +13,7 @@ internal static class PerformanceProfilerTests
         ("PerformanceProfiler prunes stale windows", PrunesStaleWindows),
         ("PerformanceProfiler caps recent samples", CapsRecentSamples),
         ("PerformanceProfiler prunes recent samples without new calls", PrunesRecentSamplesWithoutNewCalls),
+        ("PerformanceProfiler tracks completed operations after frame finish", TracksCompletedOperationsAfterFrameFinish),
         ("PerformanceProfiler resets when toggled", ResetsWhenToggled),
         ("PerformanceProfiler labels every profile section", LabelsEveryProfileSection),
     ];
@@ -152,6 +153,39 @@ internal static class PerformanceProfilerTests
         Equal(0, snapshot.SampleFrameCount);
         Equal(0L, snapshot.TotalCallCount);
         Near(0, snapshot.MaxMilliseconds);
+    }
+
+    private static void TracksCompletedOperationsAfterFrameFinish()
+    {
+        var profiler = new PerformanceProfiler();
+        var now = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        profiler.BeginFrame(enabled: true);
+        profiler.FinishFrame(now);
+        profiler.RecordCompletedOperation(
+            PerformanceProfileSection.ProfileRecording,
+            TimeSpan.FromMilliseconds(4),
+            now);
+
+        var snapshot = profiler.GetSnapshot(PerformanceProfileSection.ProfileRecording);
+        Equal(1, snapshot.SampleFrameCount);
+        Equal(1, snapshot.LastCallCount);
+        Equal(1L, snapshot.TotalCallCount);
+        Near(4, snapshot.LastMilliseconds);
+        Near(4, snapshot.AverageMilliseconds);
+        Near(4, snapshot.RecentAverageMilliseconds);
+        Near(4, snapshot.MaxMilliseconds);
+
+        profiler.BeginFrame(enabled: true);
+        snapshot = profiler.GetSnapshot(PerformanceProfileSection.ProfileRecording);
+        Near(4, snapshot.LastMilliseconds);
+        Equal(1, snapshot.LastCallCount);
+        profiler.FinishFrame(now.AddSeconds(6));
+
+        snapshot = profiler.GetSnapshot(PerformanceProfileSection.ProfileRecording);
+        Near(4, snapshot.LastMilliseconds);
+        Equal(1, snapshot.LastCallCount);
+        Near(0, snapshot.RecentAverageMilliseconds);
     }
 
     private static void LabelsEveryProfileSection()

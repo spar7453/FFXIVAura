@@ -7,7 +7,8 @@ internal static class PartyCooldownMemberSnapshotFactory
         ulong contentId,
         ushort worldId,
         string name,
-        uint classJobId)
+        uint classJobId,
+        uint level)
     {
         var job = JobInfo.Code(classJobId);
         return new PartyCooldownMemberSnapshot(
@@ -18,6 +19,7 @@ internal static class PartyCooldownMemberSnapshotFactory
             name,
             CreateShortName(name),
             job,
+            level,
             JobInfo.IconId(classJobId),
             string.Empty);
     }

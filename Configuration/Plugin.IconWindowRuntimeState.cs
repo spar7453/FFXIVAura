@@ -1,22 +1,53 @@
 namespace FFXIVAura;
 
-public sealed unsafe partial class Plugin
+public sealed partial class Plugin
 {
+    // ImGui window titles are stable per window (and per party layout mode), so cache them
+    // instead of interpolating a new string every frame on the locked-overlay hot path.
+    private string GetOverlayWindowTitle(IconWindowConfig iconWindow)
+    {
+        if (!this.overlayWindowTitles.TryGetValue(iconWindow.Id, out var title))
+        {
+            title = $"FFXIVAuraOverlay-{iconWindow.Id}";
+            this.overlayWindowTitles[iconWindow.Id] = title;
+        }
+
+        return title;
+    }
+
+    private string GetPartyCooldownWindowTitle(
+        IconWindowConfig iconWindow,
+        PartyCooldownLayoutEditMode layoutMode)
+    {
+        var key = (iconWindow.Id, layoutMode);
+        if (!this.partyCooldownWindowTitles.TryGetValue(key, out var title))
+        {
+            var layoutModeId = layoutMode switch
+            {
+                PartyCooldownLayoutEditMode.FourPlayer => "light-party",
+                PartyCooldownLayoutEditMode.Alliance => "alliance",
+                _ => "party",
+            };
+            title = $"FFXIVAuraOverlay-{iconWindow.Id}-{layoutModeId}";
+            this.partyCooldownWindowTitles[key] = title;
+        }
+
+        return title;
+    }
+
     private void RemoveIconWindowRuntimeState(string windowId)
     {
         if (string.IsNullOrWhiteSpace(windowId))
             return;
 
-        RemoveScopedRuntimeKeys(this.visibleAbilityKeys, windowId);
-        RemoveScopedRuntimeKeys(this.transientSkillPositionsByGroup, windowId);
-        RemoveScopedRuntimeKeys(this.visibleAurasByScope, windowId);
-        RemoveScopedRuntimeKeys(this.auraFirstSeenByScope, windowId);
-        RemoveScopedRuntimeKeys(this.auraSearchStateRevisionByScope, windowId);
-        this.auraSearchResultCacheByWindow.Remove(windowId);
-        this.trackedAuraGroupCache.Remove(windowId);
+        RemoveSkillLayoutRuntimeKeys(this.visibleAbilityKeys, windowId);
+        RemoveSkillLayoutRuntimeKeys(this.transientSkillPositionsByGroup, windowId);
+        this.auraSearchService.RemoveWindow(windowId);
+        this.overlayFrameBuffersByWindow.Remove(windowId);
         this.partyCooldownRuntimeStore.RemoveWindowBuffer(windowId);
-        if (string.Equals(this.auraSearchWindowId, windowId, StringComparison.OrdinalIgnoreCase))
-            this.CloseAuraSearchWindow();
+        this.auraSearchWindowSession.CloseIfTarget(windowId);
+        this.overlayWindowTitles.Remove(windowId);
+        RemovePartyCooldownWindowTitles(this.partyCooldownWindowTitles, windowId);
     }
 
     private void PruneIconWindowRuntimeState()
@@ -27,46 +58,62 @@ public sealed unsafe partial class Plugin
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        PruneScopedRuntimeKeys(this.visibleAbilityKeys, windowIds);
-        PruneScopedRuntimeKeys(this.transientSkillPositionsByGroup, windowIds);
-        PruneScopedRuntimeKeys(this.visibleAurasByScope, windowIds);
-        PruneScopedRuntimeKeys(this.auraFirstSeenByScope, windowIds);
-        PruneScopedRuntimeKeys(this.auraSearchStateRevisionByScope, windowIds);
-        foreach (var key in this.auraSearchResultCacheByWindow.Keys.ToList())
-        {
-            if (!windowIds.Contains(key, StringComparer.OrdinalIgnoreCase))
-                this.auraSearchResultCacheByWindow.Remove(key);
-        }
+        PruneSkillLayoutRuntimeKeys(this.visibleAbilityKeys, windowIds);
+        PruneSkillLayoutRuntimeKeys(this.transientSkillPositionsByGroup, windowIds);
+        this.auraSearchService.PruneWindows(windowIds);
 
-        foreach (var key in this.trackedAuraGroupCache.Keys.ToList())
+        foreach (var key in this.overlayFrameBuffersByWindow.Keys.ToList())
         {
             if (!windowIds.Contains(key, StringComparer.OrdinalIgnoreCase))
-                this.trackedAuraGroupCache.Remove(key);
+                this.overlayFrameBuffersByWindow.Remove(key);
         }
 
         this.partyCooldownRuntimeStore.PruneWindowBuffers(windowIds);
 
-        if (!string.IsNullOrWhiteSpace(this.auraSearchWindowId)
-            && !windowIds.Contains(this.auraSearchWindowId, StringComparer.OrdinalIgnoreCase))
+        this.auraSearchWindowSession.Prune(windowIds);
+
+        foreach (var key in this.overlayWindowTitles.Keys.ToList())
         {
-            this.CloseAuraSearchWindow();
+            if (!windowIds.Contains(key, StringComparer.OrdinalIgnoreCase))
+                this.overlayWindowTitles.Remove(key);
+        }
+
+        foreach (var key in this.partyCooldownWindowTitles.Keys.ToList())
+        {
+            if (!windowIds.Contains(key.WindowId, StringComparer.OrdinalIgnoreCase))
+                this.partyCooldownWindowTitles.Remove(key);
         }
     }
 
-    private static void RemoveScopedRuntimeKeys<TValue>(Dictionary<string, TValue> map, string windowId)
+    private static void RemovePartyCooldownWindowTitles(
+        Dictionary<(string WindowId, PartyCooldownLayoutEditMode LayoutMode), string> titles,
+        string windowId)
+    {
+        foreach (var key in titles.Keys.ToList())
+        {
+            if (string.Equals(key.WindowId, windowId, StringComparison.OrdinalIgnoreCase))
+                titles.Remove(key);
+        }
+    }
+
+    private static void RemoveSkillLayoutRuntimeKeys<TValue>(
+        Dictionary<SkillLayoutScopeKey, TValue> map,
+        string windowId)
     {
         foreach (var key in map.Keys.ToList())
         {
-            if (RuntimeScopeKeys.BelongsToWindow(key, windowId))
+            if (key.BelongsToWindow(windowId))
                 map.Remove(key);
         }
     }
 
-    private static void PruneScopedRuntimeKeys<TValue>(Dictionary<string, TValue> map, IReadOnlyList<string> windowIds)
+    private static void PruneSkillLayoutRuntimeKeys<TValue>(
+        Dictionary<SkillLayoutScopeKey, TValue> map,
+        IReadOnlyList<string> windowIds)
     {
         foreach (var key in map.Keys.ToList())
         {
-            if (windowIds.Any(windowId => RuntimeScopeKeys.BelongsToWindow(key, windowId)))
+            if (windowIds.Any(key.BelongsToWindow))
                 continue;
 
             map.Remove(key);

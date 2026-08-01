@@ -13,6 +13,7 @@ internal static class PartyCooldownOwnedObjectOwnerResolverTests
         ("PartyCooldownOwnedObjectOwnerResolver ignores unrelated owners", IgnoresUnrelatedOwners),
         ("PartyCooldownOwnedObjectOwnerResolver ignores invalid local ids", IgnoresInvalidLocalIds),
         ("PartyCooldownOwnedObjectOwnerResolver ignores invalid owner ids", IgnoresInvalidOwnerIds),
+        ("PartyCooldownOwnedObjectMatcher returns the matching party member", MatcherReturnsPartyMember),
     ];
 
     private static void ExcludesLocalCollisions()
@@ -77,5 +78,38 @@ internal static class PartyCooldownOwnedObjectOwnerResolverTests
 
         Equal(PartyCooldownOwnedObjectOwnerMatchKind.None, result.Kind);
         Equal(0u, result.OwnerEntityId);
+    }
+
+    private static void MatcherReturnsPartyMember()
+    {
+        var matcher = new PartyCooldownOwnedObjectMatcher(
+            new StubOwnedObjectReader(20),
+            _ => { });
+        PartyCooldownMemberSnapshot[] members =
+        [
+            new("member", 20, 0, 0, "Party Member", "P. Member", "SMN", 90, 0, string.Empty),
+        ];
+
+        True(
+            matcher.TryFindMember(
+                "Ruby Carbuncle",
+                10,
+                members,
+                out var member,
+                out var detail,
+                out var ignoredReason),
+            "owned object should resolve to its party owner");
+        Equal(20u, member.EntityId);
+        Equal(PartyCooldownIgnoredLogReason.None, ignoredReason);
+        Equal("소환수/객체 소유자 매칭", detail);
+    }
+
+    private sealed class StubOwnedObjectReader(params uint[] ownerEntityIds) : IPartyCooldownOwnedObjectReader
+    {
+        public void AddMatchingOwnerEntityIds(string normalizedSourceName, ISet<uint> output)
+        {
+            foreach (var ownerEntityId in ownerEntityIds)
+                output.Add(ownerEntityId);
+        }
     }
 }

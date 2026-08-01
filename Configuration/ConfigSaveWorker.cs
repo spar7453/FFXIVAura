@@ -5,11 +5,13 @@ namespace FFXIVAura;
 
 internal sealed class ConfigSaveWorker : IDisposable
 {
+    private readonly record struct QueuedSnapshot(long Generation, PluginConfig Snapshot);
+
     private const int QueueCapacity = 16;
     private const int SaveAttemptCount = 2;
     private static readonly TimeSpan RetryDelay = TimeSpan.FromMilliseconds(100);
     private readonly Action<PluginConfig> save;
-    private readonly Channel<PluginConfig> snapshots;
+    private readonly Channel<QueuedSnapshot> snapshots;
     private readonly Task worker;
     private readonly object metricsLock = new();
     private Exception? lastError;
@@ -19,12 +21,15 @@ internal sealed class ConfigSaveWorker : IDisposable
     private long droppedCount;
     private long completedCount;
     private long failedCount;
+    private long nextGeneration;
+    private long lastAcceptedGeneration;
+    private long lastSavedGeneration;
     private bool disposed;
 
     public ConfigSaveWorker(Action<PluginConfig> save)
     {
         this.save = save ?? throw new ArgumentNullException(nameof(save));
-        this.snapshots = Channel.CreateBounded<PluginConfig>(new BoundedChannelOptions(QueueCapacity)
+        this.snapshots = Channel.CreateBounded<QueuedSnapshot>(new BoundedChannelOptions(QueueCapacity)
         {
             SingleReader = true,
             SingleWriter = true,
@@ -40,6 +45,8 @@ internal sealed class ConfigSaveWorker : IDisposable
     public long CompletedCount => Interlocked.Read(ref this.completedCount);
 
     public long FailedCount => Interlocked.Read(ref this.failedCount);
+
+    public long LastAcceptedGeneration => Interlocked.Read(ref this.lastAcceptedGeneration);
 
     public double LastSaveMilliseconds
     {
@@ -62,13 +69,22 @@ internal sealed class ConfigSaveWorker : IDisposable
     public bool TryEnqueue(PluginConfig snapshot)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
-        if (this.disposed || !this.snapshots.Writer.TryWrite(snapshot))
+        var generation = Interlocked.Increment(ref this.nextGeneration);
+        if (this.disposed)
         {
             Interlocked.Increment(ref this.droppedCount);
             return false;
         }
 
         Interlocked.Increment(ref this.pendingCount);
+        if (!this.snapshots.Writer.TryWrite(new QueuedSnapshot(generation, snapshot)))
+        {
+            Interlocked.Decrement(ref this.pendingCount);
+            Interlocked.Increment(ref this.droppedCount);
+            return false;
+        }
+
+        Interlocked.Exchange(ref this.lastAcceptedGeneration, generation);
         return true;
     }
 
@@ -79,6 +95,9 @@ internal sealed class ConfigSaveWorker : IDisposable
         => this.CompleteAndSaveLatest(null);
 
     public bool CompleteAndSaveLatest(PluginConfig? latestSnapshot)
+        => this.CompleteAndSaveLatest(latestSnapshot, alreadyQueuedGeneration: 0);
+
+    public bool CompleteAndSaveLatest(PluginConfig? latestSnapshot, long alreadyQueuedGeneration)
     {
         if (this.disposed)
             return latestSnapshot is null;
@@ -86,12 +105,17 @@ internal sealed class ConfigSaveWorker : IDisposable
         this.disposed = true;
         this.snapshots.Writer.TryComplete();
         this.worker.GetAwaiter().GetResult();
-        return latestSnapshot is null || this.SaveSynchronously(latestSnapshot);
+        if (latestSnapshot is null
+            || (alreadyQueuedGeneration > 0
+                && Interlocked.Read(ref this.lastSavedGeneration) >= alreadyQueuedGeneration))
+            return true;
+
+        return this.SaveSynchronously(latestSnapshot);
     }
 
     private async Task ProcessSnapshotsAsync()
     {
-        await foreach (var snapshot in this.snapshots.Reader.ReadAllAsync())
+        await foreach (var queuedSnapshot in this.snapshots.Reader.ReadAllAsync())
         {
             var started = Stopwatch.GetTimestamp();
             Exception? finalError = null;
@@ -100,7 +124,7 @@ internal sealed class ConfigSaveWorker : IDisposable
             {
                 try
                 {
-                    this.save(snapshot);
+                    this.save(queuedSnapshot.Snapshot);
                     saved = true;
                     break;
                 }
@@ -117,6 +141,8 @@ internal sealed class ConfigSaveWorker : IDisposable
                 if (saved)
                 {
                     Interlocked.Increment(ref this.completedCount);
+                    Interlocked.Exchange(ref this.lastSavedGeneration, queuedSnapshot.Generation);
+                    Interlocked.Exchange(ref this.lastError, null);
                 }
                 else
                 {
@@ -162,6 +188,8 @@ internal sealed class ConfigSaveWorker : IDisposable
         if (saved)
         {
             Interlocked.Increment(ref this.completedCount);
+            Interlocked.Exchange(ref this.lastSavedGeneration, this.LastAcceptedGeneration);
+            Interlocked.Exchange(ref this.lastError, null);
         }
         else
         {

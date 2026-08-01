@@ -1,9 +1,46 @@
 namespace FFXIVAura;
 
-public sealed unsafe partial class Plugin
+internal interface IPartyCooldownOwnedObjectReader
 {
-    private bool TryFindPartyCooldownMemberByOwnedObjectName(
+    void AddMatchingOwnerEntityIds(string normalizedSourceName, ISet<uint> output);
+}
+
+internal sealed class DalamudPartyCooldownOwnedObjectReader(IObjectTable objectTable)
+    : IPartyCooldownOwnedObjectReader
+{
+    public void AddMatchingOwnerEntityIds(string normalizedSourceName, ISet<uint> output)
+    {
+        foreach (var gameObject in objectTable)
+        {
+            var ownerEntityId = gameObject?.OwnerId ?? 0;
+            if (!PartyCooldownOwnerResolver.IsValidEntityId(ownerEntityId))
+                continue;
+
+            var objectName = PartyCooldownLogMatcher.NormalizeActorName(gameObject!.Name.ToString());
+            if (string.Equals(normalizedSourceName, objectName, StringComparison.Ordinal))
+                output.Add(ownerEntityId);
+        }
+    }
+}
+
+internal sealed class PartyCooldownOwnedObjectMatcher
+{
+    private readonly IPartyCooldownOwnedObjectReader reader;
+    private readonly Action<string> noteDiagnostic;
+    private readonly HashSet<uint> matchingOwnerEntityIds = [];
+    private readonly HashSet<uint> partyMemberEntityIds = [];
+
+    public PartyCooldownOwnedObjectMatcher(
+        IPartyCooldownOwnedObjectReader reader,
+        Action<string> noteDiagnostic)
+    {
+        this.reader = reader;
+        this.noteDiagnostic = noteDiagnostic;
+    }
+
+    public bool TryFindMember(
         string sourceName,
+        uint localPlayerEntityId,
         IReadOnlyList<PartyCooldownMemberSnapshot> displayMembers,
         out PartyCooldownMemberSnapshot member,
         out string detail,
@@ -18,8 +55,9 @@ public sealed unsafe partial class Plugin
             return false;
         }
 
-        if (!this.TryResolvePartyCooldownOwnedObjectOwner(
+        if (!this.TryResolveOwner(
                 normalizedSourceName,
+                localPlayerEntityId,
                 displayMembers,
                 out var ownerMatch,
                 out detail))
@@ -29,7 +67,7 @@ public sealed unsafe partial class Plugin
             return false;
         }
 
-        return TryApplyPartyCooldownOwnedObjectOwnerMatch(
+        return TryApplyOwnerMatch(
             ownerMatch,
             displayMembers,
             out member,
@@ -37,25 +75,29 @@ public sealed unsafe partial class Plugin
             out ignoredReason);
     }
 
-    private bool TryResolvePartyCooldownOwnedObjectOwner(
+    public void ResetRuntimeState()
+    {
+        this.matchingOwnerEntityIds.Clear();
+        this.partyMemberEntityIds.Clear();
+    }
+
+    private bool TryResolveOwner(
         string normalizedSourceName,
+        uint localPlayerEntityId,
         IReadOnlyList<PartyCooldownMemberSnapshot> displayMembers,
         out PartyCooldownOwnedObjectOwnerMatch ownerMatch,
         out string detail)
     {
-        var matchingOwnerEntityIds = this.partyCooldownOwnedObjectOwnerIdsBuffer;
-        var partyMemberEntityIds = this.partyCooldownOwnedObjectPartyEntityIdsBuffer;
-        matchingOwnerEntityIds.Clear();
-        partyMemberEntityIds.Clear();
-
+        this.matchingOwnerEntityIds.Clear();
+        this.partyMemberEntityIds.Clear();
         try
         {
-            AddPartyCooldownMemberEntityIds(displayMembers, partyMemberEntityIds);
-            AddMatchingPartyCooldownOwnedObjectOwnerIds(normalizedSourceName, matchingOwnerEntityIds);
+            AddMemberEntityIds(displayMembers, this.partyMemberEntityIds);
+            this.reader.AddMatchingOwnerEntityIds(normalizedSourceName, this.matchingOwnerEntityIds);
             ownerMatch = PartyCooldownOwnedObjectOwnerResolver.Resolve(
-                ObjectTable.LocalPlayer?.EntityId ?? 0,
-                matchingOwnerEntityIds,
-                partyMemberEntityIds);
+                localPlayerEntityId,
+                this.matchingOwnerEntityIds,
+                this.partyMemberEntityIds);
             detail = string.Empty;
             return true;
         }
@@ -63,57 +105,28 @@ public sealed unsafe partial class Plugin
         {
             ownerMatch = default;
             detail = $"소환수/객체 목록을 읽지 못했습니다: {ex.GetType().Name}";
-            this.SetBugDiagnosticEvent($"partyCooldownOwnedObjectReadFailed:{ex.GetType().Name}");
+            this.noteDiagnostic($"partyCooldownOwnedObjectReadFailed:{ex.GetType().Name}");
             return false;
         }
         finally
         {
-            matchingOwnerEntityIds.Clear();
-            partyMemberEntityIds.Clear();
+            this.matchingOwnerEntityIds.Clear();
+            this.partyMemberEntityIds.Clear();
         }
     }
 
-    private static void AddPartyCooldownMemberEntityIds(
+    private static void AddMemberEntityIds(
         IReadOnlyList<PartyCooldownMemberSnapshot> displayMembers,
-        ISet<uint> partyMemberEntityIds)
+        ISet<uint> output)
     {
         foreach (var candidate in displayMembers)
         {
-            if (IsValidPartyCooldownEntityId(candidate.EntityId))
-                partyMemberEntityIds.Add(candidate.EntityId);
+            if (PartyCooldownOwnerResolver.IsValidEntityId(candidate.EntityId))
+                output.Add(candidate.EntityId);
         }
     }
 
-    private static void AddMatchingPartyCooldownOwnedObjectOwnerIds(
-        string normalizedSourceName,
-        ISet<uint> matchingOwnerEntityIds)
-    {
-        foreach (var gameObject in ObjectTable)
-        {
-            if (TryGetMatchingPartyCooldownOwnedObjectOwnerId(
-                    gameObject,
-                    normalizedSourceName,
-                    out var ownerEntityId))
-            {
-                matchingOwnerEntityIds.Add(ownerEntityId);
-            }
-        }
-    }
-
-    private static bool TryGetMatchingPartyCooldownOwnedObjectOwnerId(
-        IGameObject? gameObject,
-        string normalizedSourceName,
-        out uint ownerEntityId)
-    {
-        ownerEntityId = gameObject?.OwnerId ?? 0;
-        if (!IsValidPartyCooldownEntityId(ownerEntityId))
-            return false;
-
-        var objectName = PartyCooldownLogMatcher.NormalizeActorName(gameObject!.Name.ToString());
-        return string.Equals(normalizedSourceName, objectName, StringComparison.Ordinal);
-    }
-
-    private static bool TryApplyPartyCooldownOwnedObjectOwnerMatch(
+    private static bool TryApplyOwnerMatch(
         PartyCooldownOwnedObjectOwnerMatch ownerMatch,
         IReadOnlyList<PartyCooldownMemberSnapshot> displayMembers,
         out PartyCooldownMemberSnapshot member,
@@ -129,7 +142,7 @@ public sealed unsafe partial class Plugin
         }
 
         if (ownerMatch.Kind == PartyCooldownOwnedObjectOwnerMatchKind.PartyMember
-            && TryFindPartyCooldownMemberByEntityId(displayMembers, ownerMatch.OwnerEntityId, out member))
+            && TryFindMemberByEntityId(displayMembers, ownerMatch.OwnerEntityId, out member))
         {
             ignoredReason = PartyCooldownIgnoredLogReason.None;
             detail = "소환수/객체 소유자 매칭";
@@ -146,6 +159,24 @@ public sealed unsafe partial class Plugin
 
         ignoredReason = PartyCooldownIgnoredLogReason.OwnerNotFound;
         detail = string.Empty;
+        return false;
+    }
+
+    private static bool TryFindMemberByEntityId(
+        IReadOnlyList<PartyCooldownMemberSnapshot> displayMembers,
+        uint entityId,
+        out PartyCooldownMemberSnapshot member)
+    {
+        foreach (var candidate in displayMembers)
+        {
+            if (candidate.EntityId == entityId)
+            {
+                member = candidate;
+                return true;
+            }
+        }
+
+        member = default;
         return false;
     }
 }

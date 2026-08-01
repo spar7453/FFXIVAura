@@ -111,7 +111,10 @@ internal sealed unsafe class DalamudPartyRosterReader : IPartyRosterReader
                 this.playerState.ContentId,
                 (ushort)this.playerState.HomeWorld.RowId,
                 player.Name.ToString(),
-                this.playerState.ClassJob.RowId);
+                this.playerState.ClassJob.RowId,
+                this.playerState.EffectiveLevel > 0
+                    ? (uint)this.playerState.EffectiveLevel
+                    : (uint)this.playerState.Level);
         }
         catch (Exception ex)
         {
@@ -259,7 +262,8 @@ internal sealed unsafe class DalamudPartyRosterReader : IPartyRosterReader
                 member.ContentId,
                 (ushort)Math.Max(0, (int)member.HomeWorld),
                 name,
-                classJobId);
+                classJobId,
+                member.Level);
         }
         catch (Exception ex)
         {
@@ -316,7 +320,8 @@ internal sealed unsafe class DalamudPartyRosterReader : IPartyRosterReader
                 member.ContentId,
                 (ushort)member.World.RowId,
                 name,
-                classJobId);
+                classJobId,
+                member.Level);
         }
         catch (Exception ex)
         {

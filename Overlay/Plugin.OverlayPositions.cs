@@ -1,6 +1,6 @@
 namespace FFXIVAura;
 
-public sealed unsafe partial class Plugin
+public sealed partial class Plugin
 {
     private bool EnsureOverlayPositionsForItems(
         IconWindowConfig iconWindow,
@@ -171,7 +171,7 @@ public sealed unsafe partial class Plugin
         if (orderedKeys.Contains(key, StringComparer.OrdinalIgnoreCase))
             return true;
 
-        return job is not null && orderedKeys.Any(orderedKey => this.TrackedAbilityIdsMatch(key, orderedKey, job));
+        return job is not null && orderedKeys.Any(orderedKey => this.abilityCatalog.IdsMatch(key, orderedKey, job));
     }
 
     private bool TryGetIconPosition(Dictionary<string, Vector2> positions, string key, string? job, out Vector2 position)

@@ -33,9 +33,26 @@ jobs:
           Invoke-WebRequest 'https://goatcorp.github.io/dalamud-distrib/stg/latest.zip' -OutFile $archive
           New-Item -ItemType Directory -Force -Path $env:DALAMUD_HOME | Out-Null
           Expand-Archive -LiteralPath $archive -DestinationPath $env:DALAMUD_HOME -Force
-          if (-not (Test-Path (Join-Path $env:DALAMUD_HOME 'Dalamud.dll'))) {
+          $dalamudDll = Join-Path $env:DALAMUD_HOME 'Dalamud.dll'
+          if (-not (Test-Path $dalamudDll)) {
             throw 'Dalamud.dll was not found in the downloaded development package.'
           }
+
+          # The runtime target is the KR client's Dalamud (API level in FFXIVAura.json), but this
+          # job builds against the global staging track. Dalamud's major version equals its API
+          # level, so fail loudly when staging moves past the KR runtime instead of silently
+          # producing a green build against a different API surface.
+          $manifest = Get-Content -Raw -Encoding UTF8 '.\FFXIVAura.json' | ConvertFrom-Json
+          $expectedApiLevel = [int]$manifest.DalamudApiLevel
+          $dalamudVersion = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($dalamudDll)
+          if ($dalamudVersion.FileMajorPart -le 0) {
+            throw "Downloaded Dalamud.dll has no usable file version ($($dalamudVersion.FileVersion))."
+          }
+          if ($dalamudVersion.FileMajorPart -ne $expectedApiLevel) {
+            throw ("Downloaded Dalamud $($dalamudVersion.FileVersion) does not match the manifest API level $expectedApiLevel. " +
+              'Update DalamudApiLevel/the KR runtime target together with this workflow, or point the download at a matching Dalamud build.')
+          }
+          Write-Host "Using Dalamud $($dalamudVersion.FileVersion) (API level $expectedApiLevel)."
 
       - name: Restore locked dependencies
         run: dotnet restore .\FFXIVAura.csproj --locked-mode
@@ -119,7 +136,7 @@ jobs:
           $sourcePackage = '.\bin\Release\FFXIVAura\latest.zip'
           $targetPackage = ".\plugin-repo\plugins\FFXIVAura\$version.zip"
           $probeContent = Get-Content -Raw -Encoding UTF8 '.\plugin-repo\pluginmaster.json'
-          $probeEntry = [regex]::Match($probeContent, '(?ms)\{\s*"Author"\s*:\s*"spark",\s*"Name"\s*:\s*"FFXIVAura".*?(?=\r?\n\s*\},)')
+          $probeEntry = [regex]::Match($probeContent, '(?ms)\{\s*"Author"\s*:\s*"spark",\s*"Name"\s*:\s*"FFXIVAura".*?(?=\r?\n\s*\}\s*(?:,|\]))')
           if (-not $probeEntry.Success) {
             throw 'FFXIVAura entry was not found in pluginmaster.json.'
           }
@@ -150,7 +167,7 @@ jobs:
           )
           foreach ($indexFile in $indexFiles) {
             $content = Get-Content -Raw -Encoding UTF8 $indexFile
-            $entryMatch = [regex]::Match($content, '(?ms)\{\s*"Author"\s*:\s*"spark",\s*"Name"\s*:\s*"FFXIVAura".*?(?=\r?\n\s*\},)')
+            $entryMatch = [regex]::Match($content, '(?ms)\{\s*"Author"\s*:\s*"spark",\s*"Name"\s*:\s*"FFXIVAura".*?(?=\r?\n\s*\}\s*(?:,|\]))')
             if (-not $entryMatch.Success) {
               throw "FFXIVAura entry was not found in $indexFile."
             }

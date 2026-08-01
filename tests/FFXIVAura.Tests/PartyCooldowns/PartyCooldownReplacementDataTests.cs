@@ -41,13 +41,13 @@ internal static class PartyCooldownReplacementDataTests
 
     private static void ReplacementsMatchVerifiedReplaceActionRows()
     {
-        var definitions = LoadPartyCooldownData();
-        var groups = definitions
-            .Where(definition => !string.IsNullOrWhiteSpace(definition.ReplacementGroup))
-            .GroupBy(ReplacementGroupKey, StringComparer.OrdinalIgnoreCase)
+        var abilities = LoadAbilityData();
+        var groups = abilities
+            .Where(ability => !string.IsNullOrWhiteSpace(ability.ReplacementGroup))
+            .GroupBy(AbilityReplacementGroupKey, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group => group.ToArray(), StringComparer.OrdinalIgnoreCase);
         var verifiedKeys = VerifiedReplacements
-            .Select(ReplacementGroupKey)
+            .Select(AbilityReplacementGroupKey)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var unexpectedGroups = groups.Keys
             .Where(key => !verifiedKeys.Contains(key))
@@ -58,11 +58,11 @@ internal static class PartyCooldownReplacementDataTests
 
         foreach (var replacement in VerifiedReplacements)
         {
-            var key = ReplacementGroupKey(replacement);
-            True(groups.TryGetValue(key, out var group), $"verified replacement group missing from party_cooldowns.json: {key}");
+            var key = AbilityReplacementGroupKey(replacement);
+            True(groups.TryGetValue(key, out var group), $"verified replacement group missing from abilities.json: {key}");
 
             var actionIds = group!
-                .Select(definition => definition.ActionId)
+                .Select(ability => ability.ActionId)
                 .OrderBy(actionId => actionId)
                 .ToArray();
             var expectedActionIds = new[] { replacement.BaseActionId, replacement.ReplacementActionId }
@@ -70,6 +70,19 @@ internal static class PartyCooldownReplacementDataTests
                 .ToArray();
 
             Sequence(expectedActionIds, actionIds);
+        }
+
+        var partyDefinitions = LoadPartyCooldownData();
+        foreach (var replacement in VerifiedReplacements)
+        {
+            var partyActionIds = partyDefinitions
+                .Where(definition => string.Equals(definition.Job, replacement.Job, StringComparison.OrdinalIgnoreCase))
+                .Where(definition => string.Equals(definition.Category, replacement.Category, StringComparison.OrdinalIgnoreCase))
+                .Select(definition => definition.ActionId)
+                .ToHashSet();
+
+            True(partyActionIds.Contains(replacement.BaseActionId), $"party cooldown base action missing: {replacement.BaseActionId}");
+            True(partyActionIds.Contains(replacement.ReplacementActionId), $"party cooldown replacement action missing: {replacement.ReplacementActionId}");
         }
     }
 
@@ -87,20 +100,25 @@ internal static class PartyCooldownReplacementDataTests
             True(abilitiesByActionId.TryGetValue(replacement.ReplacementActionId, out var replacementAbility), $"replacement action missing from abilities.json: {replacement.ReplacementActionId}");
             True(baseAbility!.Level < replacementAbility!.Level, $"{replacement.Group} should unlock the replacement after the base action");
             Equal(replacement.TraitLevel, replacementAbility.Level);
+            Equal(replacement.Group, baseAbility.ReplacementGroup);
+            Equal(replacement.Group, replacementAbility.ReplacementGroup);
         }
     }
 
     private static void ReplacementsSelectVerifiedActionsByLevel()
     {
         var definitions = LoadPartyCooldownData();
-        var abilityLevels = LoadAbilityData()
+        var abilities = LoadAbilityData()
             .GroupBy(ability => ability.ActionId)
-            .ToDictionary(group => group.Key, group => group.First().Level);
+            .ToDictionary(group => group.Key, group => group.First());
 
         foreach (var definition in definitions)
         {
-            if (abilityLevels.TryGetValue(definition.ActionId, out var level))
-                definition.Level = level;
+            if (!abilities.TryGetValue(definition.ActionId, out var ability))
+                continue;
+
+            definition.Level = ability.Level;
+            definition.ReplacementGroup = ability.ReplacementGroup;
         }
 
         foreach (var replacement in VerifiedReplacements)
@@ -183,16 +201,16 @@ internal static class PartyCooldownReplacementDataTests
         return definitions!;
     }
 
-    private static string ReplacementGroupKey(PartyCooldownDefinition definition)
-        => $"{definition.Job}:{definition.Category}:{definition.ReplacementGroup}";
+    private static string AbilityReplacementGroupKey(AbilityDefinition ability)
+        => $"{ability.Job}:{ability.ReplacementGroup}";
 
-    private static string ReplacementGroupKey(VerifiedReplacement replacement)
-        => $"{replacement.Job}:{replacement.Category}:{replacement.Group}";
+    private static string AbilityReplacementGroupKey(VerifiedReplacement replacement)
+        => $"{replacement.Job}:{replacement.Group}";
 
     private static string DataReplacementKey(PartyCooldownDefinition definition)
         => string.IsNullOrWhiteSpace(definition.ReplacementGroup)
             ? string.Empty
-            : ReplacementGroupKey(definition);
+            : $"{definition.Job}:{definition.Category}:{definition.ReplacementGroup}";
 
     private sealed record VerifiedReplacement(
         string Group,

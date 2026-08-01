@@ -1,6 +1,6 @@
 namespace FFXIVAura;
 
-public sealed unsafe partial class Plugin
+public sealed partial class Plugin
 {
     private void ShowOverlayActionTooltip(
         uint actionId,
@@ -15,7 +15,11 @@ public sealed unsafe partial class Plugin
         }
 
         this.MarkOverlayTooltipRequested();
-        var model = this.GetOverlayActionTooltipModel(actionId, fallbackName, fallbackIconId, fallbackCategory);
+        var model = this.tooltipContentService.GetActionModel(
+            actionId,
+            fallbackName,
+            fallbackIconId,
+            fallbackCategory);
         this.performanceStats.CountTooltipRender();
         this.tooltipDiagnostics.RecordOverlayActionRender(actionId);
         this.SetBugDiagnosticEvent($"tooltipActionOverlay:{actionId}");
@@ -42,28 +46,32 @@ public sealed unsafe partial class Plugin
         ImGui.PushStyleColor(ImGuiCol.PopupBg, new Vector4(0.055f, 0.055f, 0.06f, 0.98f));
         ImGui.PushStyleColor(ImGuiCol.Border, new Vector4(0.5f, 0.5f, 0.52f, 0.9f));
         ImGui.BeginTooltip();
-
-        this.DrawOverlayActionTooltipHeader(model);
-        ImGui.Separator();
-        DrawOverlayActionTooltipStats(model);
-
-        if (!string.IsNullOrWhiteSpace(model.Description))
+        try
         {
+            this.DrawOverlayActionTooltipHeader(model);
             ImGui.Separator();
-            ImGui.PushTextWrapPos(ImGui.GetCursorPosX() + contentWidth);
-            ImGui.TextUnformatted(model.Description);
-            ImGui.PopTextWrapPos();
-        }
+            DrawOverlayActionTooltipStats(model);
 
-        if (model.UnlockLevel > 0)
+            if (!string.IsNullOrWhiteSpace(model.Description))
+            {
+                ImGui.Separator();
+                ImGui.PushTextWrapPos(ImGui.GetCursorPosX() + contentWidth);
+                ImGui.TextUnformatted(model.Description);
+                ImGui.PopTextWrapPos();
+            }
+
+            if (model.UnlockLevel > 0)
+            {
+                ImGui.Separator();
+                ImGui.TextColored(new Vector4(0.58f, 0.9f, 0.3f, 1f), $"습득 레벨 {model.UnlockLevel}");
+            }
+        }
+        finally
         {
-            ImGui.Separator();
-            ImGui.TextColored(new Vector4(0.58f, 0.9f, 0.3f, 1f), $"습득 레벨 {model.UnlockLevel}");
+            ImGui.EndTooltip();
+            ImGui.PopStyleColor(2);
+            ImGui.PopStyleVar(4);
         }
-
-        ImGui.EndTooltip();
-        ImGui.PopStyleColor(2);
-        ImGui.PopStyleVar(4);
     }
 
     private void DrawOverlayActionTooltipHeader(OverlayActionTooltipModel model)
@@ -71,8 +79,7 @@ public sealed unsafe partial class Plugin
         const float iconSize = 54f;
         if (model.IconId > 0)
         {
-            var lookup = new GameIconLookup(model.IconId, false, true, null);
-            var texture = TextureProvider.GetFromGameIcon(in lookup).GetWrapOrEmpty();
+            var texture = this.iconTextureService.GetIcon(model.IconId);
             ImGui.Image(texture.Handle, new Vector2(iconSize, iconSize));
             ImGui.SameLine();
         }
@@ -128,78 +135,4 @@ public sealed unsafe partial class Plugin
             ImGui.TextUnformatted(text);
     }
 
-    private OverlayActionTooltipModel GetOverlayActionTooltipModel(
-        uint actionId,
-        string fallbackName,
-        uint fallbackIconId,
-        string fallbackCategory)
-    {
-        if (this.actionTooltipModelCache.TryGetValue(actionId, out var cached))
-            return cached;
-
-        var action = this.GetActionRow(actionId);
-        if (action is null)
-        {
-            return new OverlayActionTooltipModel(
-                actionId,
-                fallbackIconId,
-                string.IsNullOrWhiteSpace(fallbackName) ? $"Action {actionId}" : fallbackName,
-                fallbackCategory,
-                "-",
-                "-",
-                "-",
-                "-",
-                string.Empty,
-                0,
-                0);
-        }
-
-        var row = action.Value;
-        var name = row.Name.ExtractText();
-        var category = this.GetActionCategory(actionId).Name;
-        var model = new OverlayActionTooltipModel(
-            actionId,
-            row.Icon > 0 ? row.Icon : fallbackIconId,
-            string.IsNullOrWhiteSpace(name) ? fallbackName : name,
-            string.IsNullOrWhiteSpace(category) ? fallbackCategory : category,
-            OverlayActionTooltipFormatting.FormatCastTime(row.Cast100ms),
-            OverlayActionTooltipFormatting.FormatRecastTime(row.Recast100ms),
-            OverlayActionTooltipFormatting.FormatDistance(row.Range),
-            OverlayActionTooltipFormatting.FormatDistance(row.EffectRange),
-            this.GetActionTooltipDescription(actionId),
-            row.ClassJobLevel,
-            Math.Max(row.MaxCharges, (byte)1));
-        this.actionTooltipModelCache[actionId] = model;
-        return model;
-    }
-
-    private string GetActionTooltipDescription(uint actionId)
-    {
-        try
-        {
-            var sheet = DataManager.GetExcelSheet<GameActionTransient>();
-            if (sheet is null)
-                return string.Empty;
-
-            var description = sheet.GetRow(actionId).Description;
-            return SeStringEvaluator.Evaluate(description).ExtractText().StripSoftHyphen();
-        }
-        catch (Exception ex)
-        {
-            Log.Debug(ex, $"Failed to read action tooltip description for {actionId}.");
-            try
-            {
-                return DataManager.GetExcelSheet<GameActionTransient>()?
-                           .GetRow(actionId)
-                           .Description
-                           .ExtractText()
-                           .StripSoftHyphen()
-                       ?? string.Empty;
-            }
-            catch
-            {
-                return string.Empty;
-            }
-        }
-    }
 }

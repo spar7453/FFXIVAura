@@ -1,6 +1,6 @@
 namespace FFXIVAura;
 
-public sealed unsafe partial class Plugin
+public sealed partial class Plugin
 {
     private PartyCooldownDisplayItem BuildPartyCooldownDisplayItem(
         PartyCooldownMemberSnapshot member,
@@ -8,10 +8,10 @@ public sealed unsafe partial class Plugin
         uint level,
         DateTime now)
     {
-        var runtimeKey = this.CreatePartyCooldownRuntimeKey(member.Key, definition);
+        var runtimeKey = this.partyCooldownCatalog.CreateRuntimeKey(member.Key, definition);
         var runtime = this.partyCooldownRuntimeStore.GetOrCreateState(runtimeKey);
 
-        var maxCharges = this.GetPartyCooldownMaxCharges(definition, level);
+        var maxCharges = this.partyCooldownCatalog.GetMaxCharges(definition, level);
         var observedActiveRemaining = this.GetPartyCooldownActiveRemaining(
             member.EntityId,
             definition,
@@ -25,7 +25,7 @@ public sealed unsafe partial class Plugin
             definition.Duration,
             activeObservation,
             canConfirmRefresh);
-        this.NotePartyCooldownTimerDecision(
+        this.partyCooldownSignalDiagnostics.RecordTimerDecision(
             member,
             definition,
             observedActiveRemaining,
@@ -49,7 +49,7 @@ public sealed unsafe partial class Plugin
             maxCharges);
         var state = activeRemaining > 0f
             ? PartyCooldownDisplayState.Active
-            : chargeSnapshot.CurrentCharges == 0 && chargeSnapshot.NextChargeRemaining > 0.05f
+            : chargeSnapshot.CurrentCharges == 0 && chargeSnapshot.NextChargeRemaining > TimerDisplayThresholds.MinimumActiveSeconds
                 ? PartyCooldownDisplayState.Cooldown
                 : PartyCooldownDisplayState.Ready;
         return new PartyCooldownDisplayItem(
@@ -66,10 +66,10 @@ public sealed unsafe partial class Plugin
     {
         return iconWindow.DisplayCondition switch
         {
-            IconDisplayCondition.InCombat => this.IsInCombat() ? item : null,
-            IconDisplayCondition.OutOfCombat => !this.IsInCombat() ? item : null,
+            IconDisplayCondition.InCombat => this.playerFrameContext.IsInCombat ? item : null,
+            IconDisplayCondition.OutOfCombat => !this.playerFrameContext.IsInCombat ? item : null,
             IconDisplayCondition.CoolingOnly => item.State is PartyCooldownDisplayState.Active or PartyCooldownDisplayState.Cooldown
-                                                || item.CooldownRemaining > 0.05f
+                                                || item.CooldownRemaining > TimerDisplayThresholds.MinimumActiveSeconds
                 ? item
                 : null,
             IconDisplayCondition.ReadyOnly => item.State == PartyCooldownDisplayState.Ready ? item : null,
@@ -86,7 +86,7 @@ public sealed unsafe partial class Plugin
     {
         var result = this.partyCooldownActiveStatusIndex.GetObservation(
             sourceEntityId,
-            this.ResolvePartyCooldownStatusIds(definition),
+            this.partyCooldownCatalog.ResolveStatusIds(definition),
             nowUtc);
         observation = result.Observation;
         canConfirmRefresh = result.CanConfirmRefresh;
@@ -122,43 +122,38 @@ public sealed unsafe partial class Plugin
         this.AddPartyCooldownStatusSamplesFromPartyList(memberEntityIds);
 
         var partyListHeader = this.GetPartyListHeader();
-        if (ObjectTable.LocalPlayer is IBattleChara player && (partyListHeader.Length == 0 || memberEntityIds.Contains(player.EntityId)))
-            this.AddPartyCooldownStatusSamplesFromCharacter(player, memberEntityIds);
-
-        try
+        var localPlayerBatch = this.statusSnapshotRuntime.ReadLocalPlayer("partyCooldownCharacter");
+        if (localPlayerBatch.OwnerEntityId != 0
+            && (partyListHeader.Length == 0 || memberEntityIds.Contains(localPlayerBatch.OwnerEntityId)))
         {
-            foreach (var gameObject in ObjectTable)
-            {
-                if (gameObject is IBattleChara battleChara)
-                    this.AddPartyCooldownStatusSamplesFromCharacter(battleChara, memberEntityIds);
-            }
-        }
-        catch (Exception ex)
-        {
-            this.SetBugDiagnosticEvent($"partyCooldownObjectTableReadFailed:{ex.GetType().Name}");
+            this.AddPartyCooldownStatusSamplesFromBatch(localPlayerBatch, memberEntityIds);
         }
 
-        if (TargetManager.Target is IBattleChara target)
-            this.AddPartyCooldownStatusSamplesFromCharacter(target, memberEntityIds);
+        this.statusSnapshotRuntime.VisitBattleCharacters(
+            "partyCooldownCharacter",
+            batch => this.AddPartyCooldownStatusSamplesFromBatch(batch, memberEntityIds));
+
+        this.AddPartyCooldownStatusSamplesFromBatch(
+            this.statusSnapshotRuntime.ReadTarget("partyCooldownCharacter"),
+            memberEntityIds);
 
         this.partyCooldownActiveStatusIndex.CompleteRefresh(memberEntityIds);
     }
 
-    private void AddPartyCooldownStatusSamplesFromCharacter(IBattleChara character, HashSet<uint> partyEntityIds)
+    private void AddPartyCooldownStatusSamplesFromBatch(
+        StatusSnapshotBatch batch,
+        HashSet<uint> partyEntityIds)
     {
-        if (!this.TryReadBattleCharaStatusSnapshots(
-                character,
-                "partyCooldownCharacter",
-                out var entityId,
-                out var snapshotOrigin))
+        if (!batch.Succeeded)
             return;
 
-        if (snapshotOrigin == StatusSnapshotOrigin.Fallback)
-            this.partyCooldownStatusFallbackBatchCount++;
-        else if (snapshotOrigin == StatusSnapshotOrigin.Live && partyEntityIds.Contains(entityId))
+        var entityId = batch.OwnerEntityId;
+        if (batch.Origin == StatusSnapshotOrigin.Fallback)
+            this.partyCooldownSignalDiagnostics.CountStatusFallbackBatch();
+        else if (batch.Origin == StatusSnapshotOrigin.Live && partyEntityIds.Contains(entityId))
             this.partyCooldownActiveStatusIndex.MarkLiveOwner(entityId);
 
-        foreach (var status in this.statusSnapshotBuffer)
+        foreach (var status in batch.Snapshots)
             this.AddPartyCooldownStatusSample(
                 entityId,
                 status.SourceId,
@@ -166,7 +161,7 @@ public sealed unsafe partial class Plugin
                 status.RemainingTime,
                 partyEntityIds,
                 fromPartyList: false,
-                snapshotOrigin);
+                batch.Origin);
     }
 
     private void AddPartyCooldownStatusSample(
@@ -197,29 +192,6 @@ public sealed unsafe partial class Plugin
             snapshotOrigin);
     }
 
-    private void NotePartyCooldownTimerDecision(
-        PartyCooldownMemberSnapshot member,
-        PartyCooldownDefinition definition,
-        float rawRemaining,
-        bool canConfirmRefresh,
-        ObservedStatusTimerResult result)
-    {
-        switch (result.Decision)
-        {
-            case ObservedStatusTimerDecision.Refreshed:
-                this.partyCooldownTimerRefreshAcceptedCount++;
-                break;
-            case ObservedStatusTimerDecision.StalePositiveSuppressed:
-                this.partyCooldownTimerStalePositiveSuppressedCount++;
-                break;
-            default:
-                return;
-        }
-
-        this.partyCooldownTimerLastDecision = FormattableString.Invariant(
-            $"{result.Decision}|member={member.Key}|action={definition.ActionId}|raw={rawRemaining:0.###}|remaining={result.Remaining:0.###}|live={canConfirmRefresh}");
-    }
-
     private uint ResolvePartyCooldownStatusSourceEntityId(
         uint ownerEntityId,
         uint sourceEntityId,
@@ -232,41 +204,7 @@ public sealed unsafe partial class Plugin
 
     private uint GetPartyOwnedObjectOwnerEntityId(uint entityId)
         => PartyCooldownOwnerResolver.IsValidEntityId(entityId)
-            ? this.GetGameObjectOwnerEntityId(entityId)
+            ? this.statusSnapshotRuntime.GetOwnerEntityId(entityId)
             : 0;
-
-    private IReadOnlyList<uint> ResolvePartyCooldownStatusIds(PartyCooldownDefinition definition)
-    {
-        if (this.partyCooldownStatusIdsByActionId.TryGetValue(definition.ActionId, out var cached))
-            return cached;
-
-        var action = this.GetActionRow(definition.ActionId);
-        cached = PartyCooldownStatusResolver.Resolve(definition.StatusIds, action?.StatusGainSelf.RowId ?? 0);
-        this.partyCooldownStatusIdsByActionId[definition.ActionId] = cached;
-        return cached;
-    }
-
-    private uint GetPartyCooldownMaxCharges(PartyCooldownDefinition definition, uint level)
-    {
-        var effectiveLevel = Math.Max(1u, level);
-        var cacheKey = ((ulong)effectiveLevel << 32) | definition.ActionId;
-        if (this.partyCooldownMaxChargesByActionAndLevel.TryGetValue(cacheKey, out var cached))
-            return cached;
-
-        var resolved = Math.Max(1u, definition.Charges);
-        try
-        {
-            var maxCharges = (uint)ActionManager.GetMaxCharges(definition.ActionId, effectiveLevel);
-            if (maxCharges > 0)
-                resolved = maxCharges;
-        }
-        catch (Exception ex)
-        {
-            Log.Debug(ex, $"Failed to read party cooldown charges for {definition.ActionId} at level {level}.");
-        }
-
-        this.partyCooldownMaxChargesByActionAndLevel[cacheKey] = resolved;
-        return resolved;
-    }
 
 }

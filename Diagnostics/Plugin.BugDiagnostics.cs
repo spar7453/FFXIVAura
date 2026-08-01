@@ -1,9 +1,12 @@
 namespace FFXIVAura;
 
-public sealed unsafe partial class Plugin
+public sealed partial class Plugin
 {
     private void RememberOverlayWindowDiagnostics(IconWindowConfig iconWindow, OverlayFrameModel frame)
     {
+        if (!this.performanceProfileRecordingCoordinator.CaptureDiagnosticsThisFrame)
+            return;
+
         var skillReady = 0;
         var skillCooling = 0;
         var skillUnavailable = 0;
@@ -26,6 +29,7 @@ public sealed unsafe partial class Plugin
         var trackedResolveMissing = 0;
         if (!string.IsNullOrWhiteSpace(frame.Job)
             && iconWindow.Role == IconWindowRole.SkillCooldowns
+            && AbilityTrackingService.IsManualTracking(iconWindow, frame.Job)
             && iconWindow.TrackedByJob.TryGetValue(frame.Job, out var tracked)
             && tracked.Count > 0)
         {
@@ -73,6 +77,9 @@ public sealed unsafe partial class Plugin
         int hiddenByDisplayConditionCount,
         int statuslessCandidateCount)
     {
+        if (!this.performanceProfileRecordingCoordinator.CaptureDiagnosticsThisFrame)
+            return;
+
         var displayItemCount = 0;
         var ready = 0;
         var active = 0;
@@ -140,6 +147,9 @@ public sealed unsafe partial class Plugin
         IconWindowConfig iconWindow,
         PartyCooldownBoardRenderMetrics metrics)
     {
+        if (!this.performanceProfileRecordingCoordinator.CaptureDiagnosticsThisFrame)
+            return;
+
         if (!this.overlayWindowDebugSnapshots.TryGetValue(iconWindow.Id, out var snapshot))
             return;
 
@@ -160,9 +170,7 @@ public sealed unsafe partial class Plugin
 
     private bool TryGetCachedCooldown(AbilityDefinition ability, out CooldownState state)
     {
-        return this.cooldownFrameCache.TryGetValue(
-            RuntimeScopeKeys.CooldownFrame(ability.Id, ability.ActionId),
-            out state);
+        return this.cooldownFrameService.TryGetCached(ability, out state);
     }
 
     private void SetBugDiagnosticEvent(string eventName)

@@ -17,6 +17,11 @@ internal static class ConfigTests
         ("PluginConfigNormalizer repairs window ids and values", PluginConfigNormalizerRepairsWindowIdsAndValues),
         ("PluginConfigNormalizer is idempotent after repairing null collections", PluginConfigNormalizerIsIdempotentAfterRepair),
         ("PluginConfigNormalizer repairs performance profile settings", PluginConfigNormalizerRepairsPerformanceProfileSettings),
+        ("PluginConfigMigrator upgrades legacy versions", PluginConfigMigratorUpgradesLegacyVersions),
+        ("PluginConfigMigrator separates legacy manual tracking mode", PluginConfigMigratorSeparatesLegacyManualTrackingMode),
+        ("PluginConfigMigrator preserves explicit empty manual tracking", PluginConfigMigratorPreservesExplicitEmptyManualTracking),
+        ("PluginConfigMigrator is idempotent at the current version", PluginConfigMigratorIsIdempotentAtCurrentVersion),
+        ("PluginConfigMigrator preserves future versions", PluginConfigMigratorPreservesFutureVersions),
     ];
 
     private static void ConfigValueNormalizerRepairsInvalidValues()
@@ -38,6 +43,7 @@ internal static class ConfigTests
         var source = new Dictionary<string, List<string>>
         {
             [" DRG "] = [" a ", "A", "", "b"],
+            [" EMPTY "] = [],
         };
 
         var result = ConfigMapNormalizer.NormalizeStringListMap(source, out var changed);
@@ -45,6 +51,7 @@ internal static class ConfigTests
         True(result.Comparer.Equals(StringComparer.OrdinalIgnoreCase), "map comparer should ignore case");
         True(result.ContainsKey("DRG"), "trimmed key should exist");
         Sequence(["a", "b"], result["DRG"]);
+        True(!result.ContainsKey("EMPTY"), "ordinary maps should discard empty entries");
     }
 
     private static void ConfigMapNormalizerNormalizesStringLists()
@@ -82,6 +89,7 @@ internal static class ConfigTests
             OverlayPosition = new Vector2(640, 360),
             OverlayWidth = 760,
             OverlayHeight = 170,
+            ManualTrackingJobs = [" DRG "],
             TrackedByJob = new Dictionary<string, List<string>>
             {
                 [" DRG "] = [" jump ", "JUMP", "dive"],
@@ -108,6 +116,7 @@ internal static class ConfigTests
         Equal("win1", window.Id);
         Equal("\uCC3D 1", window.Name);
         Equal("win1", config.ActiveWindowId);
+        Sequence(["DRG"], window.ManualTrackingJobs);
         Sequence(["jump", "dive"], window.TrackedByJob["DRG"]);
         Sequence(["hide"], window.ExcludedByJob["DRG"]);
         True(window.IconPositionsByJob["DRG"].ContainsKey("jump"), "legacy position should be copied");
@@ -364,5 +373,112 @@ internal static class ConfigTests
         True(changed, "profile settings should be clamped");
         Equal(60, config.PerformanceProfileRecordIntervalSeconds);
         Equal(1024, config.PerformanceProfileMaxFileMegabytes);
+    }
+
+    private static void PluginConfigMigratorUpgradesLegacyVersions()
+    {
+        var config = new PluginConfigData
+        {
+            Version = 1,
+            OverlayWidth = 320,
+            OverlayHeight = 90,
+        };
+
+        var changed = PluginConfigMigrator.Migrate(config, TestData.ConfigOptions());
+
+        True(changed, "legacy config should be migrated");
+        Equal(PluginConfigMigrator.CurrentVersion, config.Version);
+        Near(760, config.OverlayWidth);
+        Near(170, config.OverlayHeight);
+        Equal(1, config.IconWindows.Count);
+        Near(760, config.IconWindows[0].Width);
+        Near(170, config.IconWindows[0].Height);
+    }
+
+    private static void PluginConfigMigratorSeparatesLegacyManualTrackingMode()
+    {
+        var config = new PluginConfigData
+        {
+            Version = 6,
+            TrackedByJob = new Dictionary<string, List<string>>
+            {
+                [" DRG "] = [" jump "],
+                [" PLD "] = [],
+            },
+            IconWindows =
+            [
+                new IconWindowConfig
+                {
+                    Id = "win1",
+                    TrackedByJob = new Dictionary<string, List<string>>
+                    {
+                        [" WHM "] = [" benison "],
+                        [" WAR "] = ["", " "],
+                    },
+                },
+            ],
+        };
+
+        True(
+            PluginConfigMigrator.Migrate(config, TestData.ConfigOptions()),
+            "legacy tracking mode should be migrated");
+
+        Sequence(["DRG"], config.ManualTrackingJobs);
+        True(!config.TrackedByJob.ContainsKey("PLD"), "legacy empty root entries should return to automatic mode");
+        Sequence(["WHM"], config.IconWindows[0].ManualTrackingJobs);
+        True(!config.IconWindows[0].TrackedByJob.ContainsKey("WAR"), "legacy empty window entries should return to automatic mode");
+    }
+
+    private static void PluginConfigMigratorPreservesExplicitEmptyManualTracking()
+    {
+        var config = new PluginConfigData
+        {
+            Version = PluginConfigMigrator.CurrentVersion,
+            IconWindows =
+            [
+                new IconWindowConfig
+                {
+                    Id = "win1",
+                    ManualTrackingJobs = [" PLD ", "pld"],
+                    TrackedByJob = new Dictionary<string, List<string>>
+                    {
+                        ["PLD"] = [],
+                    },
+                },
+            ],
+        };
+
+        True(
+            PluginConfigMigrator.Migrate(config, TestData.ConfigOptions()),
+            "current explicit tracking state should be normalized");
+
+        Sequence(["PLD"], config.IconWindows[0].ManualTrackingJobs);
+        True(!config.IconWindows[0].TrackedByJob.ContainsKey("PLD"), "empty tracked data should not encode mode");
+        True(
+            AbilityTrackingService.IsManualTracking(config.IconWindows[0], "pld"),
+            "manual mode should survive without an empty map entry");
+    }
+
+    private static void PluginConfigMigratorIsIdempotentAtCurrentVersion()
+    {
+        var config = new PluginConfigData();
+        PluginConfigMigrator.Migrate(config, TestData.ConfigOptions());
+
+        True(
+            !PluginConfigMigrator.Migrate(config, TestData.ConfigOptions()),
+            "a current normalized config should not change on a second migration");
+        Equal(PluginConfigMigrator.CurrentVersion, config.Version);
+    }
+
+    private static void PluginConfigMigratorPreservesFutureVersions()
+    {
+        var config = new PluginConfigData();
+        PluginConfigMigrator.Migrate(config, TestData.ConfigOptions());
+        config.Version = PluginConfigMigrator.CurrentVersion + 1;
+
+        True(
+            !PluginConfigMigrator.Migrate(config, TestData.ConfigOptions()),
+            "a normalized future config should not be rewritten");
+        Equal(PluginConfigMigrator.CurrentVersion + 1, config.Version);
     }
 }

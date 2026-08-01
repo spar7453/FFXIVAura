@@ -123,6 +123,11 @@ internal static class IconWindowCloneTests
             {
                 Position = new Vector2(30, 40),
             },
+            ManualTrackingJobs = ["PLD"],
+            TrackedByJob = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["PLD"] = [],
+            },
             TrackedStatusIds = [10],
             AuraPositionsByRole = new Dictionary<string, Dictionary<string, Vector2>>(StringComparer.OrdinalIgnoreCase)
             {
@@ -146,6 +151,8 @@ internal static class IconWindowCloneTests
         Near(240, clone.OrderEditorHeight);
         True(clone.FourPlayerLayout is not null, "party layout should be cloned");
         True(!ReferenceEquals(source.FourPlayerLayout, clone.FourPlayerLayout), "party layout should be independent");
+        Sequence(["PLD"], clone.ManualTrackingJobs);
+        True(!clone.TrackedByJob.ContainsKey("PLD"), "empty tracked data should not be cloned");
         Sequence([10u], clone.TrackedStatusIds);
         True(clone.AuraPositionsByRole.ContainsKey("new:PartyBuffs"), "aura position scope should use the new window id");
 

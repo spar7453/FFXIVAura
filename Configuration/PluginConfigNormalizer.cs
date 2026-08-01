@@ -25,13 +25,6 @@ internal readonly record struct PluginConfigNormalizationOptions(
 
 internal static partial class PluginConfigNormalizer
 {
-    private const int MinPerformanceProfileRecordIntervalSeconds = 1;
-    private const int MaxPerformanceProfileRecordIntervalSeconds = 60;
-    private const int DefaultPerformanceProfileRecordIntervalSeconds = 1;
-    private const int MinPerformanceProfileMaxFileMegabytes = 1;
-    private const int MaxPerformanceProfileMaxFileMegabytes = 1024;
-    private const int DefaultPerformanceProfileMaxFileMegabytes = 64;
-
     public static bool Normalize(PluginConfigData config, PluginConfigNormalizationOptions options)
     {
         ArgumentNullException.ThrowIfNull(config);
@@ -139,24 +132,16 @@ internal static partial class PluginConfigNormalizer
     private static bool NormalizePerformanceProfileSettings(PluginConfigData config)
     {
         var changed = false;
-        var interval = config.PerformanceProfileRecordIntervalSeconds <= 0
-            ? DefaultPerformanceProfileRecordIntervalSeconds
-            : Math.Clamp(
-                config.PerformanceProfileRecordIntervalSeconds,
-                MinPerformanceProfileRecordIntervalSeconds,
-                MaxPerformanceProfileRecordIntervalSeconds);
+        var interval = PerformanceProfileConfigPolicy.NormalizeRecordInterval(
+            config.PerformanceProfileRecordIntervalSeconds);
         if (config.PerformanceProfileRecordIntervalSeconds != interval)
         {
             config.PerformanceProfileRecordIntervalSeconds = interval;
             changed = true;
         }
 
-        var maxFileMegabytes = config.PerformanceProfileMaxFileMegabytes <= 0
-            ? DefaultPerformanceProfileMaxFileMegabytes
-            : Math.Clamp(
-                config.PerformanceProfileMaxFileMegabytes,
-                MinPerformanceProfileMaxFileMegabytes,
-                MaxPerformanceProfileMaxFileMegabytes);
+        var maxFileMegabytes = PerformanceProfileConfigPolicy.NormalizeMaxFileMegabytes(
+            config.PerformanceProfileMaxFileMegabytes);
         if (config.PerformanceProfileMaxFileMegabytes != maxFileMegabytes)
         {
             config.PerformanceProfileMaxFileMegabytes = maxFileMegabytes;
@@ -169,6 +154,12 @@ internal static partial class PluginConfigNormalizer
     private static bool EnsureConfigCollections(PluginConfigData config, PluginConfigNormalizationOptions options)
     {
         var changed = false;
+        if (config.ManualTrackingJobs is null)
+        {
+            config.ManualTrackingJobs = [];
+            changed = true;
+        }
+
         if (config.TrackedByJob is null)
         {
             config.TrackedByJob = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
@@ -221,7 +212,13 @@ internal static partial class PluginConfigNormalizer
             changed = true;
         }
 
-        config.TrackedByJob = ConfigMapNormalizer.NormalizeStringListMap(config.TrackedByJob, out var trackedMapChanged);
+        config.ManualTrackingJobs = ConfigMapNormalizer.NormalizeStringList(
+            config.ManualTrackingJobs,
+            out var manualTrackingJobsChanged);
+        changed |= manualTrackingJobsChanged;
+        config.TrackedByJob = ConfigMapNormalizer.NormalizeStringListMap(
+            config.TrackedByJob,
+            out var trackedMapChanged);
         changed |= trackedMapChanged;
         config.ExcludedByJob = ConfigMapNormalizer.NormalizeStringListMap(config.ExcludedByJob, out var excludedMapChanged);
         changed |= excludedMapChanged;
@@ -258,6 +255,12 @@ internal static partial class PluginConfigNormalizer
         if (window.ExcludedPartyCooldownIds is null)
         {
             window.ExcludedPartyCooldownIds = [];
+            changed = true;
+        }
+
+        if (window.ManualTrackingJobs is null)
+        {
+            window.ManualTrackingJobs = [];
             changed = true;
         }
 

@@ -1,6 +1,6 @@
 namespace FFXIVAura;
 
-public sealed unsafe partial class Plugin
+public sealed partial class Plugin
 {
     private void DrawAbilityIcon(AbilityDefinition ability, float size, IconWindowConfig iconWindow)
     {
@@ -9,13 +9,12 @@ public sealed unsafe partial class Plugin
         {
             var state = this.GetCooldown(ability);
             var iconId = state.DisplayIconId > 0 ? state.DisplayIconId : ability.IconId;
-            var lookup = new GameIconLookup(iconId, false, true, null);
-            var texture = TextureProvider.GetFromGameIcon(in lookup).GetWrapOrEmpty();
+            var texture = this.iconTextureService.GetIcon(iconId);
             var pos = ImGui.GetCursorScreenPos();
             var draw = ImGui.GetWindowDrawList();
 
             var unavailable = state.IsUnavailable;
-            var grayscaleTexture = unavailable ? this.GetGrayscaleIconTexture(iconId) : null;
+            var grayscaleTexture = unavailable ? this.iconTextureService.GetGrayscaleIcon(iconId) : null;
             ImGui.Image((grayscaleTexture ?? texture).Handle, new Vector2(size, size));
             var max = pos + new Vector2(size, size);
 

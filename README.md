@@ -127,15 +127,17 @@ Each window stores its own display settings and manual icon positions. When a wi
 The general settings include a detailed profiling option for local debugging. When enabled, the performance overlay shows:
 
 - Total plugin frame time, per-frame managed allocation, and Gen0 collection count.
-- Section timings for overlay rendering, frame model creation, positioning, cooldowns, icon rendering, aura scans, keybind rebuilds, tooltip rendering, and grayscale processing.
+- Section timings for overlay rendering, frame model creation, positioning, cooldowns, icon rendering, aura scans, keybind rebuilds, tooltip rendering, grayscale processing, profile recording, and the performance window itself.
 - Current, average, maximum, recent 5-second average, and maximum timestamp values. The recent average keeps a larger bounded sample window so high-FPS clients do not shorten the displayed 5-second view too aggressively.
 - Per-window timings by overlay window name.
 
 Use this only while diagnosing performance. Keep it disabled for normal play unless you are actively checking a problem.
 
-For longer development sessions, enable `프로파일 자동 기록` in the general settings. The plugin writes `performance-profile.csv` to the Dalamud plugin config directory once per configured interval. File writes and configuration saves run through bounded background queues so disk latency does not stall overlay rendering; plugin unload drains queued saves and persists the latest pending snapshot last. Queue depth, dropped work, completion/failure counts, and write duration are included in diagnostics. Rows are stored in long format with `frame`, `section`, `window`, and `diagnostic` scopes, so the same file can be filtered by total frame time, profiler section, overlay window, runtime state, frame allocation, or Gen0 activity. Diagnostic rows include player level/combat/loading state, overlay/window settings, cache sizes, status fallback and owned-object source counts, aura cache state, party cooldown log/runtime counts, party status-scan/cache-hit counts, roster-cache hits, local-owned-object skips, grayscale queue state, tooltip activity, per-window display decision counts, and the last notable debug event. When the file reaches the configured size limit, the previous file is rotated to `performance-profile.previous.csv`.
+For longer development sessions, enable `프로파일 자동 기록` in the general settings. The plugin writes `performance-profile.csv` to the Dalamud plugin config directory once per configured interval. File writes and configuration saves run through bounded background queues so disk latency does not stall overlay rendering; plugin unload drains queued saves and persists the latest pending snapshot last. Queue depth, dropped work, completion/failure counts, and write duration are included in diagnostics. Rows are stored in long format with `frame`, `section`, `window`, and `diagnostic` scopes, so the same file can be filtered by total frame time, profiler section, overlay window, runtime state, frame allocation, or Gen0 activity. Diagnostic rows are context-only, so their timing columns are zero; use the `frame`, `section`, and `window` rows with the same timestamp for timing data. Diagnostic rows include player level/combat/loading state, overlay/window settings, cache sizes, status fallback and owned-object source counts, aura cache state, party cooldown log/runtime counts, party status-scan/cache-hit counts, roster-cache hits, local-owned-object skips, grayscale queue state, tooltip activity, per-window display decision counts, and the last notable debug event. Character names are written as session-local aliases, and raw combat-log detail text is redacted so the profile can be shared without exposing party member names. A privacy schema version is stored in every row; on the first run after a privacy schema change, both the current and previous legacy profile files are removed before new rows are recorded. When the file reaches the configured size limit, the previous file is rotated to `performance-profile.previous.csv`.
 
-Use the bundled analyzer to inspect only the latest runtime session or all recorded 24-player alliance snapshots without repeatedly importing the entire CSV by hand:
+Timing rows follow the configured recording interval. Larger diagnostic snapshots are written every 10 seconds to reduce file growth and per-frame allocation while retaining enough runtime context for investigation.
+
+Use the bundled analyzer to inspect only the latest runtime session or all recorded 24-player alliance snapshots without repeatedly importing the entire CSV by hand. The analyzer reads a shared snapshot, so it can inspect a live profile without blocking the plugin writer:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\analyze-performance-profile.ps1
@@ -185,13 +187,13 @@ Typical update workflow:
 - `Plugin.cs`
   - Plugin entry point, Dalamud services, command registration, and lifecycle.
 - `Abilities/`
-  - Ability data, adjusted actions, cooldown calculations, tracked-skill editing, rendering, and keybind indexing.
+  - Ability data, testable game-action runtime/repository boundaries, cooldown calculations, tracked-skill editing, rendering, and keybind indexing.
 - `Auras/`
   - Player/target/party aura snapshots, search, tracking, positioning, and rendering.
 - `Configuration/`
   - Settings UI, window management, config migration/normalization, deep snapshots, and background saves.
 - `Core/`
-  - Job metadata, status snapshots, data-file loading, runtime keys, login stabilization, and keybind formatting.
+  - Job metadata, immutable player-frame runtime context, status snapshots, data-file loading, runtime keys, login stabilization, and keybind formatting.
 - `Overlay/`
   - Overlay frame models, edit controls, layout geometry, icon positions, resizing, and shared icon rendering.
 - `PartyCooldowns/`

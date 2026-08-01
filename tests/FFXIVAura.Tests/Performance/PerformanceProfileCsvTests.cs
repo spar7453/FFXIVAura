@@ -10,6 +10,7 @@ internal static class PerformanceProfileCsvTests
     [
         ("PerformanceProfileCsv escapes labels", EscapesLabels),
         ("PerformanceProfileCsv formats rows invariantly", FormatsRowsInvariantly),
+        ("PerformanceProfileCsv creates context-only diagnostic rows", CreatesContextOnlyDiagnosticRows),
     ];
 
     private static void EscapesLabels()
@@ -51,7 +52,7 @@ internal static class PerformanceProfileCsvTests
             16));
 
         var columns = builder.ToString().TrimEnd().Split(',');
-        Equal(24, columns.Length);
+        Equal(25, columns.Length);
         Equal("2026-01-02T03:04:05.0000000Z", columns[0]);
         Equal("frame", columns[1]);
         Equal("plugin", columns[2]);
@@ -67,5 +68,32 @@ internal static class PerformanceProfileCsvTests
         Equal("14.5", columns[21]);
         Equal("15", columns[22]);
         Equal("16", columns[23]);
+        Equal(PerformanceProfileCsv.PrivacySchemaVersion.ToString(), columns[24]);
+    }
+
+    private static void CreatesContextOnlyDiagnosticRows()
+    {
+        var row = PerformanceProfileCsv.CreateDiagnosticRow(
+            DateTime.UtcNow,
+            "cache",
+            "Cache",
+            "entries=3",
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7);
+
+        Equal("diagnostic", row.Scope);
+        Equal(0d, row.CurrentMilliseconds);
+        Equal(0d, row.RecentAverageMilliseconds);
+        Equal(0d, row.AverageMilliseconds);
+        Equal(0d, row.MaxMilliseconds);
+        Equal(DateTime.MinValue, row.MaxOccurredAtUtc);
+        Equal(0, row.SampleFrameCount);
+        Equal(1, row.WindowCount);
+        Equal(7, row.GrayscaleIconProcessCount);
     }
 }

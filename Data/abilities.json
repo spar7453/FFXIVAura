@@ -189,6 +189,7 @@
       2248
     ],
     "job": "NIN",
+    "replacementGroup": "nin-mug",
     "level": 15,
     "cooldown": 120,
     "charges": 1,
@@ -631,6 +632,7 @@
       17
     ],
     "job": "PLD",
+    "replacementGroup": "pld-sentinel",
     "level": 38,
     "cooldown": 120,
     "charges": 1,
@@ -761,6 +763,7 @@
       36920
     ],
     "job": "PLD",
+    "replacementGroup": "pld-sentinel",
     "level": 92,
     "cooldown": 120,
     "charges": 1,
@@ -813,6 +816,7 @@
       44
     ],
     "job": "WAR",
+    "replacementGroup": "war-vengeance",
     "level": 38,
     "cooldown": 120,
     "charges": 1,
@@ -956,6 +960,7 @@
       36923
     ],
     "job": "WAR",
+    "replacementGroup": "war-vengeance",
     "level": 92,
     "cooldown": 120,
     "charges": 1,
@@ -982,6 +987,7 @@
       3636
     ],
     "job": "DRK",
+    "replacementGroup": "drk-shadow-wall",
     "level": 38,
     "cooldown": 120,
     "charges": 1,
@@ -1151,6 +1157,7 @@
       36927
     ],
     "job": "DRK",
+    "replacementGroup": "drk-shadow-wall",
     "level": 92,
     "cooldown": 120,
     "charges": 1,
@@ -1203,6 +1210,7 @@
       16148
     ],
     "job": "GNB",
+    "replacementGroup": "gnb-nebula",
     "level": 38,
     "cooldown": 120,
     "charges": 1,
@@ -1320,6 +1328,7 @@
       36935
     ],
     "job": "GNB",
+    "replacementGroup": "gnb-nebula",
     "level": 92,
     "cooldown": 120,
     "charges": 1,
@@ -1801,6 +1810,7 @@
       24288
     ],
     "job": "SGE",
+    "replacementGroup": "sge-physis",
     "level": 20,
     "cooldown": 60,
     "charges": 1,
@@ -1892,6 +1902,7 @@
       24302
     ],
     "job": "SGE",
+    "replacementGroup": "sge-physis",
     "level": 60,
     "cooldown": 60,
     "charges": 1,
@@ -2321,6 +2332,7 @@
       36957
     ],
     "job": "NIN",
+    "replacementGroup": "nin-mug",
     "level": 66,
     "cooldown": 120,
     "charges": 1,
@@ -2386,6 +2398,7 @@
       7498
     ],
     "job": "SAM",
+    "replacementGroup": "sam-third-eye",
     "level": 6,
     "cooldown": 15,
     "charges": 1,
@@ -2490,6 +2503,7 @@
       36962
     ],
     "job": "SAM",
+    "replacementGroup": "sam-third-eye",
     "level": 82,
     "cooldown": 15,
     "charges": 1,

@@ -1,10 +1,11 @@
 namespace FFXIVAura;
 
-public sealed unsafe partial class Plugin
+public sealed partial class Plugin
 {
     private PartyCooldownLayoutEditMode GetPartyCooldownLayoutMode(IReadOnlyList<PartyCooldownMemberRow> rows)
         => this.ResolvePartyCooldownLayoutPreview(
-            this.GetAutomaticPartyCooldownLayoutMode(GetPartyCooldownAllianceGroupCount(rows)));
+            this.GetAutomaticPartyCooldownLayoutMode(
+                PartyCooldownBoardLayoutCalculator.CountAllianceGroups(rows)));
 
     private PartyCooldownLayoutEditMode GetPartyCooldownLayoutMode()
     {
@@ -25,7 +26,7 @@ public sealed unsafe partial class Plugin
 
     private PartyCooldownLayoutEditMode GetAutomaticPartyCooldownLayoutMode(int observedGroupCount)
     {
-        if (!ClientState.IsLoggedIn)
+        if (!this.playerFrameContext.IsLoggedIn)
         {
             this.partyCooldownLayoutModeTracker.Reset();
             return PartyCooldownLayoutEditMode.EightPlayer;

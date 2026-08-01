@@ -18,6 +18,8 @@ internal enum PerformanceProfileSection
     AuraSearch,
     PartyRoster,
     PartyRows,
+    ProfileRecording,
+    PerformanceOverlay,
     Count,
 }
 

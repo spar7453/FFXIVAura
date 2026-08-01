@@ -1,6 +1,6 @@
 namespace FFXIVAura;
 
-public sealed unsafe partial class Plugin
+public sealed partial class Plugin
 {
     private Vector2 GetAuraIconPosition(IconWindowConfig iconWindow, AuraState aura, int index, int visibleCount, Vector2 areaSize, float iconSize, float gap)
     {
@@ -97,7 +97,7 @@ public sealed unsafe partial class Plugin
 
     private bool RemoveStaleAuraIconPositions(IconWindowConfig iconWindow, Dictionary<string, Vector2> positions)
     {
-        var trackedStatusIds = this.GetTrackedAuraGroups(iconWindow)
+        var trackedStatusIds = this.auraSearchService.GetTrackedGroups(iconWindow)
             .Select(group => group.StatusId)
             .ToHashSet();
         var changed = false;

@@ -90,8 +90,15 @@ internal readonly record struct PartyCooldownMemberSnapshot(
     string Name,
     string ShortName,
     string Job,
+    uint Level,
     uint JobIconId,
-    string AllianceGroup);
+    string AllianceGroup)
+{
+    // A non-zero member level is authoritative. The local effective level is only a
+    // missing-data fallback, not a cap: another member can legitimately be above it.
+    public uint ResolveEffectiveLevel(uint missingLevelFallback)
+        => this.Level > 0 ? this.Level : missingLevelFallback;
+}
 
 internal readonly record struct PartyCooldownObservedAction(
     uint ActionId,
@@ -131,9 +138,48 @@ internal readonly record struct PartyCooldownDisplayItem(
 
 internal readonly record struct PartyCooldownMemberRow(
     PartyCooldownMemberSnapshot Member,
-    IReadOnlyList<PartyCooldownDisplayItem> Items);
+    IReadOnlyList<PartyCooldownDisplayItem> Items) : IPartyCooldownBoardLayoutRow
+{
+    public string AllianceGroup => this.Member.AllianceGroup;
 
-internal sealed record PartyCooldownFrameSnapshot(
+    public int ItemCount => this.Items.Count;
+}
+
+internal readonly struct PartyCooldownDefinitionScopeKey : IEquatable<PartyCooldownDefinitionScopeKey>
+{
+    public PartyCooldownDefinitionScopeKey(PartyCooldownCategory category, string job, uint level)
+    {
+        this.Category = category;
+        this.Job = job?.Trim() ?? string.Empty;
+        this.Level = level;
+    }
+
+    public PartyCooldownCategory Category { get; }
+
+    public string Job { get; }
+
+    public uint Level { get; }
+
+    public bool Equals(PartyCooldownDefinitionScopeKey other)
+        => this.Category == other.Category
+           && this.Level == other.Level
+           && string.Equals(this.Job, other.Job, StringComparison.OrdinalIgnoreCase);
+
+    public override bool Equals(object? obj)
+        => obj is PartyCooldownDefinitionScopeKey other && this.Equals(other);
+
+    public override int GetHashCode()
+        => HashCode.Combine(
+            this.Category,
+            StringComparer.OrdinalIgnoreCase.GetHashCode(this.Job ?? string.Empty),
+            this.Level);
+}
+
+internal readonly record struct PartyCooldownCategoryLevelKey(
+    PartyCooldownCategory Category,
+    uint Level);
+
+internal readonly record struct PartyCooldownFrameSnapshot(
     IReadOnlyList<PartyCooldownMemberSnapshot> Members,
     IReadOnlyList<PartyCooldownMemberSnapshot> DisplayMembers,
     PartyCooldownRosterDiagnostics RosterDiagnostics,

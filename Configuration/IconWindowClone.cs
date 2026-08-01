@@ -2,6 +2,14 @@ namespace FFXIVAura;
 
 internal static class IconWindowClone
 {
+    public static List<string> CloneStringList(IEnumerable<string>? source)
+        => source?
+               .Where(value => !string.IsNullOrWhiteSpace(value))
+               .Select(value => value.Trim())
+               .Distinct(StringComparer.OrdinalIgnoreCase)
+               .ToList()
+           ?? [];
+
     public static IconWindowConfig CloneSnapshot(IconWindowConfig source)
     {
         ArgumentNullException.ThrowIfNull(source);
@@ -28,7 +36,8 @@ internal static class IconWindowClone
             CloneAuraPositionsForWindow(source.AuraPositionsByRole, source.Id, targetId));
     }
 
-    public static Dictionary<string, List<string>> CloneStringListMap(Dictionary<string, List<string>> source)
+    public static Dictionary<string, List<string>> CloneStringListMap(
+        Dictionary<string, List<string>> source)
     {
         var result = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
         foreach (var (key, values) in source)
@@ -132,6 +141,7 @@ internal static class IconWindowClone
             TrackedStatusIds = source.TrackedStatusIds.ToList(),
             ExactTrackedStatusIds = source.ExactTrackedStatusIds.ToList(),
             ExcludedPartyCooldownIds = source.ExcludedPartyCooldownIds.ToList(),
+            ManualTrackingJobs = CloneStringList(source.ManualTrackingJobs),
             TrackedByJob = CloneStringListMap(source.TrackedByJob),
             ExcludedByJob = CloneStringListMap(source.ExcludedByJob),
             IconPositionsByJob = CloneVector2Map(source.IconPositionsByJob),

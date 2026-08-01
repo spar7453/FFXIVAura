@@ -1,14 +1,14 @@
 namespace FFXIVAura;
 
-public sealed unsafe partial class Plugin
+public sealed partial class Plugin
 {
     private void DrawOverlay()
     {
         var profileStart = this.performanceProfiler.BeginSection(PerformanceProfileSection.Overlay);
         try
         {
-            var job = JobInfo.Code(PlayerState.ClassJob.RowId);
-            var level = (uint)(PlayerState.EffectiveLevel > 0 ? PlayerState.EffectiveLevel : PlayerState.Level);
+            var job = this.playerFrameContext.Job;
+            var level = this.playerFrameContext.EffectiveLevel;
             foreach (var iconWindow in this.config.IconWindows)
                 this.DrawIconWindow(iconWindow, job, level);
         }
@@ -20,7 +20,7 @@ public sealed unsafe partial class Plugin
 
     private void DrawIconWindow(IconWindowConfig iconWindow, string job, uint level)
     {
-        var profileLabel = GetIconWindowDisplayName(iconWindow);
+        var profileLabel = IconWindowPresentation.GetDisplayName(iconWindow);
         var profileStart = this.performanceProfiler.BeginWindow(iconWindow.Id, profileLabel);
         try
         {
@@ -57,8 +57,6 @@ public sealed unsafe partial class Plugin
             return;
         }
 
-        var visible = frame.DisplayAbilities;
-        var auras = frame.DisplayAuras;
         var areaSize = frame.AreaSize;
         var windowSize = frame.AreaSize;
         var clampedPosition = ClampOverlayWindowPosition(iconWindow.Position, windowSize);
@@ -81,13 +79,45 @@ public sealed unsafe partial class Plugin
             flags |= ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoInputs;
 
         ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, Vector2.Zero);
-        if (!ImGui.Begin($"FFXIVAuraOverlay-{iconWindow.Id}", flags))
+
+        // ImGui.Begin/PushStyleVar must always be paired with End/PopStyleVar, even when the
+        // body throws; otherwise the global ImGui stacks stay unbalanced for the rest of the frame.
+        var windowExpanded = false;
+        var areaOrigin = Vector2.Zero;
+        try
+        {
+            windowExpanded = ImGui.Begin(this.GetOverlayWindowTitle(iconWindow), flags);
+            if (windowExpanded)
+                areaOrigin = this.DrawIconWindowBody(iconWindow, job, level, frame, areaSize);
+        }
+        finally
         {
             ImGui.End();
             ImGui.PopStyleVar();
-            return;
         }
 
+        if (!windowExpanded)
+            return;
+
+        if (!this.config.LockOverlay)
+        {
+            var controlLayout = this.GetOverlayControlLayout(iconWindow.Role, areaOrigin, areaSize);
+            this.DrawOverlayRoleControls(iconWindow, job, level, areaOrigin, areaSize, controlLayout);
+            this.DrawOverlayDisplayConditionControl(iconWindow, areaOrigin, areaSize, controlLayout);
+            this.DrawOverlayNameControl(iconWindow, areaOrigin, areaSize, controlLayout);
+            this.DrawOverlayAlignmentControls(iconWindow, job, level, areaOrigin, areaSize, controlLayout);
+        }
+    }
+
+    private Vector2 DrawIconWindowBody(
+        IconWindowConfig iconWindow,
+        string job,
+        uint level,
+        OverlayFrameModel frame,
+        Vector2 areaSize)
+    {
+        var visible = frame.DisplayAbilities;
+        var auras = frame.DisplayAuras;
         this.SelectIconWindowFromOverlayClick(iconWindow);
 
         var windowPosition = ImGui.GetWindowPos();
@@ -109,16 +139,13 @@ public sealed unsafe partial class Plugin
             this.DrawOverlayEditStage(ImGui.GetWindowDrawList(), areaOrigin, areaOrigin + areaSize);
 
         if (!ImGui.IsMouseDown(ImGuiMouseButton.Left))
-        {
-            this.draggedOverlayId = null;
-            this.draggedOverlayMouseStart = Vector2.Zero;
-            this.draggedOverlayPositionStart = Vector2.Zero;
-        }
+            this.overlayDragSession.EndDrag();
 
+        var skillPositionLookup = this.CreateSkillPositionLookup(iconWindow, job);
         for (var i = 0; i < visible.Count; i++)
         {
             var ability = visible[i];
-            var localPos = this.GetOverlayIconPosition(iconWindow, job, ability, i, visible.Count, areaSize, iconSize, gap);
+            var localPos = this.GetOverlayIconPosition(skillPositionLookup, iconWindow, ability, i, visible.Count, areaSize, iconSize, gap);
             var iconPos = areaOrigin + localPos;
 
             ImGui.SetCursorScreenPos(iconPos);
@@ -141,17 +168,7 @@ public sealed unsafe partial class Plugin
         if (!this.config.LockOverlay)
             this.HandleOverlayResize(iconWindow, job, frame.LayoutAbilities, frame.LayoutAuras, areaOrigin, areaSize);
 
-        ImGui.End();
-        ImGui.PopStyleVar();
-
-        if (!this.config.LockOverlay)
-        {
-            var controlLayout = this.GetOverlayControlLayout(iconWindow.Role, areaOrigin, areaSize);
-            this.DrawOverlayRoleControls(iconWindow, job, level, areaOrigin, areaSize, controlLayout);
-            this.DrawOverlayDisplayConditionControl(iconWindow, areaOrigin, areaSize, controlLayout);
-            this.DrawOverlayNameControl(iconWindow, areaOrigin, areaSize, controlLayout);
-            this.DrawOverlayAlignmentControls(iconWindow, job, level, areaOrigin, areaSize, controlLayout);
-        }
+        return areaOrigin;
     }
 
     private void SelectIconWindowFromOverlayClick(IconWindowConfig iconWindow)
@@ -270,34 +287,57 @@ public sealed unsafe partial class Plugin
 
         if (ImGui.IsItemHovered() && ImGui.IsMouseClicked(ImGuiMouseButton.Right) && ImGui.GetIO().KeyCtrl)
         {
-            this.UntrackAbilityFromOverlay(iconWindow, job, ability.Id);
+            this.abilityTrackingService.UntrackFromOverlay(iconWindow, job, ability.Id);
             this.QueueConfigSave();
             return;
         }
 
-        if (ImGui.IsItemActive() && ImGui.IsMouseDragging(ImGuiMouseButton.Left, 2f))
+        if (this.TryUpdateOverlayIconDrag(dragId, localPos, out var draggedPosition))
         {
-            if (!string.Equals(this.draggedOverlayId, dragId, StringComparison.OrdinalIgnoreCase))
-            {
-                this.draggedOverlayId = dragId;
-                this.draggedOverlayMouseStart = ImGui.GetMousePos();
-                this.draggedOverlayPositionStart = localPos;
-            }
-
             var next = this.ClampOverlayIconPosition(
-                this.draggedOverlayPositionStart + ImGui.GetMousePos() - this.draggedOverlayMouseStart,
+                draggedPosition,
                 areaSize,
                 iconSize);
             this.SetOverlayIconPosition(iconWindow, job, ability.Id, next);
             this.QueueConfigSave();
         }
 
-        if (string.Equals(this.draggedOverlayId, dragId, StringComparison.OrdinalIgnoreCase))
+        this.DrawOverlayDragHighlight(dragId);
+    }
+
+    private bool TryUpdateOverlayIconDrag(
+        string dragId,
+        Vector2 localPosition,
+        out Vector2 draggedPosition)
+    {
+        if (!ImGui.IsItemActive()
+            || !ImGui.IsMouseDragging(ImGuiMouseButton.Left, 2f))
         {
-            var min = ImGui.GetItemRectMin();
-            var max = ImGui.GetItemRectMax();
-            ImGui.GetWindowDrawList().AddRect(min, max, ImGui.GetColorU32(new Vector4(0.45f, 0.72f, 1f, 0.95f)), 3f, ImDrawFlags.None, 2f);
+            draggedPosition = default;
+            return false;
         }
+
+        draggedPosition = this.overlayDragSession.UpdatePosition(
+            dragId,
+            ImGui.GetMousePos(),
+            localPosition);
+        return true;
+    }
+
+    private void DrawOverlayDragHighlight(string dragId)
+    {
+        if (!this.overlayDragSession.IsDragging(dragId))
+            return;
+
+        var min = ImGui.GetItemRectMin();
+        var max = ImGui.GetItemRectMax();
+        ImGui.GetWindowDrawList().AddRect(
+            min,
+            max,
+            ImGui.GetColorU32(new Vector4(0.45f, 0.72f, 1f, 0.95f)),
+            3f,
+            ImDrawFlags.None,
+            2f);
     }
 
     private void ShowAbilityTooltip(AbilityDefinition ability)
@@ -356,15 +396,8 @@ public sealed unsafe partial class Plugin
             this.RegisterAuraTooltipCandidate(aura);
         }
 
-        if (ImGui.IsItemActive() && ImGui.IsMouseDragging(ImGuiMouseButton.Left, 2f))
+        if (this.TryUpdateOverlayIconDrag(dragId, localPos, out var draggedPosition))
         {
-            if (!string.Equals(this.draggedOverlayId, dragId, StringComparison.OrdinalIgnoreCase))
-            {
-                this.draggedOverlayId = dragId;
-                this.draggedOverlayMouseStart = ImGui.GetMousePos();
-                this.draggedOverlayPositionStart = localPos;
-            }
-
             if (UsesCompactAuraLayout(iconWindow))
             {
                 this.ReorderContinuousFlowAura(
@@ -378,7 +411,7 @@ public sealed unsafe partial class Plugin
             else
             {
                 var next = this.ClampOverlayIconPosition(
-                    this.draggedOverlayPositionStart + ImGui.GetMousePos() - this.draggedOverlayMouseStart,
+                    draggedPosition,
                     areaSize,
                     iconSize);
                 this.SetAuraIconPosition(iconWindow, aura.StatusId, next);
@@ -386,12 +419,7 @@ public sealed unsafe partial class Plugin
             }
         }
 
-        if (string.Equals(this.draggedOverlayId, dragId, StringComparison.OrdinalIgnoreCase))
-        {
-            var min = ImGui.GetItemRectMin();
-            var max = ImGui.GetItemRectMax();
-            ImGui.GetWindowDrawList().AddRect(min, max, ImGui.GetColorU32(new Vector4(0.45f, 0.72f, 1f, 0.95f)), 3f, ImDrawFlags.None, 2f);
-        }
+        this.DrawOverlayDragHighlight(dragId);
     }
 
     private void ReorderContinuousFlowAura(
@@ -421,7 +449,7 @@ public sealed unsafe partial class Plugin
             return;
         }
 
-        this.InvalidateTrackedAuraGroups(iconWindow);
+        this.auraSearchService.InvalidateTrackedGroups(iconWindow);
         this.SetBugDiagnosticEvent($"auraFlowReordered:{iconWindow.Id}:{sourceAura.StatusId}:{targetStatusId}");
         this.QueueConfigSave();
     }

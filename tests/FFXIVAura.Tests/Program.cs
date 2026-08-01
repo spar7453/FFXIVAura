@@ -1,71 +1,23 @@
-using FFXIVAura.Tests;
+using System.Reflection;
 
 var tests = new List<(string Name, Action Run)>();
 
-tests.AddRange(CooldownMathTests.Cases);
-tests.AddRange(JobInfoTests.Cases);
-tests.AddRange(AbilityDataTests.Cases);
-tests.AddRange(PluginDataFilesTests.Cases);
-tests.AddRange(BuildMetadataTests.Cases);
-tests.AddRange(IconWindowIdentityTests.Cases);
-tests.AddRange(IconWindowCloneTests.Cases);
-tests.AddRange(OverlayPositionKeysTests.Cases);
-tests.AddRange(RuntimeScopeKeysTests.Cases);
-tests.AddRange(StatusSnapshotReaderTests.Cases);
-tests.AddRange(StatusSnapshotFallbackCacheTests.Cases);
-tests.AddRange(KeybindTextFormatterTests.Cases);
-tests.AddRange(AuraSearchIndexTests.Cases);
-tests.AddRange(AuraSearchDisplayResultTests.Cases);
-tests.AddRange(AuraSearchResultCacheTests.Cases);
-tests.AddRange(AuraStatusGroupTests.Cases);
-tests.AddRange(AuraStatusIndexBuildStateTests.Cases);
-tests.AddRange(AuraTrackingModeTransitionTests.Cases);
-tests.AddRange(AuraRenderingLayoutTests.Cases);
-tests.AddRange(OverlayTests.Cases);
-tests.AddRange(SkillPositionLayoutTests.Cases);
-tests.AddRange(PartyCooldownBoardLayoutTests.Cases);
-tests.AddRange(PartyCooldownWindowRowBufferTests.Cases);
-tests.AddRange(PartyCooldownRuntimeStoreTests.Cases);
-tests.AddRange(PartyCooldownActiveTimerTrackerTests.Cases);
-tests.AddRange(PartyCooldownChargeTrackerTests.Cases);
-tests.AddRange(PartyCooldownAllianceGroupsTests.Cases);
-tests.AddRange(PartyCooldownAllianceGroupRetentionTests.Cases);
-tests.AddRange(PartyCooldownCrossRealmHeaderResolverTests.Cases);
-tests.AddRange(PartyCooldownHudRosterOrderTrackerTests.Cases);
-tests.AddRange(PartyCooldownLayoutModeTrackerTests.Cases);
-tests.AddRange(PartyCooldownMemberOrderingTests.Cases);
-tests.AddRange(PartyCooldownRosterMemberCollectorTests.Cases);
-tests.AddRange(PartyCooldownRosterTests.Cases);
-tests.AddRange(PartyCooldownRosterReadPolicyTests.Cases);
-tests.AddRange(PartyCooldownRosterServiceTests.Cases);
-tests.AddRange(PartyCooldownDefinitionSelectorTests.Cases);
-tests.AddRange(PartyCooldownDefinitionIdentityTests.Cases);
-tests.AddRange(PartyCooldownReplacementDataTests.Cases);
-tests.AddRange(PartyCooldownStatusResolverTests.Cases);
-tests.AddRange(PartyCooldownStatusSampleSelectorTests.Cases);
-tests.AddRange(PartyCooldownActiveStatusIndexTests.Cases);
-tests.AddRange(PartyCooldownLogMatcherTests.Cases);
-tests.AddRange(PartyCooldownLogObservationBufferTests.Cases);
-tests.AddRange(PartyCooldownLogObservationThrottleTests.Cases);
-tests.AddRange(PartyCooldownLogDiagnosticSummaryTests.Cases);
-tests.AddRange(PartyCooldownOwnerResolverTests.Cases);
-tests.AddRange(PartyCooldownOwnedObjectOwnerResolverTests.Cases);
-tests.AddRange(ConfigTests.Cases);
-tests.AddRange(IconWindowLayoutBindingTests.Cases);
-tests.AddRange(ConfigSaveTests.Cases);
-tests.AddRange(TooltipDiagnosticsTests.Cases);
-tests.AddRange(PartyAuraTests.Cases);
-tests.AddRange(PartyAuraTimerTrackerTests.Cases);
-tests.AddRange(PartyAuraRuntimeStoreTests.Cases);
-tests.AddRange(PerformanceFrameStatsTests.Cases);
-tests.AddRange(PerformanceProfilerTests.Cases);
-tests.AddRange(PerformanceProfileCsvTests.Cases);
-tests.AddRange(PerformanceProfileWriterTests.Cases);
-tests.AddRange(AuraStatusFrameIndexTests.Cases);
-tests.AddRange(StatusSourceOwnershipTests.Cases);
-tests.AddRange(ActionKeybindIndexTests.Cases);
-tests.AddRange(HotbarKeybindPolicyTests.Cases);
-tests.AddRange(LoginStabilizationStateTests.Cases);
+// Collect every static *Tests class in the assembly regardless of namespace, so a suite
+// added under a folder-derived namespace (e.g. FFXIVAura.Tests.Auras) fails loudly via the
+// Cases contract below instead of being silently skipped by a namespace filter.
+var testSuiteTypes = Assembly.GetExecutingAssembly()
+    .GetTypes()
+    .Where(type => type.IsAbstract && type.IsSealed)
+    .Where(type => type.Name.EndsWith("Tests", StringComparison.Ordinal))
+    .OrderBy(type => type.FullName, StringComparer.Ordinal);
+foreach (var suiteType in testSuiteTypes)
+{
+    var casesProperty = suiteType.GetProperty("Cases", BindingFlags.Public | BindingFlags.Static);
+    if (casesProperty?.GetValue(null) is not IEnumerable<(string Name, Action Run)> cases)
+        throw new InvalidOperationException($"{suiteType.FullName} must expose public static Cases.");
+
+    tests.AddRange(cases);
+}
 
 var failed = 0;
 foreach (var (name, run) in tests)

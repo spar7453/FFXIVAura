@@ -1,6 +1,6 @@
 namespace FFXIVAura;
 
-public sealed unsafe partial class Plugin
+public sealed partial class Plugin
 {
     private enum OverlayItemVisibility
     {
@@ -25,46 +25,74 @@ public sealed unsafe partial class Plugin
 
     private OverlayFrameModel BuildOverlayFrameModel(IconWindowConfig iconWindow, string job, uint level)
     {
+        if (!this.overlayFrameBuffersByWindow.TryGetValue(iconWindow.Id, out var buffers))
+        {
+            buffers = new OverlayFrameBuffers();
+            this.overlayFrameBuffersByWindow[iconWindow.Id] = buffers;
+        }
+
+        buffers.Clear();
         var areaSize = new Vector2(iconWindow.Width, iconWindow.Height);
         if (iconWindow.Role == IconWindowRole.SkillCooldowns)
         {
-            var layoutAbilities = this.GetVisibleAbilities(job, level, iconWindow).ToList();
-            var displayAbilities = this.GetDisplayAbilitiesFromLayout(layoutAbilities, iconWindow);
+            foreach (var ability in this.GetVisibleAbilities(job, level, iconWindow))
+                buffers.LayoutAbilities.Add(ability);
+
+            var displayAbilities = this.GetDisplayAbilitiesFromLayout(
+                buffers.LayoutAbilities,
+                buffers.DisplayAbilities,
+                iconWindow);
             return new OverlayFrameModel(
                 iconWindow,
                 job,
                 level,
                 areaSize,
                 new OverlayItemSet(displayAbilities, Array.Empty<AuraState>()),
-                new OverlayItemSet(layoutAbilities, Array.Empty<AuraState>()));
+                new OverlayItemSet(buffers.LayoutAbilities, Array.Empty<AuraState>()));
         }
 
-        this.UpdateCurrentAuraSeenTimes(iconWindow, this.auraSeenStatusIdBuffer);
-        var layoutAuras = this.GetLayoutAuras(iconWindow).ToList();
-        var displayAuras = layoutAuras
-            .Where(aura => this.ShouldDisplayAura(aura, iconWindow))
-            .Where(aura => aura.Present || ShouldShowMissingAura(iconWindow))
-            .ToList();
+        this.auraSearchService.UpdateCurrentSeenTimes(iconWindow);
+        foreach (var aura in this.GetLayoutAuras(iconWindow))
+        {
+            buffers.LayoutAuras.Add(aura);
+            if (this.ShouldDisplayAura(aura, iconWindow)
+                && (aura.Present || ShouldShowMissingAura(iconWindow)))
+            {
+                buffers.DisplayAuras.Add(aura);
+            }
+        }
+
         return new OverlayFrameModel(
             iconWindow,
             job,
             level,
             areaSize,
-            new OverlayItemSet(Array.Empty<AbilityDefinition>(), displayAuras),
-            new OverlayItemSet(Array.Empty<AbilityDefinition>(), layoutAuras));
+            new OverlayItemSet(Array.Empty<AbilityDefinition>(), buffers.DisplayAuras),
+            new OverlayItemSet(Array.Empty<AbilityDefinition>(), buffers.LayoutAuras));
     }
 
     private IReadOnlyList<AbilityDefinition> GetDisplayAbilitiesFromLayout(
         IReadOnlyList<AbilityDefinition> layoutAbilities,
+        List<AbilityDefinition> displayBuffer,
         IconWindowConfig iconWindow)
     {
-        return iconWindow.DisplayCondition switch
+        switch (iconWindow.DisplayCondition)
         {
-            IconDisplayCondition.Always => layoutAbilities,
-            IconDisplayCondition.InCombat => this.IsInCombat() ? layoutAbilities : Array.Empty<AbilityDefinition>(),
-            IconDisplayCondition.OutOfCombat => !this.IsInCombat() ? layoutAbilities : Array.Empty<AbilityDefinition>(),
-            _ => layoutAbilities.Where(ability => this.ShouldDisplayAbility(ability, iconWindow)).ToList(),
-        };
+            case IconDisplayCondition.Always:
+                return layoutAbilities;
+            case IconDisplayCondition.InCombat:
+                return this.playerFrameContext.IsInCombat ? layoutAbilities : Array.Empty<AbilityDefinition>();
+            case IconDisplayCondition.OutOfCombat:
+                return !this.playerFrameContext.IsInCombat ? layoutAbilities : Array.Empty<AbilityDefinition>();
+        }
+
+        foreach (var ability in layoutAbilities)
+        {
+            if (this.ShouldDisplayAbility(ability, iconWindow))
+                displayBuffer.Add(ability);
+        }
+
+        return displayBuffer;
     }
 
     private IEnumerable<AbilityDefinition> GetOverlayAbilities(
@@ -88,7 +116,7 @@ public sealed unsafe partial class Plugin
 
     private IEnumerable<AuraState> GetLayoutAuras(IconWindowConfig iconWindow)
     {
-        return this.GetTrackedAuraGroups(iconWindow)
+        return this.auraSearchService.GetTrackedGroups(iconWindow)
             .Select(group => this.GetAuraState(iconWindow, group));
     }
 }

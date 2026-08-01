@@ -1,14 +1,21 @@
 <Project Sdk="Dalamud.NET.Sdk/15.0.0">
   <PropertyGroup>
+    <!-- Dalamud.NET.Sdk's Sdk.props unconditionally overwrites DalamudLibPath after
+         Directory.Build.props is evaluated, so this project must re-apply the override here.
+         The copy in Directory.Build.props still serves the test project, which uses the
+         plain Microsoft.NET.Sdk. Keep both in sync. -->
     <DalamudLibPath Condition="'$(DALAMUD_HOME)' != ''">$(DALAMUD_HOME)\</DalamudLibPath>
     <DalamudLibPath Condition="'$(DALAMUD_HOME)' == '' and Exists('$(APPDATA)\XIVLauncherKR\addon\Hooks\15.0.2.2\Dalamud.dll')">$(APPDATA)\XIVLauncherKR\addon\Hooks\15.0.2.2\</DalamudLibPath>
     <AssemblySearchPaths>$(AssemblySearchPaths);$(DalamudLibPath)</AssemblySearchPaths>
     <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
     <AssemblyName>FFXIVAura</AssemblyName>
     <RootNamespace>FFXIVAura</RootNamespace>
-    <Version>1.0.0.1</Version>
-    <AssemblyVersion>1.0.0.1</AssemblyVersion>
-    <FileVersion>1.0.0.1</FileVersion>
+    <Version>1.0.0.2</Version>
+    <AssemblyVersion>1.0.0.2</AssemblyVersion>
+    <FileVersion>1.0.0.2</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>

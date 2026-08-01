@@ -1,12 +1,12 @@
 namespace FFXIVAura;
 
-public sealed unsafe partial class Plugin
+public sealed partial class Plugin
 {
     private void DrawOverlayRoleControls(IconWindowConfig iconWindow, string job, uint level, Vector2 areaOrigin, Vector2 areaSize, OverlayControlLayout layout)
     {
         const float padding = 6f;
         var framePadding = new Vector2(7f, 3f);
-        var options = WindowRoleOptions();
+        var options = IconWindowPresentation.RoleOptions;
         var currentLabel = options.FirstOrDefault(option => option.Role == iconWindow.Role).Label ?? "\uC2A4\uD0AC";
         var comboWidth = Math.Max(132f, options.Max(option => ImGui.CalcTextSize(option.Label).X) + framePadding.X * 2f + 26f);
         var windowWidth = comboWidth + padding * 2f;
@@ -56,7 +56,7 @@ public sealed unsafe partial class Plugin
     {
         const float padding = 6f;
         var framePadding = new Vector2(7f, 3f);
-        var options = DisplayConditionOptions(iconWindow.Role);
+        var options = IconWindowPresentation.GetDisplayConditionOptions(iconWindow.Role);
         var currentLabel = options.FirstOrDefault(option => option.Condition == iconWindow.DisplayCondition).Label ?? "\uD56D\uC0C1";
         var comboWidth = GetOverlayConditionComboWidth(iconWindow.Role, framePadding);
         var windowWidth = comboWidth + padding * 2f;
@@ -183,14 +183,14 @@ public sealed unsafe partial class Plugin
 
     private static float GetOverlayRoleControlWidth(Vector2 framePadding, float padding)
     {
-        var options = WindowRoleOptions();
+        var options = IconWindowPresentation.RoleOptions;
         var comboWidth = Math.Max(132f, options.Max(option => ImGui.CalcTextSize(option.Label).X) + framePadding.X * 2f + 26f);
         return comboWidth + padding * 2f;
     }
 
     private static float GetOverlayConditionComboWidth(IconWindowRole role, Vector2 framePadding)
     {
-        var options = DisplayConditionOptions(role);
+        var options = IconWindowPresentation.GetDisplayConditionOptions(role);
         return Math.Max(118f, options.Max(option => ImGui.CalcTextSize(option.Label).X) + framePadding.X * 2f + 26f);
     }
 
@@ -292,14 +292,15 @@ public sealed unsafe partial class Plugin
         ImGui.SetNextWindowPos(ClampOverlayFloatingWindowPosition(position, size), ImGuiCond.Always);
         ImGui.SetNextWindowSize(size, ImGuiCond.Always);
         ImGui.SetNextWindowBgAlpha(backgroundAlpha);
-        if (!ImGui.Begin(id, OverlayControlWindowFlags()))
+        try
+        {
+            if (ImGui.Begin(id, OverlayControlWindowFlags()))
+                drawContents();
+        }
+        finally
         {
             ImGui.End();
-            return;
         }
-
-        drawContents();
-        ImGui.End();
     }
 
     private static Vector2 ClampOverlayWindowPosition(Vector2 position, Vector2 size)

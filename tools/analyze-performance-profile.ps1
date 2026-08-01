@@ -58,10 +58,51 @@ function Get-Timestamp([string]$Line) {
     return [string]::Empty
 }
 
+function Copy-SharedProfileSnapshot([string]$SourcePath) {
+    $snapshotPath = [IO.Path]::GetTempFileName()
+    $source = [IO.FileStream]::new(
+        $SourcePath,
+        [IO.FileMode]::Open,
+        [IO.FileAccess]::Read,
+        [IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete)
+    try {
+        $target = [IO.FileStream]::new(
+            $snapshotPath,
+            [IO.FileMode]::Create,
+            [IO.FileAccess]::Write,
+            [IO.FileShare]::Read)
+        try {
+            $remaining = $source.Length
+            $buffer = [byte[]]::new(1MB)
+            while ($remaining -gt 0) {
+                $count = [int][math]::Min($buffer.Length, $remaining)
+                $read = $source.Read($buffer, 0, $count)
+                if ($read -le 0) {
+                    break
+                }
+
+                $target.Write($buffer, 0, $read)
+                $remaining -= $read
+            }
+        }
+        finally {
+            $target.Dispose()
+        }
+    }
+    finally {
+        $source.Dispose()
+    }
+
+    return $snapshotPath
+}
+
 if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
     throw "Profile file not found: $Path"
 }
 
+$snapshotPath = Copy-SharedProfileSnapshot $Path
+$Path = $snapshotPath
+try {
 $header = (Get-Content -LiteralPath $Path -TotalCount 1) -split ','
 $selectedRows = @()
 
@@ -218,4 +259,8 @@ if ($partyRows.Count -gt 0) {
         LocalLogsSkipped = $lastParty.LocalLogsSkipped
         LocalOwnedObjectLogsSkipped = $lastParty.LocalOwnedObjectLogsSkipped
     } | Format-List
+}
+}
+finally {
+    Remove-Item -LiteralPath $snapshotPath -Force -ErrorAction SilentlyContinue
 }

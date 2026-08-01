@@ -51,7 +51,9 @@ internal static class ConfigMapNormalizer
         return normalized;
     }
 
-    public static Dictionary<string, List<string>> NormalizeStringListMap(Dictionary<string, List<string>>? source, out bool changed)
+    public static Dictionary<string, List<string>> NormalizeStringListMap(
+        Dictionary<string, List<string>>? source,
+        out bool changed)
     {
         changed = source is null || !Equals(source.Comparer, StringComparer.OrdinalIgnoreCase);
         var normalizedMap = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);

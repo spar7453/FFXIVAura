@@ -22,6 +22,7 @@ public class PluginConfigData
     public float OverlayWidth { get; set; } = 760f;
     public float OverlayHeight { get; set; } = 170f;
     public System.Numerics.Vector2 OverlayPosition { get; set; } = new(520, 280);
+    public List<string> ManualTrackingJobs { get; set; } = new();
     public Dictionary<string, List<string>> TrackedByJob { get; set; } = new();
     public Dictionary<string, List<string>> ExcludedByJob { get; set; } = new();
     public Dictionary<string, Dictionary<string, System.Numerics.Vector2>> IconPositionsByJob { get; set; } = new();
@@ -66,6 +67,7 @@ public sealed class IconWindowConfig
     public List<uint> TrackedStatusIds { get; set; } = new();
     public List<uint> ExactTrackedStatusIds { get; set; } = new();
     public List<string> ExcludedPartyCooldownIds { get; set; } = new();
+    public List<string> ManualTrackingJobs { get; set; } = new();
     public Dictionary<string, List<string>> TrackedByJob { get; set; } = new();
     public Dictionary<string, List<string>> ExcludedByJob { get; set; } = new();
     public Dictionary<string, Dictionary<string, System.Numerics.Vector2>> IconPositionsByJob { get; set; } = new();

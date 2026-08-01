@@ -83,6 +83,7 @@ internal static partial class PluginConfigNormalizer
             IconSize = fallbacks.IconSize,
             Gap = fallbacks.Gap,
             FontScale = fallbacks.FontScale,
+            ManualTrackingJobs = IconWindowClone.CloneStringList(config.ManualTrackingJobs),
             TrackedByJob = IconWindowClone.CloneStringListMap(config.TrackedByJob),
             ExcludedByJob = IconWindowClone.CloneStringListMap(config.ExcludedByJob),
             IconPositionsByJob = IconWindowClone.CloneVector2Map(config.IconPositionsByJob),
@@ -346,6 +347,10 @@ internal static partial class PluginConfigNormalizer
             window.ExcludedPartyCooldownIds,
             out var excludedPartyCooldownIdsChanged);
         changed |= excludedPartyCooldownIdsChanged;
+        window.ManualTrackingJobs = ConfigMapNormalizer.NormalizeStringList(
+            window.ManualTrackingJobs,
+            out var manualTrackingJobsChanged);
+        changed |= manualTrackingJobsChanged;
         window.TrackedByJob = ConfigMapNormalizer.NormalizeStringListMap(
             window.TrackedByJob,
             out var trackedMapChanged);

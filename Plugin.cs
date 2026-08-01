@@ -1,6 +1,6 @@
 namespace FFXIVAura;
 
-public sealed unsafe partial class Plugin : IDalamudPlugin
+public sealed partial class Plugin : IDalamudPlugin
 {
     private static readonly string[] CommandNames = ["/fa"];
 
@@ -8,34 +8,24 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private const float DefaultOverlayPositionY = 280f;
     private const float DefaultOverlayWidth = 760f;
     private const float DefaultOverlayHeight = 170f;
-    private const float MinOverlayWidth = 120f;
-    private const float MaxOverlayWidth = 1200f;
-    private const float MinOverlayHeight = 40f;
-    private const float MaxOverlayHeight = 900f;
-    private const int AbilityCandidateCacheLimit = 512;
-    private const int AuraSearchQueryCacheLimit = 16;
-    private const int AuraSearchResultCacheLimit = 4;
-    private const int MinPerformanceProfileRecordIntervalSeconds = 1;
-    private const int MaxPerformanceProfileRecordIntervalSeconds = 60;
-    private const int MinPerformanceProfileMaxFileMegabytes = 1;
-    private const int MaxPerformanceProfileMaxFileMegabytes = 1024;
+    private const float MinOverlayWidth = OverlayLayoutLimits.MinWidth;
+    private const float MaxOverlayWidth = OverlayLayoutLimits.MaxWidth;
+    private const float MinOverlayHeight = OverlayLayoutLimits.MinHeight;
+    private const float MaxOverlayHeight = OverlayLayoutLimits.MaxHeight;
     private const float DefaultIconSize = 42f;
-    private const float MinIconSize = 24f;
-    private const float MaxIconSize = 72f;
+    private const float MinIconSize = OverlayLayoutLimits.MinIconSize;
+    private const float MaxIconSize = OverlayLayoutLimits.MaxIconSize;
     private const float DefaultGap = 5f;
     private const float MinGap = 0f;
     private const float MaxGap = 16f;
     private const float DefaultFontScale = 1f;
-    private const float MinFontScale = 0.75f;
-    private const float MaxFontScale = 1.5f;
+    private const float MinFontScale = OverlayLayoutLimits.MinFontScale;
+    private const float MaxFontScale = OverlayLayoutLimits.MaxFontScale;
     private const float DefaultOrderEditorHeight = 180f;
     private const float MinOrderEditorHeight = 90f;
     private const float MaxOrderEditorHeight = 520f;
-    private const float OverlayWindowMargin = 4f;
+    private const float OverlayWindowMargin = OverlayLayoutLimits.WindowMargin;
     private static readonly TimeSpan LoginSkillAutoAlignSuppressionDuration = TimeSpan.FromSeconds(3);
-    private static readonly TimeSpan ConfigSaveDebounceDelay = TimeSpan.FromMilliseconds(400);
-    private static readonly TimeSpan ConfigSaveCombatRetryDelay = TimeSpan.FromSeconds(1);
-    private static readonly TimeSpan ConfigSaveMaxCombatDeferDuration = TimeSpan.FromMinutes(10);
     private static readonly TimeSpan PartyCooldownCandidateMissingSampleInterval = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan PartyCooldownStatusCacheDuration = TimeSpan.FromMilliseconds(100);
     private static readonly TimeSpan PartyCooldownCrossSignalDedupeWindow = TimeSpan.FromSeconds(2);
@@ -58,126 +48,39 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     [PluginService] private static ISeStringEvaluator SeStringEvaluator { get; set; } = null!;
     [PluginService] private static IPluginLog Log { get; set; } = null!;
 
-    private static readonly (string Id, string Label)[] TrackedEditorTabs =
-    [
-        ("WeaponSkill", "무기"),
-        ("Spell", "마법"),
-        ("Ability", "능력"),
-        ("Role", "역할"),
-    ];
-    private readonly List<AbilityDefinition> abilities = [];
-    private readonly List<PartyCooldownDefinition> partyCooldownDefinitions = [];
-    private readonly Dictionary<uint, (uint RowId, string Name)> actionCategoryCache = new();
-    private readonly Dictionary<uint, byte> actionEquivalenceGroupCache = new();
-    private readonly Dictionary<uint, GameAction> actionRowCache = new();
-    private readonly Dictionary<uint, uint> generalActionActionIdCache = new();
-    private readonly Dictionary<uint, OverlayActionTooltipModel> actionTooltipModelCache = new();
-    private readonly Dictionary<uint, AuraStatusDefinition> statusDefinitionCache = new();
-    private readonly Dictionary<uint, string> statusTooltipTextCache = new();
-    private readonly Dictionary<string, Dictionary<uint, DateTime>> auraFirstSeenByScope = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, long> auraSearchStateRevisionByScope = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, AuraSearchResultCacheEntry> auraSearchResultCacheByWindow = new(StringComparer.OrdinalIgnoreCase);
-    private readonly List<uint> auraSearchCurrentStatusIdBuffer = [];
-    private readonly HashSet<uint> auraSearchCurrentStatusIdSetBuffer = [];
-    private readonly List<uint> auraSeenStatusIdBuffer = [];
-    private readonly Dictionary<string, List<AbilityDefinition>> gameActionCandidatesCache = new(StringComparer.OrdinalIgnoreCase);
-    private readonly List<AuraSearchIndexEntry> actionGrantedStatusSearchIndex = [];
-    private readonly List<AuraSearchIndexEntry> allStatusSearchIndex = [];
-    private readonly Dictionary<uint, List<AuraSearchIndexEntry>> actionGrantedStatusSearchIndexByStatusId = new();
-    private readonly Dictionary<string, IReadOnlyList<AuraSearchIndexEntry>> actionGrantedAuraSearchQueryCache = new(StringComparer.CurrentCultureIgnoreCase);
-    private readonly Dictionary<string, IReadOnlyList<AuraSearchResult>> allStatusSearchQueryCache = new(StringComparer.CurrentCultureIgnoreCase);
-    private readonly List<uint> statusIdentityStatusIds = [];
-    private readonly Dictionary<AuraStatusGroupKey, List<uint>> statusIdsByGroupIndex = new();
-    private readonly Dictionary<string, AuraStatusGroupCacheEntry> trackedAuraGroupCache = new(StringComparer.OrdinalIgnoreCase);
-    private readonly AuraStatusIndexBuildState statusIdentityIndexState = new();
-    private readonly AuraStatusIndexBuildState actionGrantedStatusSearchIndexState = new();
-    private readonly Dictionary<string, CooldownState> cooldownFrameCache = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, IReadOnlyList<AbilityDefinition>> jobCandidatesCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly PartyCooldownRuntimeStore partyCooldownRuntimeStore = new();
     private readonly PartyCooldownActiveStatusIndex partyCooldownActiveStatusIndex =
         new(PartyCooldownStatusCacheDuration);
-    private readonly Dictionary<uint, uint[]> partyCooldownStatusIdsByActionId = new();
-    private readonly Dictionary<uint, PartyCooldownDefinition> partyCooldownDefinitionsByActionId = new();
-    private readonly Dictionary<ulong, uint> partyCooldownMaxChargesByActionAndLevel = new();
-    private readonly Dictionary<string, List<PartyCooldownDefinition>> partyCooldownDefinitionsByName = new(StringComparer.Ordinal);
-    private readonly Dictionary<PartyCooldownCategory, List<PartyCooldownDefinition>> partyCooldownDefinitionsByCategory = new();
-    private readonly Dictionary<string, IReadOnlyList<PartyCooldownDefinition>> partyCooldownEffectiveDefinitionsByScope = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<PartyCooldownCategory, IReadOnlyList<PartyCooldownDefinition>> partyCooldownPresetDefinitionsByCategory = new();
-    private readonly Dictionary<string, IReadOnlyList<PartyCooldownDefinition>> partyCooldownEffectiveDefinitionsByCategoryAndLevel = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, string> partyCooldownCanonicalDefinitionIdById = new(StringComparer.OrdinalIgnoreCase);
+    private readonly PartyCooldownCatalog partyCooldownCatalog;
     private readonly IPartyRosterReader partyRosterReader;
     private readonly PartyCooldownRosterService partyCooldownRosterService;
-    private readonly Dictionary<uint, int> partyCooldownLogActionParamIndexByLogMessageId = new();
     private readonly PartyCooldownLogObservationBuffer partyCooldownLogObservations = new(64, 8);
     private readonly PartyCooldownLogObservationThrottle partyCooldownCandidateObservationThrottle = new();
+    private readonly PartyCooldownSignalDiagnostics partyCooldownSignalDiagnostics = new();
     private readonly PartyCooldownLayoutModeTracker partyCooldownLayoutModeTracker = new(PartyCooldownAllianceLayoutRetention);
     private readonly HashSet<uint> partyCooldownMemberEntityIdsBuffer = [];
-    private readonly HashSet<uint> partyCooldownOwnedObjectOwnerIdsBuffer = [];
-    private readonly HashSet<uint> partyCooldownOwnedObjectPartyEntityIdsBuffer = [];
-    private readonly Dictionary<uint, CharacterAuraAggregate> playerAuraFrameCache = new();
-    private readonly Dictionary<uint, CharacterAuraAggregate> targetAuraFrameCache = new();
-    private readonly Dictionary<uint, PartyAuraAggregate> partyAuraFrameAllCache = new();
-    private readonly Dictionary<uint, PartyAuraAggregate> partyAuraFrameOwnCache = new();
-    private readonly Dictionary<AuraStatusGroupKey, PartyAuraGroupAggregate> partyAuraGroupFrameAllCache = new();
-    private readonly Dictionary<AuraStatusGroupKey, PartyAuraGroupAggregate> partyAuraGroupFrameOwnCache = new();
-    private readonly Dictionary<uint, PartyMemberAuraState> partyMemberAuraFrameBuffer = new();
-    private readonly Dictionary<uint, PartyMemberAuraState> partyMemberAuraOwnFrameBuffer = new();
-    private readonly Dictionary<AuraStatusGroupKey, bool> partyMemberAuraGroupFrameBuffer = new();
-    private readonly Dictionary<AuraStatusGroupKey, bool> partyMemberAuraGroupOwnFrameBuffer = new();
-    private readonly PartyAuraRuntimeStore partyAuraRuntimeStore = new();
-    private readonly List<StatusSnapshot> statusSnapshotBuffer = [];
-    private readonly StatusSnapshotFallbackCache statusSnapshotFallbackCache = new();
-    private readonly Dictionary<uint, uint> gameObjectOwnerFrameCache = new();
-    private readonly ActionKeybindIndex actionKeybindIndex = new();
-    private readonly Dictionary<uint, bool> hotbarVisibilityCache = new();
-    private readonly Dictionary<string, HashSet<uint>> visibleAurasByScope = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<uint, IDalamudTextureWrap> grayscaleIconCache = new();
-    private readonly Dictionary<string, string> visibleAbilityKeys = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, Dictionary<string, Vector2>> transientSkillPositionsByGroup = new(StringComparer.OrdinalIgnoreCase);
+    private readonly PartyCooldownOwnedObjectMatcher partyCooldownOwnedObjectMatcher;
+    private readonly PartyCooldownLogParser partyCooldownLogParser;
+    private readonly IStatusSnapshotRuntime statusSnapshotRuntime;
+    private readonly AuraCatalog auraCatalog;
+    private readonly AuraFrameService auraFrameService;
+    private readonly AuraSearchService auraSearchService;
+    private readonly AuraTrackingService auraTrackingService;
+    private readonly ActionKeybindService actionKeybindService;
+    private readonly TooltipContentService tooltipContentService;
+    private readonly IconTextureService iconTextureService;
+    private readonly Dictionary<SkillLayoutScopeKey, VisibleAbilityLayoutState> visibleAbilityKeys = new();
+    private readonly Dictionary<SkillLayoutScopeKey, Dictionary<string, Vector2>> transientSkillPositionsByGroup = new();
+    private readonly Dictionary<string, OverlayFrameBuffers> overlayFrameBuffersByWindow = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> overlayWindowTitles = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<(string WindowId, PartyCooldownLayoutEditMode LayoutMode), string> partyCooldownWindowTitles = new();
     private readonly Dictionary<string, OverlayWindowDebugSnapshot> overlayWindowDebugSnapshots = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Queue<uint> grayscaleIconQueue = new();
-    private readonly HashSet<uint> grayscaleIconPending = new();
-    private readonly HashSet<uint> grayscaleIconFailed = new();
-    private readonly HashSet<uint> missingActionRows = new();
-    private readonly object grayscaleIconLock = new();
-    private string? draggedTrackedId;
-    private string? draggedOverlayId;
-    private string? auraSearchWindowId;
-    private bool auraSearchWindowVisible;
-    private bool configSavePending;
+    private readonly OverlayDragSession overlayDragSession = new();
+    private readonly AuraSearchWindowSession auraSearchWindowSession = new();
     private bool configWasVisible;
-    private bool allStatusSearchIndexBuilt;
-    private bool keybindCacheDirty = true;
-    private bool playerAuraFrameCacheValid;
-    private bool targetAuraFrameCacheValid;
-    private bool partyAuraFrameAllCacheValid;
-    private bool partyAuraFrameOwnCacheValid;
     private PartyCooldownFrameSnapshot? partyCooldownFrameSnapshot;
     private bool overlayTooltipRequestedThisFrame;
-    private int pendingStatusId;
-    private Vector2 draggedOverlayMouseStart;
-    private Vector2 draggedOverlayPositionStart;
-    private DateTime configSaveAfter = DateTime.MinValue;
-    private DateTime configSaveQueuedAtUtc = DateTime.MinValue;
-    private DateTime configSaveNextErrorLogAtUtc = DateTime.MinValue;
-    private bool configSaveDeferredInCombat;
-    private DateTime keybindCacheRefreshAfter = DateTime.MinValue;
-    private DateTime performanceProfileNextRecordAtUtc = DateTime.MinValue;
-    private DateTime performanceProfileNextErrorLogAtUtc = DateTime.MinValue;
-    private DateTime performanceProfileLastErrorAtUtc = DateTime.MinValue;
     private DateTime lastBugDiagnosticEventAtUtc = DateTime.MinValue;
-    private long partyCooldownCandidateMissingLogCount;
-    private long partyCooldownCandidateMissingObservationCount;
-    private long partyCooldownLocalPlayerLogSkippedCount;
-    private long partyCooldownLocalOwnedObjectLogSkippedCount;
-    private long partyCooldownStatusFallbackBatchCount;
-    private long partyCooldownTimerRefreshAcceptedCount;
-    private long partyCooldownTimerStalePositiveSuppressedCount;
-    private long auraSearchResultCacheHitCount;
-    private long auraSearchResultCacheMissCount;
-    private long performanceProfileFailureCount;
-    private string performanceProfileLastError = string.Empty;
-    private string partyCooldownTimerLastDecision = string.Empty;
     private string lastBugDiagnosticEvent = string.Empty;
     private PluginConfig config;
     private bool configVisible;
@@ -185,163 +88,225 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     private DateTime zoneLoadHiddenUntil = DateTime.MinValue;
     private readonly OverlayTooltipResolver overlayTooltipResolver = new();
     private readonly TooltipDiagnostics tooltipDiagnostics = new();
+    private readonly IPlayerRuntimeContext playerRuntimeContext;
+    private readonly IGameActionRepository gameActionRepository;
+    private readonly IGameActionRuntime gameActionRuntime;
+    private readonly AbilityCatalog abilityCatalog;
+    private readonly AbilityTrackingService abilityTrackingService;
+    private readonly TrackedSkillEditorModelBuilder trackedSkillEditorModelBuilder;
+    private readonly TrackedSkillEditorSession trackedSkillEditorSession = new();
+    private readonly CooldownFrameService cooldownFrameService;
     private readonly PerformanceFrameStats performanceStats = new();
     private readonly PerformanceProfiler performanceProfiler = new();
-    private readonly PerformanceProfileWriter performanceProfileWriter = new();
-    private readonly ConfigSaveWorker configSaveWorker = new(snapshot => PluginInterface.SavePluginConfig(snapshot));
+    private readonly PerformanceProfileIdentityAnonymizer performanceProfileIdentityAnonymizer = new();
+    private readonly PluginLifetime lifetime;
+    private readonly IPluginLog pluginLog;
+    private readonly PerformanceProfileRecordingCoordinator performanceProfileRecordingCoordinator;
+    private readonly ConfigSaveCoordinator configSaveCoordinator;
     private readonly LoginStabilizationState loginStabilizationState = new(LoginSkillAutoAlignSuppressionDuration);
     private readonly IFontHandle cooldownFont;
     private readonly IFontHandle chargeFont;
     private readonly IFontHandle auraCountFont;
+    private PlayerFrameContext playerFrameContext;
+    private bool disposed;
 
     public Plugin()
     {
-        this.partyRosterReader = new DalamudPartyRosterReader(
-            PartyList,
-            ObjectTable,
-            PlayerState,
-            GameGui,
-            this.SetBugDiagnosticEvent);
-        this.partyCooldownRosterService = new PartyCooldownRosterService(
-            this.partyRosterReader,
-            TimeSpan.FromMilliseconds(100));
-        this.config = PluginInterface.GetPluginConfig() as PluginConfig ?? new PluginConfig();
-        var configChanged = this.EnsureIconWindows();
-        if (this.config.Version < 2)
+        this.pluginLog = Log;
+        this.lifetime = new PluginLifetime(
+            (exception, message) => this.pluginLog.Error(exception, message));
+        try
         {
-            this.config.Version = 2;
-            this.config.OverlayWidth = 760f;
-            this.config.OverlayHeight = 170f;
-            configChanged = true;
+            this.performanceProfileRecordingCoordinator = this.lifetime.Own(
+                new PerformanceProfileRecordingCoordinator(
+                    PluginInterface.ConfigDirectory.FullName,
+                    this.SetBugDiagnosticEvent,
+                    (exception, message) => this.pluginLog.Error(exception, message)),
+                "performance profile recorder");
+            this.configSaveCoordinator = this.lifetime.Own(
+                new ConfigSaveCoordinator(
+                    snapshot => PluginInterface.SavePluginConfig(snapshot),
+                    this.performanceProfiler,
+                    (exception, message) => this.pluginLog.Error(exception, message),
+                    this.SetBugDiagnosticEvent),
+                "configuration save coordinator");
+            this.playerRuntimeContext = new DalamudPlayerRuntimeContext(
+                ClientState,
+                PlayerState,
+                Condition,
+                ObjectTable,
+                TargetManager);
+            this.gameActionRepository = new DalamudGameActionRepository(DataManager, this.pluginLog);
+            this.gameActionRuntime = new DalamudGameActionRuntime(
+                this.gameActionRepository,
+                this.pluginLog);
+            this.abilityCatalog = new AbilityCatalog(
+                PluginInterface.AssemblyLocation.DirectoryName!,
+                this.gameActionRepository,
+                this.performanceProfiler,
+                this.pluginLog);
+            this.abilityTrackingService = new AbilityTrackingService(this.abilityCatalog);
+            this.trackedSkillEditorModelBuilder = new TrackedSkillEditorModelBuilder(
+                this.abilityCatalog,
+                this.abilityTrackingService);
+            this.actionKeybindService = new ActionKeybindService(
+                GameGui,
+                DataManager,
+                this.gameActionRuntime,
+                this.performanceProfiler,
+                this.pluginLog);
+            this.tooltipContentService = new TooltipContentService(
+                DataManager,
+                SeStringEvaluator,
+                this.gameActionRepository,
+                this.pluginLog);
+            this.cooldownFrameService = new CooldownFrameService(this.gameActionRuntime);
+            this.partyCooldownCatalog = new PartyCooldownCatalog(
+                PluginInterface.AssemblyLocation.DirectoryName!,
+                this.abilityCatalog,
+                this.gameActionRepository,
+                this.gameActionRuntime,
+                this.pluginLog);
+            this.partyCooldownLogParser = new PartyCooldownLogParser(this.partyCooldownCatalog);
+            this.iconTextureService = this.lifetime.Own(
+                new IconTextureService(TextureProvider, DataManager, this.pluginLog),
+                "icon texture service");
+            this.auraCatalog = new AuraCatalog(DataManager, this.pluginLog, this.performanceProfiler);
+            this.statusSnapshotRuntime = new DalamudStatusSnapshotRuntime(
+                ObjectTable,
+                TargetManager,
+                PartyList,
+                this.SetBugDiagnosticEvent,
+                StatusSnapshotFailureRetention);
+            this.partyRosterReader = new DalamudPartyRosterReader(
+                PartyList,
+                ObjectTable,
+                PlayerState,
+                GameGui,
+                this.SetBugDiagnosticEvent);
+            this.auraFrameService = new AuraFrameService(
+                this.statusSnapshotRuntime,
+                this.partyRosterReader,
+                this.performanceProfiler,
+                this.auraCatalog.EnsureStatusIdentityIndex,
+                this.auraCatalog.GetDefinition);
+            this.auraSearchService = new AuraSearchService(
+                this.auraCatalog,
+                this.auraFrameService,
+                this.performanceProfiler);
+            this.auraTrackingService = new AuraTrackingService(
+                this.auraCatalog,
+                this.auraSearchService);
+            this.partyCooldownRosterService = new PartyCooldownRosterService(
+                this.partyRosterReader,
+                TimeSpan.FromMilliseconds(100));
+            this.partyCooldownOwnedObjectMatcher = new PartyCooldownOwnedObjectMatcher(
+                new DalamudPartyCooldownOwnedObjectReader(ObjectTable),
+                this.SetBugDiagnosticEvent);
+            this.config = PluginInterface.GetPluginConfig() as PluginConfig ?? new PluginConfig();
+            var configChanged = PluginConfigMigrator.Migrate(
+                this.config,
+                GetConfigNormalizationOptions(),
+                message => this.pluginLog.Warning(message));
+            this.PruneIconWindowRuntimeState();
+
+            if (configChanged)
+                _ = this.configSaveCoordinator.SaveNow(this.config, DateTime.UtcNow);
+
+            this.cooldownFont = this.lifetime.Own(
+                PluginInterface.UiBuilder.FontAtlas.NewGameFontHandle(
+                    new GameFontStyle(GameFontFamily.Meidinger, 20f)
+                    {
+                        Bold = true,
+                    }),
+                "cooldown font");
+            this.chargeFont = this.lifetime.Own(
+                PluginInterface.UiBuilder.FontAtlas.NewGameFontHandle(
+                    new GameFontStyle(GameFontFamily.Meidinger, 18f)
+                    {
+                        Bold = true,
+                    }),
+                "charge font");
+            this.auraCountFont = this.lifetime.Own(
+                PluginInterface.UiBuilder.FontAtlas.NewGameFontHandle(
+                    new GameFontStyle(GameFontFamily.Meidinger, 12f)
+                    {
+                        Bold = true,
+                    }),
+                "aura count font");
+            this.abilityCatalog.Load();
+            this.partyCooldownCatalog.Load();
+            this.lifetime.Own(this.CreateRuntimeBindings(), "runtime bindings");
         }
-
-        if (this.config.Version < 3)
+        catch
         {
-            this.config.Version = 3;
-            configChanged |= this.EnsureIconWindows();
+            this.lifetime.Dispose();
+            throw;
         }
+    }
 
-        if (this.config.Version < 4)
-        {
-            this.config.Version = 4;
-            configChanged |= this.EnsureIconWindows();
-        }
-
-        if (this.config.Version < 5)
-        {
-            this.config.Version = 5;
-            configChanged |= this.EnsureIconWindows();
-        }
-
-        if (this.config.Version < 6)
-        {
-            this.config.Version = 6;
-            configChanged |= this.EnsureIconWindows();
-        }
-
-        if (configChanged)
-            this.SaveConfigNow();
-
-        this.cooldownFont = PluginInterface.UiBuilder.FontAtlas.NewGameFontHandle(new GameFontStyle(GameFontFamily.Meidinger, 20f)
-        {
-            Bold = true,
-        });
-        this.chargeFont = PluginInterface.UiBuilder.FontAtlas.NewGameFontHandle(new GameFontStyle(GameFontFamily.Meidinger, 18f)
-        {
-            Bold = true,
-        });
-        this.auraCountFont = PluginInterface.UiBuilder.FontAtlas.NewGameFontHandle(new GameFontStyle(GameFontFamily.Meidinger, 12f)
-        {
-            Bold = true,
-        });
-        this.LoadAbilities();
-        this.LoadPartyCooldowns();
-
+    private PluginRuntimeBindings CreateRuntimeBindings()
+    {
+        var bindings = new List<PluginRuntimeBinding>(CommandNames.Length + 6);
         foreach (var commandName in CommandNames)
         {
-            CommandManager.AddHandler(commandName, new CommandInfo(this.OnCommand)
-            {
-                HelpMessage = "FFXIVAura 설정을 엽니다.",
-            });
+            bindings.Add(new PluginRuntimeBinding(
+                () => CommandManager.AddHandler(commandName, new CommandInfo(this.OnCommand)
+                {
+                    HelpMessage = "FFXIVAura 설정을 엽니다.",
+                }),
+                () => CommandManager.RemoveHandler(commandName),
+                $"command handler {commandName}"));
         }
 
-        PluginInterface.UiBuilder.Draw += this.Draw;
-        PluginInterface.UiBuilder.OpenMainUi += this.OpenConfig;
-        PluginInterface.UiBuilder.OpenConfigUi += this.OpenConfig;
-        ChatGui.LogMessage += this.OnLogMessage;
-        Condition.ConditionChange += this.OnConditionChange;
-        ClientState.ZoneInit += this.OnZoneInit;
+        bindings.Add(new PluginRuntimeBinding(
+            () => { PluginInterface.UiBuilder.Draw += this.Draw; },
+            () => { PluginInterface.UiBuilder.Draw -= this.Draw; },
+            "UI draw handler"));
+        bindings.Add(new PluginRuntimeBinding(
+            () => { PluginInterface.UiBuilder.OpenMainUi += this.OpenConfig; },
+            () => { PluginInterface.UiBuilder.OpenMainUi -= this.OpenConfig; },
+            "main UI handler"));
+        bindings.Add(new PluginRuntimeBinding(
+            () => { PluginInterface.UiBuilder.OpenConfigUi += this.OpenConfig; },
+            () => { PluginInterface.UiBuilder.OpenConfigUi -= this.OpenConfig; },
+            "configuration UI handler"));
+        bindings.Add(new PluginRuntimeBinding(
+            () => { ChatGui.LogMessage += this.OnLogMessage; },
+            () => { ChatGui.LogMessage -= this.OnLogMessage; },
+            "chat log handler"));
+        bindings.Add(new PluginRuntimeBinding(
+            () => { Condition.ConditionChange += this.OnConditionChange; },
+            () => { Condition.ConditionChange -= this.OnConditionChange; },
+            "condition change handler"));
+        bindings.Add(new PluginRuntimeBinding(
+            () => { ClientState.ZoneInit += this.OnZoneInit; },
+            () => { ClientState.ZoneInit -= this.OnZoneInit; },
+            "zone initialization handler"));
+
+        return new PluginRuntimeBindings(
+            bindings,
+            (exception, message) => this.pluginLog.Error(exception, message));
     }
 
     public void Dispose()
     {
-        this.FlushConfigSave(force: true);
-        var finalSnapshot = this.configSavePending
-            ? PluginConfigClone.CreateSnapshot(this.config)
-            : null;
-        var finalConfigSaved = this.configSaveWorker.CompleteAndSaveLatest(finalSnapshot);
-        if (finalSnapshot is not null && finalConfigSaved)
-            this.configSavePending = false;
+        if (this.disposed)
+            return;
 
-        if (this.configSaveWorker.TakeLastError() is { } finalConfigSaveError)
-            Log.Error(finalConfigSaveError, "Failed to save the final FFXIVAura configuration snapshot during unload.");
-
-        PluginInterface.UiBuilder.Draw -= this.Draw;
-        PluginInterface.UiBuilder.OpenMainUi -= this.OpenConfig;
-        PluginInterface.UiBuilder.OpenConfigUi -= this.OpenConfig;
-        ChatGui.LogMessage -= this.OnLogMessage;
-        Condition.ConditionChange -= this.OnConditionChange;
-        ClientState.ZoneInit -= this.OnZoneInit;
-        foreach (var commandName in CommandNames)
-            CommandManager.RemoveHandler(commandName);
-        lock (this.grayscaleIconLock)
-        {
-            foreach (var texture in this.grayscaleIconCache.Values)
-                texture.Dispose();
-
-            this.grayscaleIconCache.Clear();
-            this.grayscaleIconQueue.Clear();
-            this.grayscaleIconPending.Clear();
-            this.grayscaleIconFailed.Clear();
-        }
-
-        this.cooldownFont.Dispose();
-        this.chargeFont.Dispose();
-        this.auraCountFont.Dispose();
-        this.performanceProfileWriter.Dispose();
-    }
-
-    private void LoadAbilities()
-    {
+        this.disposed = true;
         try
         {
-            var json = PluginDataFiles.ReadText(
-                PluginInterface.AssemblyLocation.DirectoryName!,
-                Path.Combine("Data", "abilities.json"),
-                PluginDataFiles.AbilitiesResourceName);
-            var loaded = JsonSerializer.Deserialize<List<AbilityDefinition>>(json, new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true,
-            });
-
-            if (loaded is not null)
-                this.abilities.AddRange(loaded.Where(a => a.ActionId > 0 && a.IconId > 0).Select(this.NormalizeAbilityDefinition));
-
-            this.jobCandidatesCache.Clear();
-            this.gameActionCandidatesCache.Clear();
+            _ = this.configSaveCoordinator.Complete(this.config, DateTime.UtcNow);
         }
         catch (Exception ex)
         {
-            Log.Error(ex, "Failed to load FFXIVAura ability data.");
+            this.pluginLog.Error(ex, "Failed to complete the final configuration save.");
         }
-    }
-
-    private AbilityDefinition NormalizeAbilityDefinition(AbilityDefinition ability)
-    {
-        if (ability.ActionCategoryId == 0)
-            ability.ActionCategoryId = this.GetActionCategory(ability.ActionId).RowId;
-
-        return ability;
+        finally
+        {
+            this.lifetime.Dispose();
+        }
     }
 
     private void OnCommand(string command, string args)
@@ -359,12 +324,25 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
 
     private void OnZoneInit(ZoneInitEventArgs args)
     {
+        this.NoteCrossThreadEventUse("OnZoneInit");
         this.ResetWorldRuntimeState(WorldRuntimeResetReason.ZoneChange);
         this.zoneLoadHiddenUntil = DateTime.UtcNow.AddMilliseconds(900);
     }
 
+    private void NoteCrossThreadEventUse(string handler)
+    {
+        if (!FrameThreadGuard.DetectCrossThreadUse())
+            return;
+
+        this.pluginLog.Warning(
+            "{Handler} ran off the captured UI/Draw thread; per-frame caches assume single-threaded access.",
+            handler);
+        this.SetBugDiagnosticEvent($"crossThreadEvent:{handler}");
+    }
+
     private void OnConditionChange(ConditionFlag flag, bool value)
     {
+        this.NoteCrossThreadEventUse("OnConditionChange");
         if (flag is not ConditionFlag.BetweenAreas and not ConditionFlag.BetweenAreas51)
             return;
 
@@ -375,14 +353,16 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
             return;
         }
 
-        this.zoneLoadActive = Condition[ConditionFlag.BetweenAreas] || Condition[ConditionFlag.BetweenAreas51];
+        this.zoneLoadActive = this.playerRuntimeContext.Capture().IsBetweenAreas;
         this.zoneLoadHiddenUntil = DateTime.UtcNow.AddMilliseconds(220);
     }
 
     private void Draw()
     {
+        FrameThreadGuard.CaptureUiThread();
         var performanceFrameStart = this.BeginPerformanceFrame();
-        this.BeginFrameCache();
+        this.BeginFrameCache(
+            this.performanceProfileRecordingCoordinator.CaptureDiagnosticsThisFrame);
         try
         {
             var wasConfigVisible = this.configWasVisible;
@@ -391,7 +371,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
 
             if (!this.configVisible && wasConfigVisible)
             {
-                this.CloseAuraSearchWindow();
+                this.auraSearchWindowSession.Close();
                 if (this.EnsureIconWindows())
                     this.QueueConfigSave();
             }
@@ -401,7 +381,7 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
             if (this.configVisible)
                 this.DrawConfig();
 
-            var loggedInAndLoaded = ClientState.IsLoggedIn && PlayerState.IsLoaded;
+            var loggedInAndLoaded = this.playerFrameContext.IsReady;
             var wasLoggedInAndLoaded = this.loginStabilizationState.WasLoggedInAndLoaded;
             var loginStarted = this.loginStabilizationState.Update(loggedInAndLoaded, DateTime.UtcNow);
             if (loginStarted)
@@ -439,24 +419,23 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
         }
     }
 
-    private void BeginFrameCache()
+    private void BeginFrameCache(bool capturePerformanceDiagnostics)
     {
-        if (this.configSaveWorker.TakeLastError() is { } configSaveError)
-            this.HandleConfigSaveError(configSaveError);
+        this.playerFrameContext = this.playerRuntimeContext.Capture();
+
+        this.configSaveCoordinator.ObserveWorkerError(DateTime.UtcNow);
 
         this.overlayTooltipRequestedThisFrame = false;
         this.overlayTooltipResolver.Clear();
-        this.cooldownFrameCache.Clear();
-        this.playerAuraFrameCacheValid = false;
-        this.targetAuraFrameCacheValid = false;
-        this.partyAuraFrameAllCacheValid = false;
-        this.partyAuraFrameOwnCacheValid = false;
+        this.cooldownFrameService.BeginFrame();
         this.partyCooldownFrameSnapshot = null;
         this.partyCooldownRuntimeStore.BeginFrame();
-        this.gameObjectOwnerFrameCache.Clear();
-        this.overlayWindowDebugSnapshots.Clear();
+        this.statusSnapshotRuntime.BeginFrame();
+        this.auraFrameService.BeginFrame(this.playerFrameContext);
+        if (capturePerformanceDiagnostics)
+            this.overlayWindowDebugSnapshots.Clear();
         var grayscaleProfileStart = this.performanceProfiler.BeginSection(PerformanceProfileSection.GrayscaleProcessing);
-        var grayscaleIconCount = this.ProcessGrayscaleIconQueue();
+        var grayscaleIconCount = this.iconTextureService.ProcessGrayscaleQueue();
         if (grayscaleIconCount > 0)
             this.performanceProfiler.EndSection(PerformanceProfileSection.GrayscaleProcessing, grayscaleProfileStart);
 
@@ -464,95 +443,21 @@ public sealed unsafe partial class Plugin : IDalamudPlugin
     }
 
     private void QueueConfigSave()
-    {
-        var nowUtc = DateTime.UtcNow;
-        if (!this.configSavePending)
-            this.configSaveQueuedAtUtc = nowUtc;
-
-        this.configSavePending = true;
-        this.configSaveAfter = nowUtc.Add(ConfigSaveDebounceDelay);
-    }
-
-    private void HandleConfigSaveError(Exception exception)
-    {
-        var nowUtc = DateTime.UtcNow;
-        if (nowUtc >= this.configSaveNextErrorLogAtUtc)
-        {
-            this.configSaveNextErrorLogAtUtc = nowUtc.AddSeconds(30);
-            Log.Error(exception, "Failed to save FFXIVAura configuration; retrying the latest snapshot.");
-        }
-
-        if (!this.configSavePending)
-            this.configSaveQueuedAtUtc = nowUtc;
-
-        this.configSavePending = true;
-        this.configSaveAfter = nowUtc.Add(ConfigSaveCombatRetryDelay);
-        this.SetBugDiagnosticEvent("configSaveFailed");
-    }
-
-    private void SaveConfigNow()
-    {
-        var profileStart = this.performanceProfiler.BeginSection(PerformanceProfileSection.ConfigSave);
-        try
-        {
-            var snapshot = PluginConfigClone.CreateSnapshot(this.config);
-            if (!this.configSaveWorker.TryEnqueue(snapshot))
-            {
-                this.configSaveAfter = DateTime.UtcNow.Add(ConfigSaveCombatRetryDelay);
-                return;
-            }
-        }
-        finally
-        {
-            this.performanceProfiler.EndSection(PerformanceProfileSection.ConfigSave, profileStart);
-        }
-
-        this.SetBugDiagnosticEvent("configSaveQueued");
-        this.configSavePending = false;
-        this.configSaveAfter = DateTime.MinValue;
-        this.configSaveQueuedAtUtc = DateTime.MinValue;
-        this.configSaveDeferredInCombat = false;
-    }
+        => this.configSaveCoordinator.Queue(DateTime.UtcNow);
 
     private void FlushConfigSave(bool force)
-    {
-        if (!this.configSavePending)
-            return;
-
-        var nowUtc = DateTime.UtcNow;
-        if (!force && nowUtc < this.configSaveAfter)
-            return;
-
-        if (!force && this.ShouldDeferConfigSaveInCombat(nowUtc))
-        {
-            this.configSaveDeferredInCombat = true;
-            this.configSaveAfter = nowUtc.Add(ConfigSaveCombatRetryDelay);
-            return;
-        }
-
-        this.SaveConfigNow();
-    }
-
-    private bool ShouldDeferConfigSaveInCombat(DateTime nowUtc)
-    {
-        if (!ClientState.IsLoggedIn || !PlayerState.IsLoaded || !this.IsInCombat())
-            return false;
-
-        var queuedAtUtc = this.configSaveQueuedAtUtc == DateTime.MinValue
-            ? nowUtc
-            : this.configSaveQueuedAtUtc;
-        return nowUtc - queuedAtUtc < ConfigSaveMaxCombatDeferDuration;
-    }
+        => _ = this.configSaveCoordinator.Flush(
+            this.config,
+            this.playerFrameContext,
+            DateTime.UtcNow,
+            force);
 
     private void InvalidateKeybindCache()
-    {
-        this.keybindCacheDirty = true;
-        this.keybindCacheRefreshAfter = DateTime.MinValue;
-    }
+        => this.actionKeybindService.Invalidate();
 
     private bool IsLoading()
     {
-        if (Condition[ConditionFlag.BetweenAreas] || Condition[ConditionFlag.BetweenAreas51])
+        if (this.playerFrameContext.IsBetweenAreas)
         {
             this.zoneLoadActive = true;
             this.zoneLoadHiddenUntil = DateTime.UtcNow.AddSeconds(20);

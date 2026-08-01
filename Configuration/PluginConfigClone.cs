@@ -25,6 +25,7 @@ internal static class PluginConfigClone
             OverlayWidth = source.OverlayWidth,
             OverlayHeight = source.OverlayHeight,
             OverlayPosition = source.OverlayPosition,
+            ManualTrackingJobs = IconWindowClone.CloneStringList(source.ManualTrackingJobs),
             TrackedByJob = IconWindowClone.CloneStringListMap(source.TrackedByJob),
             ExcludedByJob = IconWindowClone.CloneStringListMap(source.ExcludedByJob),
             IconPositionsByJob = IconWindowClone.CloneVector2Map(source.IconPositionsByJob),

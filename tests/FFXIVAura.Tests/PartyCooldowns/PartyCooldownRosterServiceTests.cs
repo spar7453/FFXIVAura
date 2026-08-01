@@ -127,7 +127,7 @@ internal static class PartyCooldownRosterServiceTests
             localIdentity);
 
     private static PartyCooldownMemberSnapshot CreateMember(uint entityId, ulong contentId, string name)
-        => PartyCooldownMemberSnapshotFactory.Create(entityId, contentId, 1, name, 19);
+        => PartyCooldownMemberSnapshotFactory.Create(entityId, contentId, 1, name, 19, 90);
 
     private sealed class FakePartyRosterReader : IPartyRosterReader
     {

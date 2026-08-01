@@ -1,30 +1,32 @@
 namespace FFXIVAura;
 
-public sealed unsafe partial class Plugin
+public sealed partial class Plugin
 {
+    // Cooldown-cover sweep geometry. Above this elapsed fraction the cover is effectively
+    // full, so it is skipped to avoid a redundant near-complete fill each frame.
+    private const float CooldownCoverFullElapsedRatio = 0.995f;
+
+    // Cover radius as a fraction of the icon width; slightly larger than half so the
+    // radial sweep reaches into the icon corners.
+    private const float CooldownCoverRadiusFactor = 0.74f;
+
     private void DrawCooldownCover(ImDrawListPtr draw, Vector2 min, Vector2 max, float elapsedRatio)
     {
         elapsedRatio = Math.Clamp(elapsedRatio, 0f, 1f);
-        if (elapsedRatio >= 0.995f)
+        if (elapsedRatio >= CooldownCoverFullElapsedRatio)
             return;
 
         draw.PushClipRect(min, max, true);
         var center = (min + max) * 0.5f;
-        var radius = (max.X - min.X) * 0.74f;
-        var start = -MathF.PI * 0.5f + MathF.Tau * elapsedRatio;
-        var end = -MathF.PI * 0.5f + MathF.Tau;
+        var radius = (max.X - min.X) * CooldownCoverRadiusFactor;
         var color = ImGui.GetColorU32(new Vector4(0.02f, 0.02f, 0.02f, 0.44f));
 
         draw.PathClear();
         draw.PathLineTo(center);
-        var remainingRatio = 1f - elapsedRatio;
-        var steps = Math.Max(10, (int)(64 * remainingRatio));
-        for (var i = 0; i <= steps; i++)
-        {
-            var t = steps == 0 ? 0 : i / (float)steps;
-            var a = start + (end - start) * t;
-            draw.PathLineTo(center + new Vector2(MathF.Cos(a), MathF.Sin(a)) * radius);
-        }
+        var points = CooldownCoverGeometry.UnitCirclePoints;
+        var startIndex = CooldownCoverGeometry.GetStartIndex(elapsedRatio);
+        for (var index = startIndex; index < points.Length; index++)
+            draw.PathLineTo(center + (points[index] * radius));
 
         draw.PathFillConvex(color);
         draw.PopClipRect();
@@ -40,7 +42,7 @@ public sealed unsafe partial class Plugin
 
     private void DrawTimerText(ImDrawListPtr draw, Vector2 min, Vector2 max, float remaining)
     {
-        var text = Math.Ceiling(remaining).ToString("0");
+        var text = IconRenderText.FormatCooldown(remaining);
         using (this.cooldownFont.Push())
         {
             var size = ImGui.CalcTextSize(text);
@@ -51,7 +53,7 @@ public sealed unsafe partial class Plugin
 
     private void DrawChargeText(ImDrawListPtr draw, Vector2 min, Vector2 max, uint charges)
     {
-        var text = charges.ToString();
+        var text = IconRenderText.FormatCharge(charges);
         using (this.chargeFont.Push())
         {
             var size = ImGui.CalcTextSize(text);
@@ -63,7 +65,7 @@ public sealed unsafe partial class Plugin
 
     private void DrawKeybindText(ImDrawListPtr draw, Vector2 min, Vector2 max, uint baseActionId, uint displayActionId)
     {
-        var text = this.GetActionKeybindText(baseActionId, displayActionId);
+        var text = this.actionKeybindService.GetText(baseActionId, displayActionId);
         if (string.IsNullOrWhiteSpace(text))
             return;
 

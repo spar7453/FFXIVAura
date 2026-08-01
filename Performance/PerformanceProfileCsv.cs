@@ -5,10 +5,45 @@ namespace FFXIVAura;
 
 internal static class PerformanceProfileCsv
 {
+    public const int PrivacySchemaVersion = 2;
     public const string FileName = "performance-profile.csv";
     public const string PreviousFileName = "performance-profile.previous.csv";
     public const string Header =
-        "timestampUtc,scope,id,label,detail,currentMs,recentAvgMs,averageMs,maxMs,maxOccurredLocal,lastCallCount,totalCallCount,sampleFrameCount,windowCount,skillIconCount,auraIconCount,cooldownCalculationCount,keybindCount,tooltipRenderCount,grayscaleIconProcessCount,allocatedBytes,averageAllocatedBytes,maxAllocatedBytes,gen0CollectionCount";
+        "timestampUtc,scope,id,label,detail,currentMs,recentAvgMs,averageMs,maxMs,maxOccurredLocal,lastCallCount,totalCallCount,sampleFrameCount,windowCount,skillIconCount,auraIconCount,cooldownCalculationCount,keybindCount,tooltipRenderCount,grayscaleIconProcessCount,allocatedBytes,averageAllocatedBytes,maxAllocatedBytes,gen0CollectionCount,privacySchemaVersion";
+
+    public static PerformanceProfileCsvRow CreateDiagnosticRow(
+        DateTime timestampUtc,
+        string id,
+        string label,
+        string detail,
+        int windowCount,
+        int skillIconCount,
+        int auraIconCount,
+        int cooldownCalculationCount,
+        int keybindCount,
+        int tooltipRenderCount,
+        int grayscaleIconProcessCount)
+        => new(
+            timestampUtc,
+            "diagnostic",
+            id,
+            label,
+            detail,
+            0,
+            0,
+            0,
+            0,
+            DateTime.MinValue,
+            0,
+            0,
+            0,
+            windowCount,
+            skillIconCount,
+            auraIconCount,
+            cooldownCalculationCount,
+            keybindCount,
+            tooltipRenderCount,
+            grayscaleIconProcessCount);
 
     public static void AppendRow(StringBuilder builder, PerformanceProfileCsvRow row)
     {
@@ -36,7 +71,8 @@ internal static class PerformanceProfileCsv
             .Append(row.AllocatedBytes.ToString(CultureInfo.InvariantCulture)).Append(',')
             .Append(FormatNumber(row.AverageAllocatedBytes)).Append(',')
             .Append(row.MaxAllocatedBytes.ToString(CultureInfo.InvariantCulture)).Append(',')
-            .Append(row.Gen0CollectionCount.ToString(CultureInfo.InvariantCulture))
+            .Append(row.Gen0CollectionCount.ToString(CultureInfo.InvariantCulture)).Append(',')
+            .Append(PrivacySchemaVersion.ToString(CultureInfo.InvariantCulture))
             .AppendLine();
     }
 

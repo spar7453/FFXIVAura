@@ -3,22 +3,24 @@ using System.Text;
 
 namespace FFXIVAura;
 
-public sealed unsafe partial class Plugin
+public sealed partial class Plugin
 {
     private void AppendPluginDiagnosticRow(StringBuilder builder, DateTime timestampUtc)
     {
+        var configSaveDiagnostics = this.configSaveCoordinator.CreateDiagnostics(timestampUtc);
+        var profileRecordingDiagnostics = this.performanceProfileRecordingCoordinator.CreateDiagnostics();
         this.AppendPerformanceProfileDiagnosticRow(builder, timestampUtc, "plugin", "Plugin", FormatDiagnosticPairs(
             ("enabled", this.config.Enabled),
             ("configVisible", this.configVisible),
-            ("configSavePending", this.configSavePending),
-            ("configSaveDeferredInCombat", this.configSaveDeferredInCombat),
-            ("configSavePendingSec", GetConfigSavePendingSeconds(timestampUtc, this.configSaveQueuedAtUtc)),
-            ("configSaveQueue", this.configSaveWorker.PendingCount),
-            ("configSaveDropped", this.configSaveWorker.DroppedCount),
-            ("configSaveCompleted", this.configSaveWorker.CompletedCount),
-            ("configSaveFailed", this.configSaveWorker.FailedCount),
-            ("configSaveLastMs", this.configSaveWorker.LastSaveMilliseconds),
-            ("configSaveMaxMs", this.configSaveWorker.MaxSaveMilliseconds),
+            ("configSavePending", configSaveDiagnostics.Pending),
+            ("configSaveDeferredInCombat", configSaveDiagnostics.DeferredInCombat),
+            ("configSavePendingSec", configSaveDiagnostics.PendingSeconds),
+            ("configSaveQueue", configSaveDiagnostics.QueueCount),
+            ("configSaveDropped", configSaveDiagnostics.DroppedCount),
+            ("configSaveCompleted", configSaveDiagnostics.CompletedCount),
+            ("configSaveFailed", configSaveDiagnostics.FailedCount),
+            ("configSaveLastMs", configSaveDiagnostics.LastSaveMilliseconds),
+            ("configSaveMaxMs", configSaveDiagnostics.MaxSaveMilliseconds),
             ("lockOverlay", this.config.LockOverlay),
             ("hideDuringZoneLoad", this.config.HideDuringZoneLoad),
             ("showTooltips", this.config.ShowTooltips),
@@ -26,21 +28,22 @@ public sealed unsafe partial class Plugin
             ("showDetailedProfile", this.config.ShowDetailedPerformanceProfile),
             ("recordProfile", this.config.RecordPerformanceProfile),
             ("recordIntervalSec", this.config.PerformanceProfileRecordIntervalSeconds),
+            ("diagnosticIntervalSec", PerformanceProfileRecordingCoordinator.DiagnosticIntervalSeconds),
             ("maxFileMb", this.config.PerformanceProfileMaxFileMegabytes),
-            ("profileWritePending", this.performanceProfileWriter.PendingCount),
-            ("profileWriteDropped", this.performanceProfileWriter.DroppedCount),
-            ("profileWriteCompleted", this.performanceProfileWriter.CompletedCount),
-            ("profileWriteFailed", this.performanceProfileWriter.FailedCount),
-            ("profileWriteLastMs", this.performanceProfileWriter.LastWriteMilliseconds),
-            ("profileWriteMaxMs", this.performanceProfileWriter.MaxWriteMilliseconds),
-            ("profileWriteLastCompletedLocal", this.performanceProfileWriter.LastCompletedAtUtc == DateTime.MinValue
+            ("profileWritePending", profileRecordingDiagnostics.PendingCount),
+            ("profileWriteDropped", profileRecordingDiagnostics.DroppedCount),
+            ("profileWriteCompleted", profileRecordingDiagnostics.CompletedCount),
+            ("profileWriteFailed", profileRecordingDiagnostics.FailedCount),
+            ("profileWriteLastMs", profileRecordingDiagnostics.LastWriteMilliseconds),
+            ("profileWriteMaxMs", profileRecordingDiagnostics.MaxWriteMilliseconds),
+            ("profileWriteLastCompletedLocal", profileRecordingDiagnostics.LastCompletedAtUtc == DateTime.MinValue
                 ? string.Empty
-                : this.performanceProfileWriter.LastCompletedAtUtc.ToLocalTime()),
-            ("profileFailureCount", this.performanceProfileFailureCount),
-            ("profileLastError", this.performanceProfileLastError),
-            ("profileLastErrorLocal", this.performanceProfileLastErrorAtUtc == DateTime.MinValue
+                : profileRecordingDiagnostics.LastCompletedAtUtc.ToLocalTime()),
+            ("profileFailureCount", profileRecordingDiagnostics.RecordingFailureCount),
+            ("profileLastError", profileRecordingDiagnostics.LastError),
+            ("profileLastErrorLocal", profileRecordingDiagnostics.LastErrorAtUtc == DateTime.MinValue
                 ? string.Empty
-                : this.performanceProfileLastErrorAtUtc.ToLocalTime()),
+                : profileRecordingDiagnostics.LastErrorAtUtc.ToLocalTime()),
             ("logObserver", this.config.ShowPartyCooldownLogObserver),
             ("partyCooldownLayoutEditMode", this.config.PartyCooldownLayoutEditMode)));
     }
@@ -48,29 +51,27 @@ public sealed unsafe partial class Plugin
     private void AppendPlayerDiagnosticRow(
         StringBuilder builder,
         DateTime timestampUtc,
-        bool playerLoaded,
-        string job)
+        in PlayerFrameContext playerContext)
     {
-        var level = playerLoaded ? PlayerState.Level : 0;
-        var effectiveLevel = playerLoaded ? this.GetCurrentEffectiveLevel() : 0;
-        var betweenAreas = Condition[ConditionFlag.BetweenAreas];
-        var betweenAreas51 = Condition[ConditionFlag.BetweenAreas51];
         var loadingSuppressed = this.config.HideDuringZoneLoad
-                                && (betweenAreas || betweenAreas51 || this.zoneLoadActive || timestampUtc < this.zoneLoadHiddenUntil);
+                                && (playerContext.IsBetweenAreas
+                                    || this.zoneLoadActive
+                                    || timestampUtc < this.zoneLoadHiddenUntil);
 
         this.AppendPerformanceProfileDiagnosticRow(builder, timestampUtc, "player", "Player", FormatDiagnosticPairs(
-            ("loggedIn", ClientState.IsLoggedIn),
-            ("playerLoaded", playerLoaded),
-            ("localPlayer", ObjectTable.LocalPlayer is not null),
-            ("job", job),
-            ("level", level),
-            ("effectiveLevel", effectiveLevel),
-            ("inCombat", this.IsInCombat()),
-            ("betweenAreas", betweenAreas),
-            ("betweenAreas51", betweenAreas51),
+            ("loggedIn", playerContext.IsLoggedIn),
+            ("playerLoaded", playerContext.IsPlayerLoaded),
+            ("localPlayer", playerContext.HasLocalPlayer),
+            ("job", playerContext.Job),
+            ("level", playerContext.Level),
+            ("effectiveLevel", playerContext.EffectiveLevel),
+            ("levelSynced", playerContext.IsLevelSynced),
+            ("inCombat", playerContext.IsInCombat),
+            ("betweenAreas", playerContext.BetweenAreas),
+            ("betweenAreas51", playerContext.BetweenAreas51),
             ("loadingSuppressed", loadingSuppressed),
-            ("target", TargetManager.Target is not null),
-            ("softTarget", TargetManager.SoftTarget is not null)));
+            ("target", playerContext.HasTarget),
+            ("softTarget", playerContext.HasSoftTarget)));
     }
 
     private void AppendOverlayDiagnosticRow(StringBuilder builder, DateTime timestampUtc)
@@ -84,10 +85,10 @@ public sealed unsafe partial class Plugin
             ("skillWindows", this.config.IconWindows.Count(window => window.Role == IconWindowRole.SkillCooldowns)),
             ("standardAuraWindows", this.config.IconWindows.Count(window => IconWindowRoles.IsStandardAuraRole(window.Role))),
             ("partyCooldownWindows", this.config.IconWindows.Count(window => IconWindowRoles.IsPartyCooldownRole(window.Role))),
-            ("auraSearchVisible", this.auraSearchWindowVisible),
-            ("auraSearchWindowId", this.auraSearchWindowId ?? string.Empty),
-            ("draggedTrackedId", this.draggedTrackedId ?? string.Empty),
-            ("draggedOverlayId", this.draggedOverlayId ?? string.Empty)));
+            ("auraSearchVisible", this.auraSearchWindowSession.IsVisible),
+            ("auraSearchWindowId", this.auraSearchWindowSession.WindowId ?? string.Empty),
+            ("draggedTrackedId", this.trackedSkillEditorSession.DraggedAbilityId ?? string.Empty),
+            ("draggedOverlayId", this.overlayDragSession.DragId ?? string.Empty)));
     }
 
     private void AppendCacheDiagnosticRow(
@@ -95,66 +96,89 @@ public sealed unsafe partial class Plugin
         DateTime timestampUtc,
         PartyCooldownRuntimeStoreDiagnostics partyCooldownRuntimeDiagnostics)
     {
+        var statusSnapshotDiagnostics = this.statusSnapshotRuntime.CreateDiagnostics();
+        var auraCatalogDiagnostics = this.auraCatalog.CreateDiagnostics();
+        var auraSearchDiagnostics = this.auraSearchService.CreateDiagnostics();
+        var keybindDiagnostics = this.actionKeybindService.CreateDiagnostics();
+        var tooltipContentDiagnostics = this.tooltipContentService.CreateDiagnostics();
+        var abilityCatalogDiagnostics = this.abilityCatalog.CreateDiagnostics();
+        var partyCooldownCatalogDiagnostics = this.partyCooldownCatalog.CreateDiagnostics();
         this.AppendPerformanceProfileDiagnosticRow(builder, timestampUtc, "cache", "Cache", FormatDiagnosticPairs(
-            ("cooldownFrame", this.cooldownFrameCache.Count),
+            ("cooldownFrame", this.cooldownFrameService.CachedCount),
             ("visibleAbilityKeys", this.visibleAbilityKeys.Count),
             ("transientSkillLayouts", this.transientSkillPositionsByGroup.Count),
-            ("jobCandidates", this.jobCandidatesCache.Count),
-            ("gameActionCandidates", this.gameActionCandidatesCache.Count),
-            ("actionRows", this.actionRowCache.Count),
-            ("actionCategories", this.actionCategoryCache.Count),
-            ("actionEquivalenceGroups", this.actionEquivalenceGroupCache.Count),
-            ("statusDefinitions", this.statusDefinitionCache.Count),
-            ("statusIdentityIndexBuilt", this.statusIdentityIndexState.IsBuilt),
-            ("statusIdentityIndexGeneration", this.statusIdentityIndexState.Generation),
-            ("statusSearchIndexBuilt", this.allStatusSearchIndexBuilt),
-            ("statusSearchEntries", this.allStatusSearchIndex.Count),
-            ("statusIdentityGroups", this.statusIdsByGroupIndex.Count),
-            ("actionAuraIndexBuilt", this.actionGrantedStatusSearchIndexState.IsBuilt),
-            ("actionAuraIndexGeneration", this.actionGrantedStatusSearchIndexState.Generation),
-            ("actionAuraEntries", this.actionGrantedStatusSearchIndex.Count),
-            ("actionAuraStatusBuckets", this.actionGrantedStatusSearchIndexByStatusId.Count),
-            ("actionAuraQueryCache", this.actionGrantedAuraSearchQueryCache.Count),
-            ("statusSearchQueryCache", this.allStatusSearchQueryCache.Count),
-            ("auraSearchResultCache", this.auraSearchResultCacheByWindow.Count),
-            ("auraSearchResultCacheHits", this.auraSearchResultCacheHitCount),
-            ("auraSearchResultCacheMisses", this.auraSearchResultCacheMissCount),
+            ("abilityDefinitions", abilityCatalogDiagnostics.DefinitionCount),
+            ("abilityIdLookups", abilityCatalogDiagnostics.DefinitionIdLookupCount),
+            ("abilityActionLookups", abilityCatalogDiagnostics.DefinitionActionLookupCount),
+            ("jobCandidates", abilityCatalogDiagnostics.JobCandidateCacheCount),
+            ("gameActionCandidates", abilityCatalogDiagnostics.GameActionCandidateCacheCount),
+            ("abilityIdMatchers", abilityCatalogDiagnostics.IdMatcherCacheCount),
+            ("actionRows", this.gameActionRepository.CachedActionCount),
+            ("partyCooldownDefinitions", partyCooldownCatalogDiagnostics.DefinitionCount),
+            ("partyCooldownActionLookups", partyCooldownCatalogDiagnostics.ActionLookupCount),
+            ("partyCooldownNameLookups", partyCooldownCatalogDiagnostics.NameLookupCount),
+            ("partyCooldownScopeCache", partyCooldownCatalogDiagnostics.EffectiveScopeCacheCount),
+            ("partyCooldownCategoryCache", partyCooldownCatalogDiagnostics.EffectiveCategoryCacheCount),
+            ("partyCooldownStatusIds", partyCooldownCatalogDiagnostics.StatusIdCacheCount),
+            ("partyCooldownMaxCharges", partyCooldownCatalogDiagnostics.MaxChargeCacheCount),
+            ("statusDefinitions", auraCatalogDiagnostics.StatusDefinitionCount),
+            ("statusIdentityIndexBuilt", auraCatalogDiagnostics.StatusIdentityIndexBuilt),
+            ("statusIdentityIndexGeneration", auraCatalogDiagnostics.StatusIdentityIndexGeneration),
+            ("statusSearchIndexBuilt", auraCatalogDiagnostics.AllStatusSearchIndexBuilt),
+            ("statusSearchEntries", auraCatalogDiagnostics.AllStatusSearchEntryCount),
+            ("statusIdentityGroups", auraCatalogDiagnostics.StatusIdentityGroupCount),
+            ("actionAuraIndexBuilt", auraCatalogDiagnostics.ActionGrantedIndexBuilt),
+            ("actionAuraIndexGeneration", auraCatalogDiagnostics.ActionGrantedIndexGeneration),
+            ("actionAuraEntries", auraCatalogDiagnostics.ActionGrantedEntryCount),
+            ("actionAuraStatusBuckets", auraCatalogDiagnostics.ActionGrantedStatusBucketCount),
+            ("actionAuraQueryCache", auraCatalogDiagnostics.ActionGrantedQueryCacheCount),
+            ("statusSearchQueryCache", auraCatalogDiagnostics.AllStatusSearchQueryCacheCount),
+            ("auraSearchResultCache", auraSearchDiagnostics.ResultCacheCount),
+            ("auraSearchResultCacheHits", auraSearchDiagnostics.ResultCacheHitCount),
+            ("auraSearchResultCacheMisses", auraSearchDiagnostics.ResultCacheMissCount),
             ("partyRowBuffers", partyCooldownRuntimeDiagnostics.RowBufferCount),
             ("partyRowMemberBuffers", partyCooldownRuntimeDiagnostics.RowMemberBufferCount),
-            ("statusTooltips", this.statusTooltipTextCache.Count),
-            ("statusFallbacks", this.statusSnapshotFallbackCache.Count),
-            ("gameObjectOwners", this.gameObjectOwnerFrameCache.Count),
-            ("hotbarVisibility", this.hotbarVisibilityCache.Count),
-            ("missingActionRows", this.missingActionRows.Count),
-            ("keybindDirty", this.keybindCacheDirty),
-            ("keybindRefreshAfterLocal", this.keybindCacheRefreshAfter == DateTime.MinValue ? string.Empty : this.keybindCacheRefreshAfter.ToLocalTime())));
+            ("statusTooltips", tooltipContentDiagnostics.StatusTextCount),
+            ("actionTooltips", tooltipContentDiagnostics.ActionModelCount),
+            ("actionTooltipDescriptions", tooltipContentDiagnostics.ActionDescriptionCount),
+            ("statusFallbacks", statusSnapshotDiagnostics.FallbackCount),
+            ("gameObjectOwners", statusSnapshotDiagnostics.OwnerCacheCount),
+            ("hotbarVisibility", keybindDiagnostics.HotbarVisibilityCount),
+            ("generalActionIds", keybindDiagnostics.GeneralActionCount),
+            ("missingActionRows", this.gameActionRepository.MissingActionCount),
+            ("keybindDirty", keybindDiagnostics.IsDirty),
+            ("keybindRefreshAfterLocal", keybindDiagnostics.RefreshAfterUtc == DateTime.MinValue
+                ? string.Empty
+                : keybindDiagnostics.RefreshAfterUtc.ToLocalTime())));
     }
 
     private void AppendAuraDiagnosticRow(
         StringBuilder builder,
         DateTime timestampUtc,
-        PartyAuraRuntimeDiagnostics partyAuraRuntimeDiagnostics)
+        AuraFrameDiagnostics diagnostics)
     {
+        var partyAuraRuntimeDiagnostics = diagnostics.PartyRuntime;
+        var auraSearchDiagnostics = this.auraSearchService.CreateDiagnostics();
         this.AppendPerformanceProfileDiagnosticRow(builder, timestampUtc, "aura", "Aura", FormatDiagnosticPairs(
-            ("playerCacheValid", this.playerAuraFrameCacheValid),
-            ("playerCacheCount", this.playerAuraFrameCache.Count),
-            ("targetCacheValid", this.targetAuraFrameCacheValid),
-            ("targetCacheCount", this.targetAuraFrameCache.Count),
-            ("partyAllCacheValid", this.partyAuraFrameAllCacheValid),
-            ("partyAllCacheCount", this.partyAuraFrameAllCache.Count),
-            ("partyOwnCacheValid", this.partyAuraFrameOwnCacheValid),
-            ("partyOwnCacheCount", this.partyAuraFrameOwnCache.Count),
+            ("playerCacheValid", diagnostics.PlayerCacheValid),
+            ("playerCacheCount", diagnostics.PlayerCacheCount),
+            ("targetCacheValid", diagnostics.TargetCacheValid),
+            ("targetCacheCount", diagnostics.TargetCacheCount),
+            ("partyAllCacheValid", diagnostics.PartyAllCacheValid),
+            ("partyAllCacheCount", diagnostics.PartyAllCacheCount),
+            ("partyOwnCacheValid", diagnostics.PartyOwnCacheValid),
+            ("partyOwnCacheCount", diagnostics.PartyOwnCacheCount),
             ("partyTimerStates", partyAuraRuntimeDiagnostics.TimerStateCount),
             ("partyFallbackBatches", partyAuraRuntimeDiagnostics.FallbackBatchCount),
             ("partyTimerRefreshAccepted", partyAuraRuntimeDiagnostics.RefreshAcceptedCount),
             ("partyExpiredStatusSuppressed", partyAuraRuntimeDiagnostics.ExpiredStatusSuppressedCount),
             ("partyTimerLastDecision", partyAuraRuntimeDiagnostics.LastDecision),
-            ("visibleAuraScopes", this.visibleAurasByScope.Count),
-            ("visibleAuraIds", this.visibleAurasByScope.Values.Sum(statusIds => statusIds.Count)),
-            ("firstSeenScopes", this.auraFirstSeenByScope.Count),
-            ("firstSeenStatusIds", this.auraFirstSeenByScope.Values.Sum(statuses => statuses.Count)),
-            ("auraSearchRevisionScopes", this.auraSearchStateRevisionByScope.Count),
-            ("pendingStatusId", this.pendingStatusId)));
+            ("visibleAuraScopes", auraSearchDiagnostics.VisibleScopeCount),
+            ("visibleAuraIds", auraSearchDiagnostics.VisibleStatusCount),
+            ("firstSeenScopes", auraSearchDiagnostics.FirstSeenScopeCount),
+            ("firstSeenStatusIds", auraSearchDiagnostics.FirstSeenStatusCount),
+            ("auraSearchRevisionScopes", auraSearchDiagnostics.RevisionScopeCount),
+            ("pendingStatusId", this.auraSearchWindowSession.PendingStatusId)));
     }
 
     private void AppendPartyCooldownDiagnosticRows(
@@ -191,6 +215,10 @@ public sealed unsafe partial class Plugin
             this.partyCooldownFrameSnapshot?.Members ?? Array.Empty<PartyCooldownMemberSnapshot>();
         var partyListHeader = this.GetPartyListHeader();
         var activeStatusDiagnostics = this.partyCooldownActiveStatusIndex.CreateDiagnostics();
+        var signalDiagnostics = this.partyCooldownSignalDiagnostics.CreateSnapshot();
+        var levelDiagnostics = PartyCooldownLevelDiagnosticCalculator.Create(
+            diagnosticMembers,
+            this.playerFrameContext.EffectiveLevel);
         this.AppendPerformanceProfileDiagnosticRow(builder, timestampUtc, "partyCooldown", "Party Cooldown", FormatDiagnosticPairs(
             ("partyListLength", partyListHeader.Length),
             ("partyId", partyListHeader.PartyId),
@@ -204,7 +232,7 @@ public sealed unsafe partial class Plugin
             ("crossRealmGroupCount", partyCooldownRoster.CrossRealmGroupCount),
             ("rosterSource", partyCooldownRoster.Source),
             ("rosterReadMode", partyCooldownRoster.ReadMode),
-            ("definitions", this.partyCooldownDefinitions.Count),
+            ("definitions", this.partyCooldownCatalog.Definitions.Count),
             ("runtimeStates", partyCooldownRuntimeDiagnostics.RuntimeStateCount),
             ("activeStatuses", activeStatusDiagnostics.StatusCount),
             ("activePartyListSource", activeStatusDiagnostics.PartyListSourceCount),
@@ -215,15 +243,23 @@ public sealed unsafe partial class Plugin
             ("activeFallbackStatuses", activeStatusDiagnostics.FallbackStatusCount),
             ("activeAbsenceConfirmed", activeStatusDiagnostics.AbsenceConfirmed),
             ("liveStatusOwners", activeStatusDiagnostics.LiveOwnerCount),
-            ("statusFallbackBatches", this.partyCooldownStatusFallbackBatchCount),
-            ("activeTimerRefreshAccepted", this.partyCooldownTimerRefreshAcceptedCount),
-            ("activeTimerStaleSuppressed", this.partyCooldownTimerStalePositiveSuppressedCount),
-            ("activeTimerLastDecision", this.partyCooldownTimerLastDecision),
+            ("statusFallbackBatches", signalDiagnostics.StatusFallbackBatchCount),
+            ("activeTimerRefreshAccepted", signalDiagnostics.TimerRefreshAcceptedCount),
+            ("activeTimerStaleSuppressed", signalDiagnostics.TimerStalePositiveSuppressedCount),
+            ("activeTimerLastDecision", signalDiagnostics.TimerLastDecision),
             ("statusScansThisFrame", this.performanceStats.PartyStatusScanCount),
             ("statusCacheHitsThisFrame", this.performanceStats.PartyStatusCacheHitCount),
             ("frameSnapshot", this.partyCooldownFrameSnapshot is not null),
             ("frameMembers", this.partyCooldownFrameSnapshot?.Members.Count ?? 0),
             ("displayMembers", this.partyCooldownFrameSnapshot?.DisplayMembers.Count ?? 0),
+            ("localLevelSynced", this.playerFrameContext.IsLevelSynced),
+            ("localEffectiveLevel", this.playerFrameContext.EffectiveLevel),
+            ("memberReportedLevelMin", levelDiagnostics.ReportedMinimum),
+            ("memberReportedLevelMax", levelDiagnostics.ReportedMaximum),
+            ("memberLevelMissing", levelDiagnostics.MissingCount),
+            ("memberResolvedLevelMin", levelDiagnostics.ResolvedMinimum),
+            ("memberResolvedLevelMax", levelDiagnostics.ResolvedMaximum),
+            ("memberReportedAboveLocalEffective", levelDiagnostics.ReportedAboveFallbackCount),
             ("excludedLocalPlayer", partyCooldownRoster.ExcludedLocalPlayer),
             ("alliancePartyCount", partyCooldownRoster.AlliancePartyCount),
             ("allianceMembers", partyCooldownRoster.AllianceMemberCount),
@@ -242,10 +278,10 @@ public sealed unsafe partial class Plugin
             ("liveRuntimeKeys", partyCooldownRuntimeDiagnostics.LiveRuntimeKeyCount),
             ("logObservations", this.partyCooldownLogObservations.ActionableCount),
             ("candidateObservations", this.partyCooldownLogObservations.CandidateCount),
-            ("candidateMissingTotal", this.partyCooldownCandidateMissingLogCount),
-            ("candidateMissingSamples", this.partyCooldownCandidateMissingObservationCount),
-            ("logLocalPlayerSkippedTotal", this.partyCooldownLocalPlayerLogSkippedCount),
-            ("logLocalOwnedObjectSkippedTotal", this.partyCooldownLocalOwnedObjectLogSkippedCount),
+            ("candidateMissingTotal", signalDiagnostics.CandidateMissingTotal),
+            ("candidateMissingSamples", signalDiagnostics.CandidateMissingSamples),
+            ("logLocalPlayerSkippedTotal", signalDiagnostics.LocalPlayerLogSkippedTotal),
+            ("logLocalOwnedObjectSkippedTotal", signalDiagnostics.LocalOwnedObjectLogSkippedTotal),
             ("logTracked", logSummary.TrackedCount),
             ("logIgnored", logSummary.IgnoredCount),
             ("logMemberNotFound", logSummary.MemberNotFoundCount),
@@ -263,11 +299,17 @@ public sealed unsafe partial class Plugin
         DateTime timestampUtc,
         PartyCooldownLogObservation observation)
     {
+        var sourceAlias = this.performanceProfileIdentityAnonymizer.GetAlias(
+            observation.SourceName,
+            observation.SourceWorldId);
+        var memberAlias = this.performanceProfileIdentityAnonymizer.GetAlias(
+            observation.MemberName,
+            observation.SourceWorldId);
         this.AppendPerformanceProfileDiagnosticRow(builder, timestampUtc, "partyCooldownLastLog", "Party Cooldown Last Log", FormatDiagnosticPairs(
             ("timeLocal", observation.TimestampUtc.ToLocalTime()),
             ("result", observation.Result),
-            ("source", observation.SourceName),
-            ("member", observation.MemberName),
+            ("source", sourceAlias),
+            ("member", memberAlias),
             ("action", observation.ActionName),
             ("actionId", observation.ActionId),
             ("match", observation.MatchSource),
@@ -289,7 +331,7 @@ public sealed unsafe partial class Plugin
             ("hudAllianceOrderCount", observation.RosterDiagnostics.HudAllianceOrderCount),
             ("crossRealmGroupCount", observation.RosterDiagnostics.CrossRealmGroupCount),
             ("usedFlatFallback", observation.RosterDiagnostics.UsedFlatAllianceFallback),
-            ("detail", observation.Detail)));
+            ("detail", PerformanceProfileIdentityAnonymizer.RedactDetail(observation.Detail))));
     }
 
     private void AppendPartyCooldownLastUnknownLogDiagnosticRow(
@@ -297,30 +339,24 @@ public sealed unsafe partial class Plugin
         DateTime timestampUtc,
         PartyCooldownLogObservation observation)
     {
+        var sourceAlias = this.performanceProfileIdentityAnonymizer.GetAlias(
+            observation.SourceName,
+            observation.SourceWorldId);
         this.AppendPerformanceProfileDiagnosticRow(builder, timestampUtc, "partyCooldownLastUnknownLog", "Party Cooldown Last Unknown Log", FormatDiagnosticPairs(
             ("timeLocal", observation.TimestampUtc.ToLocalTime()),
             ("logMessageId", observation.LogMessageId),
-            ("source", observation.SourceName),
-            ("detail", observation.Detail)));
+            ("source", sourceAlias),
+            ("detail", PerformanceProfileIdentityAnonymizer.RedactDetail(observation.Detail))));
     }
 
     private void AppendGrayscaleDiagnosticRow(StringBuilder builder, DateTime timestampUtc)
     {
-        var queueCount = 0;
-        var pendingCount = 0;
-        var failedCount = 0;
-        lock (this.grayscaleIconLock)
-        {
-            queueCount = this.grayscaleIconQueue.Count;
-            pendingCount = this.grayscaleIconPending.Count;
-            failedCount = this.grayscaleIconFailed.Count;
-        }
-
+        var diagnostics = this.iconTextureService.CreateDiagnostics();
         this.AppendPerformanceProfileDiagnosticRow(builder, timestampUtc, "grayscale", "Grayscale", FormatDiagnosticPairs(
-            ("cache", this.grayscaleIconCache.Count),
-            ("queue", queueCount),
-            ("pending", pendingCount),
-            ("failed", failedCount),
+            ("cache", diagnostics.GrayscaleCacheCount),
+            ("queue", diagnostics.GrayscaleQueueCount),
+            ("pending", diagnostics.GrayscalePendingCount),
+            ("failed", diagnostics.GrayscaleFailedCount),
             ("processedThisFrame", this.performanceStats.GrayscaleIconProcessCount)));
     }
 

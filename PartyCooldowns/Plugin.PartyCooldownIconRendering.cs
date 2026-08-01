@@ -1,6 +1,6 @@
 namespace FFXIVAura;
 
-public sealed unsafe partial class Plugin
+public sealed partial class Plugin
 {
     private void DrawPartyCooldownJobBadge(ImDrawListPtr draw, PartyCooldownMemberSnapshot member, Vector2 pos, float size)
     {
@@ -8,8 +8,7 @@ public sealed unsafe partial class Plugin
         draw.AddRectFilled(pos, max, ImGui.GetColorU32(new Vector4(0.02f, 0.04f, 0.05f, 0.82f)), 4f);
         if (member.JobIconId > 0)
         {
-            var lookup = new GameIconLookup(member.JobIconId, false, true, null);
-            var texture = TextureProvider.GetFromGameIcon(in lookup).GetWrapOrEmpty();
+            var texture = this.iconTextureService.GetIcon(member.JobIconId);
             ImGui.SetCursorScreenPos(pos);
             ImGui.Image(texture.Handle, new Vector2(size, size));
         }
@@ -23,19 +22,18 @@ public sealed unsafe partial class Plugin
         try
         {
             var iconId = item.Definition.IconId;
-            var lookup = new GameIconLookup(iconId, false, true, null);
-            var texture = TextureProvider.GetFromGameIcon(in lookup).GetWrapOrEmpty();
+            var texture = this.iconTextureService.GetIcon(iconId);
             var pos = ImGui.GetCursorScreenPos();
             var draw = ImGui.GetWindowDrawList();
             var max = pos + new Vector2(size, size);
             var unavailable = item.State == PartyCooldownDisplayState.Cooldown;
-            var grayscaleTexture = unavailable ? this.GetGrayscaleIconTexture(iconId) : null;
+            var grayscaleTexture = unavailable ? this.iconTextureService.GetGrayscaleIcon(iconId) : null;
 
             ImGui.Image((grayscaleTexture ?? texture).Handle, new Vector2(size, size));
             if (unavailable && grayscaleTexture is null)
                 this.DrawUnavailableIconTint(draw, pos, max);
 
-            if (item.State != PartyCooldownDisplayState.Active && item.CooldownRemaining > 0.05f)
+            if (item.State != PartyCooldownDisplayState.Active && item.CooldownRemaining > TimerDisplayThresholds.MinimumActiveSeconds)
             {
                 var elapsedRatio = item.CooldownTotal <= 0f ? 1f : 1f - (item.CooldownRemaining / item.CooldownTotal);
                 this.DrawCooldownCover(draw, pos, max, elapsedRatio);

@@ -9,6 +9,7 @@ internal static class PerformanceFrameStatsTests
     [
         ("PerformanceFrameStats stays idle while disabled", StaysIdleWhileDisabled),
         ("PerformanceFrameStats counts enabled frame", CountsEnabledFrame),
+        ("PerformanceFrameStats includes post-frame profile work", IncludesPostFrameWork),
     ];
 
     private static void StaysIdleWhileDisabled()
@@ -76,6 +77,9 @@ internal static class PerformanceFrameStatsTests
         True(stats.MaxFrameOccurredAtUtc > DateTime.MinValue, "max frame timestamp should be captured");
 
         stats.Begin(true);
+        Near(8.75, stats.FrameMilliseconds);
+        Equal(2048L, stats.FrameAllocatedBytes);
+        Equal(1, stats.Gen0CollectionCount);
         Equal(0, stats.WindowCount);
         Equal(0, stats.SkillIconCount);
         Equal(0, stats.AuraIconCount);
@@ -99,5 +103,33 @@ internal static class PerformanceFrameStatsTests
         Near(2, stats.MaxFrameMilliseconds);
         Near(512, stats.AverageFrameAllocatedBytes);
         True(stats.MaxFrameOccurredAtUtc > DateTime.MinValue, "max frame timestamp should be reset and captured again");
+    }
+
+    private static void IncludesPostFrameWork()
+    {
+        var stats = new PerformanceFrameStats();
+
+        stats.Begin(true);
+        stats.Finish(TimeSpan.FromMilliseconds(8), 100, 0);
+        stats.IncludePostFrameWork(TimeSpan.FromMilliseconds(2), 50, 1);
+
+        Near(10, stats.FrameMilliseconds);
+        Near(10, stats.AverageFrameMilliseconds);
+        Near(10, stats.MaxFrameMilliseconds);
+        Equal(150L, stats.FrameAllocatedBytes);
+        Near(150, stats.AverageFrameAllocatedBytes);
+        Equal(150L, stats.MaxFrameAllocatedBytes);
+        Equal(1, stats.Gen0CollectionCount);
+
+        stats.Begin(true);
+        stats.Finish(TimeSpan.FromMilliseconds(4), 40, 0);
+        stats.IncludePostFrameWork(TimeSpan.FromMilliseconds(1), 10, 0);
+
+        Near(5, stats.FrameMilliseconds);
+        Near(7.5, stats.AverageFrameMilliseconds);
+        Near(10, stats.MaxFrameMilliseconds);
+        Equal(50L, stats.FrameAllocatedBytes);
+        Near(100, stats.AverageFrameAllocatedBytes);
+        Equal(150L, stats.MaxFrameAllocatedBytes);
     }
 }

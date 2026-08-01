@@ -1,9 +1,8 @@
 using Dalamud.Game.Chat;
-using Lumina.Text.ReadOnly;
 
 namespace FFXIVAura;
 
-public sealed unsafe partial class Plugin
+public sealed partial class Plugin
 {
     private static readonly TimeSpan PartyCooldownLogDedupeWindow = TimeSpan.FromMilliseconds(500);
 
@@ -11,11 +10,12 @@ public sealed unsafe partial class Plugin
     {
         try
         {
+            this.NoteCrossThreadEventUse("OnLogMessage");
             this.TrackPartyCooldownFromLogMessage(message);
         }
         catch (Exception ex)
         {
-            Log.Debug(ex, "Failed to process FFXIVAura party cooldown log message.");
+            this.pluginLog.Debug(ex, "Failed to process FFXIVAura party cooldown log message.");
         }
     }
 
@@ -52,25 +52,19 @@ public sealed unsafe partial class Plugin
             effectiveDefinition);
     }
 
-    private bool IsCompletedPartyCooldownActionUseLog(ILogMessage message)
-    {
-        if (!message.GameData.IsValid)
-            return false;
-
-        var templateText = message.GameData.Value.Text.ExtractText();
-        return PartyCooldownLogMatcher.IsCompletedActionUseTemplate(templateText);
-    }
-
     private bool IsLocalPlayerPartyCooldownLogSource(ILogMessageEntity source)
     {
-        if (!source.IsPlayer || ObjectTable.LocalPlayer is not { } localPlayer)
+        if (!source.IsPlayer)
+            return false;
+
+        if (!this.playerRuntimeContext.TryCaptureLocalPlayerIdentity(out var localPlayer))
             return false;
 
         return PartyCooldownLogMatcher.IsSameActor(
             source.Name.ExtractText(),
             source.HomeWorldId,
-            localPlayer.Name.ToString(),
-            (ushort)PlayerState.HomeWorld.RowId);
+            localPlayer.Name,
+            localPlayer.HomeWorldId);
     }
 
     private bool TryFindPartyCooldownMemberByLogSource(
@@ -88,7 +82,13 @@ public sealed unsafe partial class Plugin
             return true;
         }
 
-        if (this.TryFindPartyCooldownMemberByOwnedObjectName(sourceName, displayMembers, out member, out detail, out ignoredReason))
+        if (this.partyCooldownOwnedObjectMatcher.TryFindMember(
+                sourceName,
+                this.playerFrameContext.LocalPlayerEntityId,
+                displayMembers,
+                out member,
+                out detail,
+                out ignoredReason))
         {
             return true;
         }
@@ -158,58 +158,10 @@ public sealed unsafe partial class Plugin
         if (!this.ShouldObservePartyCooldownLogs())
             return detail;
 
-        var statusIds = this.ResolvePartyCooldownStatusIds(definition);
+        var statusIds = this.partyCooldownCatalog.ResolveStatusIds(definition);
         return statusIds.Count == 0
             ? $"{detail} / 상태 추적 없음"
             : $"{detail} / 상태 {string.Join(", ", statusIds)}";
-    }
-
-    private PartyCooldownObservedAction ExtractObservedPartyCooldownAction(ILogMessage message)
-    {
-        if (this.partyCooldownLogActionParamIndexByLogMessageId.TryGetValue(message.LogMessageId, out var cachedIndex)
-            && this.TryGetTrackedActionIdParameter(message, cachedIndex, out var cachedActionId))
-        {
-            return new PartyCooldownObservedAction(cachedActionId, string.Empty, "id", cachedIndex);
-        }
-
-        for (var index = 0; index < message.ParameterCount; index++)
-        {
-            if (this.TryGetTrackedActionIdParameter(message, index, out var actionId))
-            {
-                this.partyCooldownLogActionParamIndexByLogMessageId[message.LogMessageId] = index;
-                return new PartyCooldownObservedAction(actionId, string.Empty, "id", index);
-            }
-        }
-
-        for (var index = 0; index < message.ParameterCount; index++)
-        {
-            if (!message.TryGetStringParameter(index, out var stringValue))
-                continue;
-
-            var actionName = PartyCooldownLogMatcher.NormalizeActionName(ExtractLogParameterText(stringValue));
-            if (string.IsNullOrWhiteSpace(actionName))
-                continue;
-
-            if (this.partyCooldownDefinitionsByName.ContainsKey(actionName))
-                return new PartyCooldownObservedAction(0, actionName, "name", index);
-        }
-
-        return default;
-    }
-
-    private bool TryGetTrackedActionIdParameter(ILogMessage message, int parameterIndex, out uint actionId)
-    {
-        actionId = 0;
-        if (parameterIndex < 0
-            || parameterIndex >= message.ParameterCount
-            || !message.TryGetIntParameter(parameterIndex, out var value)
-            || value <= 0)
-        {
-            return false;
-        }
-
-        actionId = (uint)value;
-        return this.partyCooldownDefinitionsByActionId.ContainsKey(actionId);
     }
 
     private bool HasPartyCooldownCandidate(PartyCooldownObservedAction observedAction)
@@ -219,15 +171,15 @@ public sealed unsafe partial class Plugin
     private PartyCooldownDefinition? ResolveObservedPartyCooldownDefinition(PartyCooldownObservedAction observedAction, string job)
     {
         if (observedAction.ActionId > 0
-            && this.partyCooldownDefinitionsByActionId.TryGetValue(observedAction.ActionId, out var actionDefinition)
-            && this.IsPartyCooldownForJob(actionDefinition, job))
+            && this.partyCooldownCatalog.TryGetByActionId(observedAction.ActionId, out var actionDefinition)
+            && this.partyCooldownCatalog.IsForJob(actionDefinition, job))
         {
             return actionDefinition;
         }
 
         var actionName = PartyCooldownLogMatcher.NormalizeActionName(observedAction.ActionName);
-        if (actionName.Length > 0 && this.partyCooldownDefinitionsByName.TryGetValue(actionName, out var nameDefinitions))
-            return nameDefinitions.FirstOrDefault(definition => this.IsPartyCooldownForJob(definition, job));
+        if (actionName.Length > 0 && this.partyCooldownCatalog.TryGetByName(actionName, out var nameDefinitions))
+            return nameDefinitions.FirstOrDefault(definition => this.partyCooldownCatalog.IsForJob(definition, job));
 
         return null;
     }
@@ -240,7 +192,7 @@ public sealed unsafe partial class Plugin
         if (definition.Cooldown <= 0f)
             return;
 
-        var runtimeKey = this.CreatePartyCooldownRuntimeKey(member.Key, definition);
+        var runtimeKey = this.partyCooldownCatalog.CreateRuntimeKey(member.Key, definition);
         var runtime = this.partyCooldownRuntimeStore.GetOrCreateState(runtimeKey);
 
         if (PartyCooldownLogMatcher.IsDuplicateUse(runtime.LastLogTrackedAtUtc, nowUtc, PartyCooldownLogDedupeWindow))
@@ -251,41 +203,18 @@ public sealed unsafe partial class Plugin
             runtime,
             nowUtc,
             definition.Cooldown,
-            this.GetPartyCooldownMaxCharges(definition, this.GetCurrentEffectiveLevel()),
+            this.partyCooldownCatalog.GetMaxCharges(
+                definition,
+                member.ResolveEffectiveLevel(this.playerRuntimeContext.Capture().EffectiveLevel)),
             PartyCooldownUseObservationSource.CombatLog,
             PartyCooldownLogDedupeWindow,
             PartyCooldownCrossSignalDedupeWindow);
     }
 
-    private static string ExtractLogParameterText(ReadOnlySeString value)
-        => value.ExtractText().Trim();
-
     private string DescribeLogMessageParameters(ILogMessage message)
-    {
-        if (!this.ShouldObservePartyCooldownLogs())
-            return string.Empty;
-
-        var parts = new List<string>(Math.Min(message.ParameterCount, 8));
-        for (var index = 0; index < message.ParameterCount && parts.Count < 8; index++)
-        {
-            if (message.TryGetIntParameter(index, out var intValue))
-            {
-                parts.Add($"{index}=#{intValue}");
-                continue;
-            }
-
-            if (message.TryGetStringParameter(index, out var stringValue))
-            {
-                var text = ExtractLogParameterText(stringValue);
-                if (text.Length > 24)
-                    text = $"{text[..24]}...";
-
-                parts.Add($"{index}=\"{text}\"");
-            }
-        }
-
-        return parts.Count == 0 ? "params: -" : $"params: {string.Join(", ", parts)}";
-    }
+        => this.ShouldObservePartyCooldownLogs()
+            ? this.partyCooldownLogParser.DescribeParameters(message)
+            : string.Empty;
 
     private void RecordPartyCooldownLogObservation(
         uint logMessageId,

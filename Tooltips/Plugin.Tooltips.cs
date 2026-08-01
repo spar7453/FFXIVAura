@@ -1,6 +1,6 @@
 namespace FFXIVAura;
 
-public sealed unsafe partial class Plugin
+public sealed partial class Plugin
 {
     private void ShowAuraTooltip(AuraState aura)
     {
@@ -15,47 +15,12 @@ public sealed unsafe partial class Plugin
         this.performanceStats.CountTooltipRender();
         this.tooltipDiagnostics.RecordTooltipRequest(TooltipDiagnosticKind.Aura, statusId.ToString(), 0);
         this.SetBugDiagnosticEvent($"tooltipAura:{aura.StatusId}:{statusId}");
-        ShowTextTooltipAtMouse(this.GetStatusTooltipText(statusId));
+        ShowTextTooltipAtMouse(this.tooltipContentService.GetStatusText(statusId));
     }
 
     private void MarkOverlayTooltipRequested()
     {
         this.overlayTooltipRequestedThisFrame = true;
-    }
-
-    private string GetStatusTooltipText(uint statusId)
-    {
-        if (this.statusTooltipTextCache.TryGetValue(statusId, out var cached))
-            return cached;
-
-        var text = $"Status {statusId}";
-        var shouldCache = false;
-        try
-        {
-            var sheet = DataManager.GetExcelSheet<GameStatus>();
-            if (sheet is not null)
-            {
-                var row = sheet.GetRow(statusId);
-                var name = row.Name.ExtractText().StripSoftHyphen();
-                var description = SeStringEvaluator.Evaluate(row.Description).ExtractText().StripSoftHyphen();
-                if (string.IsNullOrWhiteSpace(name))
-                    name = $"Status {statusId}";
-
-                text = string.IsNullOrWhiteSpace(description)
-                    ? name
-                    : $"{name}\n{description}";
-                shouldCache = true;
-            }
-        }
-        catch (Exception ex)
-        {
-            Log.Debug(ex, $"Failed to read status tooltip {statusId}.");
-        }
-
-        if (shouldCache)
-            this.statusTooltipTextCache[statusId] = text;
-
-        return text;
     }
 
     private static void ShowTextTooltipAtMouse(string text)

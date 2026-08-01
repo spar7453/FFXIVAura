@@ -2,7 +2,7 @@ using Dalamud.Game.Chat;
 
 namespace FFXIVAura;
 
-public sealed unsafe partial class Plugin
+public sealed partial class Plugin
 {
     private readonly record struct PartyCooldownLogTrackingContext(
         ILogMessage Message,
@@ -16,9 +16,9 @@ public sealed unsafe partial class Plugin
 
     private bool ShouldProcessPartyCooldownLogMessage(ILogMessage message)
         => this.config.Enabled
-           && this.partyCooldownDefinitions.Count > 0
+           && this.partyCooldownCatalog.Definitions.Count > 0
            && this.config.IconWindows.Any(window => IconWindowRoles.IsPartyCooldownRole(window.Role))
-           && this.IsCompletedPartyCooldownActionUseLog(message);
+           && this.partyCooldownLogParser.IsCompletedActionUse(message);
 
     private bool TryCreatePartyCooldownLogTrackingContext(
         ILogMessage message,
@@ -34,11 +34,11 @@ public sealed unsafe partial class Plugin
 
         if (this.IsLocalPlayerPartyCooldownLogSource(source))
         {
-            this.partyCooldownLocalPlayerLogSkippedCount++;
+            this.partyCooldownSignalDiagnostics.CountLocalPlayerLogSkipped();
             return false;
         }
 
-        var observedAction = this.ExtractObservedPartyCooldownAction(message);
+        var observedAction = this.partyCooldownLogParser.ExtractObservedAction(message);
         var sourceName = source.Name.ExtractText();
         if (!this.HasPartyCooldownCandidate(observedAction))
         {
@@ -56,7 +56,7 @@ public sealed unsafe partial class Plugin
         ILogMessageEntity source,
         PartyCooldownObservedAction observedAction)
     {
-        this.partyCooldownCandidateMissingLogCount++;
+        this.partyCooldownSignalDiagnostics.CountCandidateMissing();
         if (!this.ShouldObservePartyCooldownLogs())
             return;
 
@@ -68,7 +68,7 @@ public sealed unsafe partial class Plugin
             return;
         }
 
-        this.partyCooldownCandidateMissingObservationCount++;
+        this.partyCooldownSignalDiagnostics.CountCandidateMissingSample();
         this.RecordPartyCooldownLogObservation(
             message.LogMessageId,
             sourceName,
@@ -106,7 +106,7 @@ public sealed unsafe partial class Plugin
 
         if (ignoredReason == PartyCooldownIgnoredLogReason.LocalPlayerExcluded)
         {
-            this.partyCooldownLocalOwnedObjectLogSkippedCount++;
+            this.partyCooldownSignalDiagnostics.CountLocalOwnedObjectLogSkipped();
             return false;
         }
 
@@ -140,8 +140,8 @@ public sealed unsafe partial class Plugin
             return false;
         }
 
-        var level = this.GetCurrentEffectiveLevel();
-        effectiveDefinition = this.ResolveEffectivePartyCooldownDefinition(definition, member.Job, level);
+        var level = member.ResolveEffectiveLevel(this.playerRuntimeContext.Capture().EffectiveLevel);
+        effectiveDefinition = this.partyCooldownCatalog.ResolveEffectiveDefinition(definition, member.Job, level);
         if (this.IsPartyCooldownTrackedByAnyWindow(effectiveDefinition, member.Job, level))
             return true;
 
